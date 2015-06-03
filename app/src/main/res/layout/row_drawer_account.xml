@@ -1,0 +1,48 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+			 android:layout_width="match_parent"
+			 android:layout_height="48dp"
+			 android:background="@drawable/recyclerview_item_bg"
+			 android:clickable="true"
+			 android:focusable="true">
+
+	<Switch
+		android:id="@+id/use_stream"
+		android:layout_width="70dp"
+		android:layout_height="match_parent"
+		android:layout_gravity="center_vertical|end"
+		android:checked="true"
+		android:padding="16dp"
+		/>
+
+	<ImageView
+		android:id="@+id/item_image"
+		android:layout_width="48dp"
+		android:layout_height="48dp"
+		android:layout_gravity="start"
+		android:contentDescription="@string/empty"
+		android:padding="8dp"
+		android:src="@drawable/ic_launcher"
+		/>
+	<ImageButton
+		android:background="?attr/selectableItemBackground"
+		android:id="@+id/action_button"
+		android:layout_width="48dp"
+		android:layout_height="48dp"
+		android:padding="8dp"
+		android:src="?attr/ic_content_clear"
+		android:layout_gravity="end"
+		/>
+
+	<TextView
+		android:id="@+id/item_name"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:layout_marginEnd="70dp"
+		android:layout_marginLeft="72dp"
+		android:layout_marginRight="70dp"
+		android:layout_marginStart="72dp"
+		android:gravity="center_vertical"
+		android:text="@string/placeholder"
+		android:textColor="?android:attr/textColorPrimary"
+		android:textSize="14sp"/>
+</FrameLayout>

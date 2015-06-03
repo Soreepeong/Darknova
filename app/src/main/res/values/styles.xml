@@ -1,0 +1,35 @@
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppBaseTheme" parent="WithIcon.NoActionBar">
+		<item name="colorPrimary">#673AB7</item> <!-- 500 -->
+		<item name="colorPrimaryDark">#512DA8</item> <!-- 700 -->
+		<item name="colorAccent">#69F0AE</item> <!-- A200 -->
+		<item name="fab_colorRipple">#b388ff</item> <!-- A100 -->
+		<item name="fab_colorPressed">#7c4dff</item> <!-- A200 -->
+		<item name="fab_colorNormal">#651fff</item> <!-- A400 -->
+		<item name="drawerArrowStyle">@style/DrawerArrowStyle</item>
+    </style>
+
+	<style name="AppTheme" parent="AppBaseTheme"></style>
+
+	<style name="TransparentAppTheme" parent="AppTheme">
+		<item name="android:windowNoTitle">true</item>
+		<item name="android:windowIsTranslucent">true</item>
+		<item name="android:windowBackground">@android:color/transparent</item>
+		<item name="android:windowContentOverlay">@null</item>
+		<item name="android:windowIsFloating">false</item>
+		<item name="android:backgroundDimEnabled">false</item>
+	</style>
+
+	<style name="DrawerArrowStyle" parent="Widget.AppCompat.DrawerArrowToggle">
+		<item name="spinBars">true</item>
+		<item name="color">@android:color/white</item>
+	</style>
+
+	<style name="ToolBarStyle" parent="">
+		<item name="popupTheme">@style/ThemeOverlay.AppCompat.Light</item>
+		<item name="theme">@style/ThemeOverlay.AppCompat.Dark.ActionBar</item>
+	</style>
+
+</resources>

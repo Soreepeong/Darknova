@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.v4.widget.SwipeRefreshLayout
+	android:id="@+id/swipeRefresher"
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent">
+
+	<FrameLayout
+		android:layout_width="match_parent"
+		android:layout_height="match_parent">
+
+		<ImageView
+			android:layout_width="240dp"
+			android:layout_height="240dp"
+			android:layout_gravity="end|bottom"
+			android:id="@+id/empty_image"
+			android:visibility="gone"
+			android:src="@drawable/illust_empty_page"/>
+
+		<TextView
+			style="@style/TextAppearance.AppCompat.Large"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center"
+			android:id="@+id/page_state"
+			android:text="@string/page_loading"/>
+
+		<android.support.v7.widget.RecyclerView
+			android:id="@+id/list"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:clipToPadding="false"
+			android:paddingTop="@dimen/abc_action_bar_default_height_material"
+			/>
+
+		<ProgressBar
+			android:id="@id/progress_horizontal"
+			style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="-6dp"
+			android:indeterminate="true"
+			android:paddingTop="@dimen/abc_action_bar_default_height_material"
+			/>
+	</FrameLayout>
+</android.support.v4.widget.SwipeRefreshLayout>

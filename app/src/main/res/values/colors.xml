@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+	<!--
+		Check Android Theme colors for color reference:
+		https://developer.android.com/training/material/images/ThemeColors.png
+
+		Refer also to Color palette for the UI colors you should use:
+		http://www.google.com/design/spec/style/color.html#color-ui-color-palette
+	-->
+
+	<drawable name="pressed_gray">#0c000000</drawable>
+	<drawable name="selected_gray">#80000000</drawable>
+</resources>

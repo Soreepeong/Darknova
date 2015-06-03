@@ -1,0 +1,27 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+			  android:layout_width="match_parent"
+			  android:layout_height="48dp"
+			  android:background="@drawable/recyclerview_item_bg"
+			  android:clickable="true"
+			  android:focusable="true">
+	<ImageView
+		android:id="@+id/item_image"
+		android:layout_width="48dp"
+		android:layout_height="48dp"
+		android:padding="8dp"
+		android:src="@drawable/ic_launcher"
+		android:contentDescription="@string/empty"
+		/>
+	<TextView
+		android:id="@+id/item_name"
+		android:layout_width="match_parent"
+		android:layout_height="48dp"
+		android:layout_marginLeft="72dp"
+		android:layout_marginRight="48dp"
+		android:layout_marginStart="72dp"
+		android:layout_marginEnd="48dp"
+		android:gravity="center_vertical"
+		android:text="@string/placeholder"
+		android:textColor="?android:attr/textColorPrimary"
+		android:textSize="14sp"/>
+</FrameLayout>

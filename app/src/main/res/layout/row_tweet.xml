@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+			 xmlns:app="http://schemas.android.com/apk/res-auto"
+			 android:layout_width="match_parent"
+			 android:layout_height="wrap_content"
+			 android:clickable="true"
+			 android:focusable="true"
+			 android:background="@drawable/recyclerview_item_bg">
+
+
+	<ImageView
+		android:id="@+id/imgUserPictureFull"
+		android:layout_width="60sp"
+		android:layout_height="60sp"
+		android:layout_margin="6dp"
+		/>
+
+	<ImageView
+		android:id="@+id/imgUserPictureUp"
+		android:layout_width="48sp"
+		android:layout_height="48sp"
+		android:layout_margin="6dp"/>
+
+	<ImageView
+		android:id="@+id/imgUserPictureDown"
+		android:layout_width="36sp"
+		android:layout_height="36sp"
+		android:layout_marginLeft="30dp"
+		android:layout_marginStart="30dp"
+		android:layout_marginTop="30dp"/>
+
+	<ImageView
+		android:id="@+id/imgSelectedIndicator"
+		android:layout_width="60sp"
+		android:layout_height="60sp"
+		android:layout_margin="6sp"
+		android:padding="12sp"
+		android:src="?attr/ic_navigation_check"
+		android:background="#80000000"
+		/>
+
+	<LinearLayout
+		android:id="@+id/divItemType"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_gravity="end"
+		android:padding="6dp">
+
+		<ImageView
+			android:id="@+id/imgInfoProtected"
+			android:layout_width="16sp"
+			android:layout_height="16sp"
+			android:src="?attr/ic_action_lock"/>
+
+		<ImageView
+			android:id="@+id/imgInfoVerified"
+			android:layout_width="16sp"
+			android:layout_height="16sp"
+			android:src="?attr/ic_navigation_check"/>
+
+		<ImageView
+			android:id="@+id/imgInfoFavorited"
+			android:layout_width="16sp"
+			android:layout_height="16sp"
+			android:src="?attr/ic_action_star_rate"/>
+
+		<ImageView
+			android:id="@+id/imgInfoRetweeted"
+			android:layout_width="16sp"
+			android:layout_height="16sp"
+			android:src="?attr/ic_av_repeat"/>
+
+		<ImageView
+			android:id="@+id/imgInfoReplied"
+			android:layout_width="16sp"
+			android:layout_height="16sp"
+			android:src="?attr/ic_content_reply"/>
+	</LinearLayout>
+
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginBottom="6sp"
+		android:layout_marginTop="6sp"
+		android:orientation="vertical">
+
+		<TextView
+			android:id="@+id/lblUserName"
+			style="@style/TextAppearance.AppCompat.Medium"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginEnd="6sp"
+			android:layout_marginLeft="72sp"
+			android:layout_marginRight="6sp"
+			android:layout_marginStart="72sp"
+			android:lines="1"
+			android:maxLines="1"
+			android:minLines="1"
+			android:singleLine="true"
+			android:text="@string/placeholder"
+			android:textColor="?android:textColorPrimary"
+			android:textStyle="bold"/>
+
+		<TextView
+			android:id="@+id/lblData"
+			style="@style/TextAppearance.AppCompat.Medium"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginEnd="6sp"
+			android:layout_marginLeft="72sp"
+			android:layout_marginRight="6sp"
+			android:layout_marginStart="72sp"
+			android:layout_marginTop="2sp"
+			android:text="@string/placeholder"
+			android:textColor="?android:textColorPrimary"/>
+
+		<TextView
+			android:id="@+id/lblDescription"
+			style="@style/TextAppearance.AppCompat.Small"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginEnd="6sp"
+			android:layout_marginLeft="72sp"
+			android:layout_marginRight="6sp"
+			android:layout_marginStart="72sp"
+			android:layout_marginTop="3sp"
+			android:lines="1"
+			android:maxLines="1"
+			android:minLines="1"
+			android:singleLine="true"
+			android:text="@string/placeholder"
+			android:textColor="?android:textColorSecondary"/>
+
+		<TextView
+			android:id="@+id/lblRetweetDescription"
+			style="@style/TextAppearance.AppCompat.Small"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginEnd="6sp"
+			android:layout_marginLeft="72sp"
+			android:layout_marginRight="6sp"
+			android:layout_marginStart="72sp"
+			android:lines="1"
+			android:maxLines="1"
+			android:minLines="1"
+			android:singleLine="true"
+			android:text="@string/placeholder"
+			android:textColor="?android:textColorSecondary"/>
+
+		<LinearLayout
+			android:id="@+id/divPreviews"
+			android:layout_width="match_parent"
+			android:layout_height="200sp"
+			android:layout_marginTop="3sp"
+			android:orientation="horizontal">
+
+			<ImageView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_weight="1"
+				android:contentDescription="@string/empty"
+				android:scaleType="centerCrop"/>
+
+			<ImageView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_weight="1"
+				android:contentDescription="@string/empty"
+				android:scaleType="centerCrop"/>
+
+			<ImageView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_weight="1"
+				android:contentDescription="@string/empty"
+				android:scaleType="centerCrop"/>
+
+			<ImageView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_weight="1"
+				android:contentDescription="@string/empty"
+				android:scaleType="centerCrop"/>
+
+			<ImageView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_weight="1"
+				android:contentDescription="@string/empty"
+				android:scaleType="centerCrop"/>
+
+			<ImageView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_weight="1"
+				android:contentDescription="@string/empty"
+				android:scaleType="centerCrop"/>
+
+			<ImageView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_weight="1"
+				android:contentDescription="@string/empty"
+				android:scaleType="centerCrop"/>
+
+			<ImageView
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:layout_weight="1"
+				android:contentDescription="@string/empty"
+				android:scaleType="centerCrop"/>
+		</LinearLayout>
+	</LinearLayout>
+
+	<com.soreepeong.darknova.ui.dragaction.DragInitiatorButton
+		android:id="@+id/dragActionHandle"
+		android:layout_width="72sp"
+		android:layout_height="match_parent"
+		android:layout_marginBottom="206sp"
+		android:background="?attr/selectableItemBackground"
+		android:layout_gravity="start|top"
+		app:action_type="@+id/drag_action_type_tweet" />
+
+	<com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectLinearLayout
+		android:id="@+id/drag_action_type_tweet"
+		android:orientation="horizontal"
+		android:weightSum="4"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:layout_gravity="start|top"
+		android:layout_marginLeft="66dp"
+		android:layout_marginStart="66dp"
+		android:layout_marginBottom="206sp"
+		android:background="#C0000000"
+		android:clickable="true">
+
+		<Button
+			android:id="@+id/tweetActionReply"
+			android:layout_width="0dp"
+			android:layout_height="80dp"
+			android:layout_weight="1"
+			android:layout_gravity="start|center_vertical"
+			android:background="@drawable/ripple_bg"
+			android:paddingTop="8dp"
+			android:paddingBottom="8dp"
+			android:drawableTop="?attr/ic_content_reply"
+			android:gravity="top|center_horizontal"
+			android:text="@string/tweet_action_reply" />
+		<Button
+			android:id="@+id/tweetActionRetweet"
+			android:layout_width="0dp"
+			android:layout_height="80dp"
+			android:layout_weight="1"
+			android:layout_gravity="start|center_vertical"
+			android:paddingTop="8dp"
+			android:paddingBottom="8dp"
+			android:background="@drawable/ripple_bg"
+			android:drawableTop="?attr/ic_av_repeat"
+			android:gravity="top|center_horizontal"
+			android:text="@string/tweet_action_retweet" />
+		<Button
+			android:id="@+id/tweetActionFavorite"
+			android:layout_width="0dp"
+			android:layout_height="80dp"
+			android:layout_weight="1"
+			android:layout_gravity="start|center_vertical"
+			android:paddingTop="8dp"
+			android:paddingBottom="8dp"
+			android:background="@drawable/ripple_bg"
+			android:drawableTop="?attr/ic_action_star_rate"
+			android:gravity="top|center_horizontal"
+			android:text="@string/tweet_action_favorite" />
+		<Button
+			android:id="@+id/tweetActionFavorite2"
+			android:layout_width="0dp"
+			android:layout_height="80dp"
+			android:layout_weight="1"
+			android:layout_gravity="start|center_vertical"
+			android:paddingTop="8dp"
+			android:paddingBottom="8dp"
+			android:background="@drawable/ripple_bg"
+			android:drawableTop="?attr/ic_action_star_rate"
+			android:gravity="top|center_horizontal"
+			android:text="@string/tweet_action_favorite" />
+	</com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectLinearLayout>
+</FrameLayout>

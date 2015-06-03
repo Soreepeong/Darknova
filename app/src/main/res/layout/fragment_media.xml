@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+			  android:layout_width="match_parent"
+			  android:layout_height="match_parent">
+
+	<SurfaceView
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:id="@+id/viewerVideo"
+		android:visibility="gone" />
+
+	<com.soreepeong.darknova.ui.view.LargeImageView
+		android:id="@+id/viewer"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"/>
+
+	<LinearLayout
+		android:id="@+id/divPageInfo"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:layout_gravity="center"
+		android:background="#30000000"
+		android:gravity="center"
+		android:orientation="vertical"
+		android:padding="16dip">
+
+		<TextView
+			android:id="@+id/lblPageInfo"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:text="@string/mediapreview_ready"
+			android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+			android:gravity="center"
+			android:singleLine="true"
+			android:lines="1" />
+
+		<TextView
+			android:id="@+id/lblLoadInfo"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:text="@string/empty"
+			android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+			android:gravity="center"
+			android:singleLine="true"
+			android:lines="1" />
+
+		<ProgressBar
+			android:id="@+id/pageProgress"
+			style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_margin="8dip"/>
+
+		<Button
+			android:id="@+id/cancel"
+			android:layout_width="wrap_content"
+			android:layout_height="48dip"
+			android:text="@string/mediapreview_cancel"/>
+	</LinearLayout>
+
+</FrameLayout>

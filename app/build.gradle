@@ -1,0 +1,59 @@
+import java.util.regex.Pattern
+
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 22
+    buildToolsVersion "21.1.2"
+    compileOptions.encoding = 'UTF-8'
+
+	def versionPropsFile = file('version.properties')
+
+	if (versionPropsFile.canRead()) {
+		def Properties versionProps = new Properties()
+
+		versionProps.load(new FileInputStream(versionPropsFile))
+
+		def vCode = versionProps['VERSION_CODE'].toInteger() + 1
+		versionProps['VERSION_CODE']=vCode.toString()
+		def vName = versionProps['VERSION_NAME'].toString();
+
+		def matcherVersionNumber = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)").matcher(vName)
+		if (!matcherVersionNumber.find())
+			throw new GradleException("Version name does not have a form of 0.0.0.0")
+		vName = matcherVersionNumber.group(1) + "." + matcherVersionNumber.group(2) + "." + matcherVersionNumber.group(3) + "." + (Integer.parseInt(matcherVersionNumber.group(4)) + 1)
+		versionProps['VERSION_NAME'] = vName
+
+		versionProps.store(versionPropsFile.newWriter(), null)
+
+		defaultConfig {
+			applicationId "com.soreepeong.darknova"
+			minSdkVersion 16
+			targetSdkVersion 22
+			versionCode vCode
+			versionName vName
+		}
+	}
+	else {
+		throw new GradleException("Could not read version.properties!")
+	}
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    compile 'com.android.support:appcompat-v7:22.1.1'
+    compile 'com.android.support:recyclerview-v7:22.1.0'
+	compile 'com.fasterxml.jackson.core:jackson-core:2.5.3'
+    compile 'com.melnykov:floatingactionbutton:1.3.0'
+    compile 'org.apmem.tools:layouts:1.9@aar'
+    compile 'com.h6ah4i.android.widget.advrecyclerview:advrecyclerview:0.7.1'
+    compile 'org.apache.commons:commons-lang3:3.4'
+    compile 'ch.acra:acra:4.6.2'
+	compile 'pl.droidsonroids.gif:android-gif-drawable:1.1.+'
+}

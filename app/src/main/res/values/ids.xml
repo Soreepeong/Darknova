@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<item name="IMAGEVIEW_URL" type="id"/>
+	<item name="IMAGEVIEW_PREPROCESSOR" type="id"/>
+	<item name="NOTIFICATION_STREAM_INDICATOR" type="id" />
+	<item name="NOTIFICATION_ACTIVITIES" type="id" />
+	<item name="NOTIFICATION_STREAM_ONESHOT_TICKER" type="id" />
+	<item name="DRAG_ACTION_TYPE_ALL" type="id" />
+	<item name="DRAG_ACTION_CLICK_PERSIST" type="id" />
+	<item name="VIEWHOLDER_ID" type="id" />
+</resources>

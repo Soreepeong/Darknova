@@ -1,0 +1,109 @@
+<resources>
+	<string name="empty"></string>
+	<string name="placeholder">Placeholder</string>
+
+	<string name="account_type" formatted="false">Twitter</string>
+	<string name="account_label">Darknova</string>
+
+	<string name="crash_toast_text">Sending error reports&#8230;</string>
+
+	<string name="app_name">Darknova</string>
+
+	<string name="action_settings">Settings</string>
+	<string name="action_reorder_page">Reorder page</string>
+	<string name="action_close_page">Close page</string>
+	<string name="action_clear_selection">Clear selection</string>
+	<string name="action_search">Search</string>
+	<string name="action_search_text">Search &quot;${text}&quot;</string>
+	<string name="action_clean">Complete refresh</string>
+	<string name="search_hint">Search tweets and users</string>
+
+	<string name="drawer_open">Open drawer</string>
+	<string name="drawer_close">Close drawer</string>
+	<string name="drawer_stream_btn_on">Turn stream on</string>
+	<string name="drawer_stream_btn_off">Turn stream off</string>
+	<string name="drawer_add_page">Add page</string>
+	<string name="drawer_manage_pages">Manage pages</string>
+	<string name="drawer_add_account">Add account</string>
+	<string name="drawer_manage_accounts">Manage accounts</string>
+
+	<string name="login_preparing">Preparing to sign in&#8230;</string>
+	<string name="login_signing">Signing in&#8230;</string>
+	<string name="login_error_occured">Error</string>
+
+	<string name="tweet_description" formatted="false">${time} via ${via}</string>
+	<string name="tweet_description_reply" formatted="false">${time} via ${via}, in reply to ${reply}</string>
+	<string name="tweet_description_retweet" formatted="false">${time} via ${via}, ${retweet} retweeted</string>
+	<string name="tweet_description_retweet_user" formatted="false">${user}</string>
+	<string name="tweet_description_retweet_user_count" formatted="false">${count} user</string>
+	<string name="tweet_description_retweet_user_counts" formatted="false">${count} users</string>
+
+	<string name="new_tweet_hint">New tweet&#8230;</string>
+	<string name="new_tweet_clear">Clear</string>
+	<string name="new_tweet_clear_confirm">Discard all input?</string>
+	<string name="new_tweet_write">Write</string>
+	<string name="new_tweet_save">Save</string>
+	<string name="new_tweet_attach">Attach</string>
+	<string name="new_tweet_attach_image">Attach image</string>
+	<string name="new_tweet_attach_take_picture">Take a picture</string>
+
+	<string name="tweet_action_reply">Reply</string>
+	<string name="tweet_action_retweet">Retweet</string>
+	<string name="tweet_action_favorite">Favorite</string>
+
+	<string name="stream_notification_title">${app_name}: Stream</string>
+	<string name="stream_connected">${user}: Connected</string>
+	<string name="stream_error">${user}: Error ${error}</string>
+	<string name="stream_stopped">${user}: Stopped</string>
+	<string name="stream_stopped_all">Stream quit</string>
+	<string name="stream_quit_ongoing_notification">Stream still active</string>
+
+	<string name="notification_new_activities">New activies</string>
+	<string name="notification_new_activities_summary">${count} new activities</string>
+	<string name="notification_new_activities_more">${count} more</string>
+	<string name="notification_new_mention">New mention</string>
+	<string name="notification_new_mention_description">${user}: ${text}</string>
+	<string name="notification_new_mention_big_summary">From @${user_id} (${user_name})</string>
+	<string name="notification_new_message">New message arrived</string>
+	<string name="notification_new_message_description">Message from ${user}: ${text}</string>
+	<string name="notification_keep_streaming_btn">Keep</string>
+	<string name="notification_stop_streaming_btn">Stop</string>
+
+	<string name="page_loading">Loading&#8230;</string>
+	<string name="page_empty">Empty</string>
+	<string name="page_empty_refresh">Swipe or click to refresh</string>
+	<string name="page_filter_none">No matching item</string>
+	<string name="page_filter_none_clear">Click to clear filter</string>
+
+	<string name="mediapreview_name">Darknova Previewer</string>
+	<string name="mediapreview_cancel">Stop</string>
+	<string name="mediapreview_not_yet_loaded">Image is not loaded.</string>
+	<string name="mediapreview_rotate_left">Rotate left</string>
+	<string name="mediapreview_rotate_right">Rotate right</string>
+	<string name="mediapreview_share">Share</string>
+	<string name="mediapreview_retry">Retry</string>
+	<string name="mediapreview_change_background">Change background</string>
+	<string name="mediapreview_download">Download</string>
+	<string name="mediapreview_download_fail">Download failed</string>
+	<string name="mediapreview_downloaded_ask">Saved to ${path}.\n\nOpen in external viewer?</string>
+	<string name="mediapreview_downloaded_ask_fail">No external viewer found</string>
+	<string name="mediapreview_ready">Ready</string>
+	<string name="mediapreview_reload">Reload</string>
+	<string name="mediapreview_copy_url">Copy URL</string>
+	<string name="mediapreview_copy_media_url">Copy media URL</string>
+	<string name="mediapreview_error">Error</string>
+	<string name="mediapreview_big_file">Big file</string>
+	<string name="mediapreview_open">Open in another app</string>
+	<string name="mediapreview_search_with_google">Search with Google</string>
+	<string name="mediapreview_big_file_message">The image is %1. Do you want to continue?</string>
+	<string name="mediapreview_resume">Resume</string>
+	<string name="mediapreview_cancelled">Cancelled</string>
+	<string name="mediapreview_download_complete">Download complete! Do you want to open the downloaded image?</string>
+	<string name="mediapreview_connecting">Connecting&#8230;</string>
+	<string name="mediapreview_downloading">Receiving image&#8230;</string>
+	<string name="mediapreview_reading">Reading image&#8230;</string>
+	
+	<string name="times" formatted="false">just now/% seconds ago/a minute ago/% minutes ago/1 hour ago/% hours ago/1 day ago/% days ago/1 month ago/% months ago/1 year ago/% monthes ago/1 century ago/% centuries ago/1 millennium ago/% millennia ago</string>
+	<string name="durations" formatted="false">a second/% seconds/a minute/% minutes/a hour/% hours/a day/% days/a month/% months/a year/% months/a century/% centuries/1 millennium/% millennia</string>
+	<string name="filesizes" formatted="false">% bytes/%KB/%MB/%GB/%TB</string>
+</resources>

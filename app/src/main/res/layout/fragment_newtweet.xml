@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+			  android:layout_width="match_parent"
+			  android:layout_height="match_parent"
+			  android:background="#a000"
+			  android:clickable="true"
+			  android:orientation="vertical">
+
+	<org.apmem.tools.layouts.FlowLayout
+		android:id="@+id/account_list"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:minHeight="48dp"/>
+
+	<!--
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="48dp">
+
+		<CheckBox
+			android:layout_width="wrap_content"
+			android:layout_height="match_parent"
+			android:text="Use"/>
+		<CheckBox
+			android:layout_width="wrap_content"
+			android:layout_height="match_parent"
+			android:text="Autoremove"/>
+		<TextView android:layout_width="match_parent" android:layout_height="match_parent" android:text="From 2015-01-01 00:00:00" android:layout_gravity="end" android:gravity="end|center_vertical" />
+	</LinearLayout>
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="48dp">
+
+		<TextView android:layout_width="wrap_content" android:layout_height="match_parent" android:text="Pattern:" android:gravity="center_vertical" />
+		<CheckBox
+			android:layout_width="wrap_content"
+			android:layout_height="match_parent"
+			android:text="Regex"/>
+		<TextView android:layout_width="wrap_content" android:layout_height="match_parent" android:text="Every 5 min" android:gravity="center_vertical" />
+		<TextView android:layout_width="match_parent" android:layout_height="match_parent" android:text="To 2015-01-01 00:00:00" android:layout_gravity="end" android:gravity="end|center_vertical" />
+	</LinearLayout>
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="48dp">
+
+		<CheckBox
+			android:layout_width="wrap_content"
+			android:layout_height="match_parent"
+			android:text="Only if no reponse for"/>
+		<TextView android:layout_width="wrap_content" android:layout_height="match_parent" android:text="15 min" android:gravity="center_vertical" />
+	</LinearLayout>
+	<EditText
+		style="?android:attr/textStyle"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:gravity="start|top"
+		android:inputType="text"
+		android:singleLine="true"
+		android:lines="1"
+		android:maxLines="1" />
+	<!- -
+	Scheduled: [Use] [time] [autoremove]
+	Periodic: [Use] [start ~ end] [interval]
+	Reply: [regex] [triggerPattern]
+	public boolean mUserEnabled;
+	public boolean mRemoveAfter;
+	public int mInterval;
+	public long mStartTime;
+	public long mEndTime;
+	public String mTriggerPattern;
+	public boolean mUseRegex;
+	-->
+
+	<EditText
+		android:id="@+id/editor"
+		style="?android:attr/textStyle"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:gravity="start|top"
+		android:hint="@string/new_tweet_hint"
+		android:inputType="text|textMultiLine"
+		android:maxHeight="100sp"
+		android:minHeight="64sp"/>
+
+	<RelativeLayout
+		android:id="@+id/toolbar"
+		android:layout_width="match_parent"
+		android:layout_height="48dp"
+		android:background="@android:color/transparent">
+
+		<Button
+			android:id="@+id/clear_btn"
+			android:layout_width="wrap_content"
+			android:layout_height="48dp"
+			android:layout_alignParentLeft="true"
+			android:layout_alignParentStart="true"
+			android:background="@drawable/ripple_bg"
+			android:drawableLeft="?attr/ic_content_clear"
+			android:drawableStart="?attr/ic_content_clear"
+			android:paddingLeft="8dp"
+			android:paddingRight="8dp"
+			android:text="@string/new_tweet_clear"
+			/>
+
+		<ImageButton
+			android:id="@+id/write_btn"
+			android:layout_width="72dp"
+			android:layout_height="48dp"
+			android:layout_alignParentEnd="true"
+			android:layout_alignParentRight="true"
+			android:background="@drawable/ripple_bg"
+			android:contentDescription="@string/new_tweet_save"
+			android:padding="8dp"
+			android:scaleType="fitCenter"
+			android:src="?attr/ic_content_send"
+			/>
+
+		<ImageButton
+			android:id="@+id/attach_btn"
+			android:layout_width="48dp"
+			android:layout_height="48dp"
+			android:layout_toLeftOf="@id/write_btn"
+			android:layout_toStartOf="@id/write_btn"
+			android:background="@drawable/ripple_bg"
+			android:contentDescription="@string/new_tweet_attach"
+			android:padding="8dp"
+			android:scaleType="fitCenter"
+			android:src="?attr/ic_editor_attach_file"
+			/>
+	</RelativeLayout>
+</LinearLayout>
