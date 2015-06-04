@@ -29,7 +29,7 @@ public interface DragInitiatorCallbacks{
 	 * @param dragInitiator
 	 *            DragInitiator associated with this event.
 	 */
-	public void onDragStart(DragInitiator dragInitiator);
+	void onDragStart(DragInitiator dragInitiator);
 
 	/**
 	 * Called when drag just end.
@@ -37,7 +37,7 @@ public interface DragInitiatorCallbacks{
 	 * @param dragInitiator
 	 *            DragInitiator associated with this event.
 	 */
-	public void onDragEnd(DragInitiator dragInitiator);
+	void onDragEnd(DragInitiator dragInitiator);
 
-	public void onDragPrepare(DragInitiator dragInitiator);
+	void onDragPrepare(DragInitiator dragInitiator);
 }

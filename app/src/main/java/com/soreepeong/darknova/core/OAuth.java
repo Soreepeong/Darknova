@@ -4,13 +4,29 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Base64;
 
+import com.soreepeong.darknova.tools.StringTools;
+
 import java.util.ArrayList;
 import java.util.Collections;
 
 /**
- * Created by Soreepeong on 2015-04-27.
+ * OAuth class.
+ *
+ * @author Soreepeong
  */
 public class OAuth implements Parcelable{
+	@SuppressWarnings("unused")
+	public static final Parcelable.Creator<OAuth> CREATOR = new Parcelable.Creator<OAuth>() {
+		@Override
+		public OAuth createFromParcel(Parcel in) {
+			return new OAuth(in);
+		}
+
+		@Override
+		public OAuth[] newArray(int size) {
+			return new OAuth[size];
+		}
+	};
 	private String mApiKey;
 	private String mSecretApiKey;
 	private String mOauthToken;
@@ -26,6 +42,13 @@ public class OAuth implements Parcelable{
 		mSecretApiKey=secretApiKey;
 	}
 
+	protected OAuth(Parcel in) {
+		mApiKey = in.readString();
+		mSecretApiKey = in.readString();
+		mOauthToken = in.readString();
+		mOauthTokenSecret = in.readString();
+	}
+
 	/**
 	 * Get oAuth Token
 	 * @return oAuth token
@@ -35,11 +58,27 @@ public class OAuth implements Parcelable{
 	}
 
 	/**
+	 * Set the OAuth token.
+	 * @param token oAuth token
+	 */
+	public void setToken(String token) {
+		mOauthToken = token;
+	}
+
+	/**
 	 * Get oAuth Secret Token
 	 * @return oAuth Secret Token
 	 */
 	public String getSecretToken(){
 		return mOauthTokenSecret;
+	}
+
+	/**
+	 * Set the OAuth secret token.
+	 * @param secretToken oAuth secret token
+	 */
+	public void setSecretToken(String secretToken) {
+		mOauthTokenSecret = secretToken;
 	}
 
 	/**
@@ -69,22 +108,6 @@ public class OAuth implements Parcelable{
 	}
 
 	/**
-	 * Set the OAuth token.
-	 * @param token oAuth token
-	 */
-	public void setToken(String token){
-		mOauthToken=token;
-	}
-
-	/**
-	 * Set the OAuth secret token.
-	 * @param secretToken oAuth secret token
-	 */
-	public void setSecretToken(String secretToken){
-		mOauthTokenSecret=secretToken;
-	}
-
-	/**
 	 * Generate the oAuth Base Parameter
 	 * @param isPostRequest True if the request is a post request
 	 * @param url URL of the request
@@ -97,8 +120,6 @@ public class OAuth implements Parcelable{
 	private String getBaseString(boolean isPostRequest, String url, String nonce, String timestamp, String[] oAuthParameters, String[] parameters){
 		ArrayList<String> arrBaseItems = new ArrayList<>();
 		StringBuilder sBaseString = new StringBuilder(isPostRequest?"POST&":"GET&");
-		String sKeyString;
-		String sSignature, sAuthorization;
 		if(oAuthParameters != null){
 			for(String param : oAuthParameters)
 				arrBaseItems.add(StringTools.UrlEncode(param));
@@ -194,13 +215,6 @@ public class OAuth implements Parcelable{
 		return getHeader(true, authorizeUrl, new String[]{"oauth_verifier=" + StringTools.UrlEncode(pin)}, null);
 	}
 
-	protected OAuth(Parcel in) {
-		mApiKey = in.readString();
-		mSecretApiKey = in.readString();
-		mOauthToken = in.readString();
-		mOauthTokenSecret = in.readString();
-	}
-
 	@Override
 	public int describeContents() {
 		return 0;
@@ -213,18 +227,5 @@ public class OAuth implements Parcelable{
 		dest.writeString(mOauthToken);
 		dest.writeString(mOauthTokenSecret);
 	}
-
-	@SuppressWarnings("unused")
-	public static final Parcelable.Creator<OAuth> CREATOR = new Parcelable.Creator<OAuth>() {
-		@Override
-		public OAuth createFromParcel(Parcel in) {
-			return new OAuth(in);
-		}
-
-		@Override
-		public OAuth[] newArray(int size) {
-			return new OAuth[size];
-		}
-	};
 
 }

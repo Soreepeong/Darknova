@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+			 android:layout_width="48dp"
+			 android:layout_height="48dp"
+			 android:background="@drawable/ripple_bg">
+
+	<ProgressBar
+		android:id="@+id/progress"
+		style="@style/Widget.AppCompat.ProgressBar"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:layout_margin="8dp"
+		android:indeterminate="true"
+		/>
+
+	<ImageView
+		android:id="@+id/image"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:layout_margin="8dp"
+		android:contentDescription="@string/new_tweet_attach"
+		android:scaleType="centerCrop"
+		android:src="?attr/ic_editor_attach_file"/>
+
+	<ImageView
+		android:id="@+id/type"
+		android:layout_width="24dp"
+		android:layout_height="24dp"
+		android:layout_gravity="end|bottom"
+		android:src="?attr/ic_image_image"/>
+</FrameLayout>

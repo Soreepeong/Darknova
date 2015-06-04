@@ -1,4 +1,4 @@
-package com.soreepeong.darknova.core;
+package com.soreepeong.darknova.tools;
 
 /**
  * JapaneseCharacter contains static functions to do various tests
@@ -20,6 +20,72 @@ public class JapaneseCharacter {
 	 */
 	private final static String VERSION =
 			"$Id: JapaneseCharacter.java,v 1.2 2002/04/20 18:10:24 djmay Exp $";
+	/**
+	 * The array used to map hirgana to romaji.
+	 */
+	protected static String romaji[] = {
+			"a", "a",
+			"i", "i",
+			"u", "u",
+			"e", "e",
+			"o", "o",
+
+			"ka", "ga",
+			"ki", "gi",
+			"ku", "gu",
+			"ke", "ge",
+			"ko", "go",
+
+			"sa", "za",
+			"shi", "ji",
+			"su", "zu",
+			"se", "ze",
+			"so", "zo",
+
+			"ta", "da",
+			"chi", "ji",
+			"tsu", "tsu", "zu",
+			"te", "de",
+			"to", "do",
+
+			"na",
+			"ni",
+			"nu",
+			"ne",
+			"no",
+
+			"ha", "ba", "pa",
+			"hi", "bi", "pi",
+			"fu", "bu", "pu",
+			"he", "be", "pe",
+			"ho", "bo", "po",
+
+			"ma",
+			"mi",
+			"mu",
+			"me",
+			"mo",
+
+			"a", "ya",
+			"u", "yu",
+			"o", "yo",
+
+			"ra",
+			"ri",
+			"ru",
+			"re",
+			"ro",
+
+			"wa", "wa",
+			"wi", "we",
+			"o",
+			"n",
+
+			"v",
+			"ka",
+			"ke"
+
+	};
 
 	/**
 	 * Determines if this character is a Japanese Kana.
@@ -133,73 +199,6 @@ public class JapaneseCharacter {
 		}
 		return String.valueOf(c);
 	}
-
-	/**
-	 * The array used to map hirgana to romaji.
-	 */
-	protected static String romaji[] = {
-			"a", "a",
-			"i", "i",
-			"u", "u",
-			"e", "e",
-			"o", "o",
-
-			"ka", "ga",
-			"ki", "gi",
-			"ku", "gu",
-			"ke", "ge",
-			"ko", "go",
-
-			"sa", "za",
-			"shi", "ji",
-			"su", "zu",
-			"se", "ze",
-			"so", "zo",
-
-			"ta", "da",
-			"chi", "ji",
-			"tsu", "tsu", "zu",
-			"te", "de",
-			"to", "do",
-
-			"na",
-			"ni",
-			"nu",
-			"ne",
-			"no",
-
-			"ha", "ba", "pa",
-			"hi", "bi", "pi",
-			"fu", "bu", "pu",
-			"he", "be", "pe",
-			"ho", "bo", "po",
-
-			"ma",
-			"mi",
-			"mu",
-			"me",
-			"mo",
-
-			"a", "ya",
-			"u", "yu",
-			"o", "yo",
-
-			"ra",
-			"ri",
-			"ru",
-			"re",
-			"ro",
-
-			"wa", "wa",
-			"wi", "we",
-			"o",
-			"n",
-
-			"v",
-			"ka",
-			"ke"
-
-	};
 
 	/**
 	 * Access the array to return the correct romaji string.

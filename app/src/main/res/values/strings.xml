@@ -38,11 +38,14 @@
 	<string name="tweet_description_retweet_user_count" formatted="false">${count} user</string>
 	<string name="tweet_description_retweet_user_counts" formatted="false">${count} users</string>
 
+	<string name="new_tweet_select_user">Select user</string>
+	<string name="new_tweet_oneshot">Post now</string>
 	<string name="new_tweet_hint">New tweet&#8230;</string>
 	<string name="new_tweet_clear">Clear</string>
 	<string name="new_tweet_clear_confirm">Discard all input?</string>
 	<string name="new_tweet_write">Write</string>
 	<string name="new_tweet_save">Save</string>
+	<string name="new_tweet_attach_remove_required">4 images, 1 video, or 1 animation gif allowed for one tweet. Remove some of media to post.</string>
 	<string name="new_tweet_attach">Attach</string>
 	<string name="new_tweet_attach_image">Attach image</string>
 	<string name="new_tweet_attach_take_picture">Take a picture</string>

@@ -12,14 +12,15 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 
-import com.soreepeong.darknova.DarknovaApplication;
 import com.soreepeong.darknova.services.DarknovaService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
- * Created by Soreepeong on 2015-05-27.
+ * Twitter Stream Service Receiver
+ *
+ * @author Soreepeong
  */
 public class TwitterStreamServiceReceiver {
 	private static final HashMap<TwitterEngine.TwitterStreamCallback, TwitterEngine.StreamableTwitterEngine> mStreamCallbacks = new HashMap<>();
@@ -28,6 +29,100 @@ public class TwitterStreamServiceReceiver {
 	private static final ArrayList<TwitterEngine.StreamableTwitterEngine> mStreamOnUsers = new ArrayList<>();
 	private static final ArrayList<OnStreamTurnedListener> mStreamTurnListeners = new ArrayList<>();
 	private static final ArrayList<OnServiceInterfaceReadyListener> mServiceReadyListeners = new ArrayList<>();
+	private static final TwitterEngine.TwitterStreamCallback mStreamCallback = new TwitterEngine.TwitterStreamCallback() {
+
+		@Override
+		public void onStreamConnected(final TwitterEngine.StreamableTwitterEngine engine) {
+			mHandler.post(new Runnable() {
+				@Override
+				public void run() {
+					synchronized (mStreamCallbacks) {
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
+							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
+								c.onStreamConnected(engine);
+					}
+				}
+			});
+		}
+
+		@Override
+		public void onStreamStart(final TwitterEngine.StreamableTwitterEngine engine) {
+			mHandler.post(new Runnable() {
+				@Override
+				public void run() {
+					synchronized (mStreamCallbacks) {
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
+							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
+								c.onStreamStart(engine);
+					}
+				}
+			});
+		}
+
+		@Override
+		public void onStreamError(final TwitterEngine.StreamableTwitterEngine engine, final Exception e) {
+			mHandler.post(new Runnable() {
+				@Override
+				public void run() {
+					synchronized (mStreamCallbacks) {
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
+							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
+								c.onStreamError(engine, e);
+					}
+				}
+			});
+		}
+
+		@Override
+		public void onStreamTweetEvent(final TwitterEngine.StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final Tweet tweet, final long created_at) {
+			mHandler.post(new Runnable() {
+				@Override
+				public void run() {
+					synchronized (mStreamCallbacks) {
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
+							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
+								c.onStreamTweetEvent(engine, event, source, target, tweet, created_at);
+					}
+				}
+			});
+		}
+
+		@Override
+		public void onStreamUserEvent(final TwitterEngine.StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target) {
+			mHandler.post(new Runnable() {
+				@Override
+				public void run() {
+					synchronized (mStreamCallbacks) {
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
+							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
+								c.onStreamUserEvent(engine, event, source, target);
+					}
+				}
+			});
+		}
+
+		@Override
+		public void onStreamStop(final TwitterEngine.StreamableTwitterEngine engine) {
+			mHandler.post(new Runnable() {
+				@Override
+				public void run() {
+					synchronized (mStreamCallbacks) {
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
+							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
+								c.onStreamStop(engine);
+					}
+				}
+			});
+		}
+
+		@Override
+		public void onNewTweetReceived(Tweet tweet) {
+			synchronized (mStreamCallbacks) {
+				for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
+					c.onNewTweetReceived(tweet);
+			}
+		}
+	};
 	private static Messenger mBoundService;
 	private static Context mContext;
 	private static ServiceConnection mConnection = new ServiceConnection() {
@@ -186,101 +281,6 @@ public class TwitterStreamServiceReceiver {
 		mContext = ctx.getApplicationContext();
 		mContext.bindService(new Intent(mContext, DarknovaService.class), mConnection, Context.BIND_AUTO_CREATE);
 	}
-
-	private static final TwitterEngine.TwitterStreamCallback mStreamCallback = new TwitterEngine.TwitterStreamCallback() {
-
-		@Override
-		public void onStreamConnected(final TwitterEngine.StreamableTwitterEngine engine) {
-			mHandler.post(new Runnable() {
-				@Override
-				public void run() {
-					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamConnected(engine);
-					}
-				}
-			});
-		}
-
-		@Override
-		public void onStreamStart(final TwitterEngine.StreamableTwitterEngine engine) {
-			mHandler.post(new Runnable() {
-				@Override
-				public void run() {
-					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamStart(engine);
-					}
-				}
-			});
-		}
-
-		@Override
-		public void onStreamError(final TwitterEngine.StreamableTwitterEngine engine, final Exception e) {
-			mHandler.post(new Runnable() {
-				@Override
-				public void run() {
-					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamError(engine, e);
-					}
-				}
-			});
-		}
-
-		@Override
-		public void onStreamTweetEvent(final TwitterEngine.StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final Tweet tweet, final long created_at) {
-			mHandler.post(new Runnable() {
-				@Override
-				public void run() {
-					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamTweetEvent(engine, event, source, target, tweet, created_at);
-					}
-				}
-			});
-		}
-
-		@Override
-		public void onStreamUserEvent(final TwitterEngine.StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target) {
-			mHandler.post(new Runnable() {
-				@Override
-				public void run() {
-					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamUserEvent(engine, event, source, target);
-					}
-				}
-			});
-		}
-
-		@Override
-		public void onStreamStop(final TwitterEngine.StreamableTwitterEngine engine) {
-			mHandler.post(new Runnable() {
-				@Override
-				public void run() {
-					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamStop(engine);
-					}
-				}
-			});
-		}
-
-		@Override
-		public void onNewTweetReceived(Tweet tweet) {
-			synchronized (mStreamCallbacks) {
-				for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-					c.onNewTweetReceived(tweet);
-			}
-		}
-	};
 
 	public interface OnStreamTurnedListener {
 		public void onStreamTurnedOn(TwitterEngine e);

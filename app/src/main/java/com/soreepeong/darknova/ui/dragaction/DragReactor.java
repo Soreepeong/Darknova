@@ -26,17 +26,17 @@ public interface DragReactor{
 	/**
 	 * Dragging has just begun and reactor must be ready to accept drags
 	 */
-	public void onDragReactorReady(DragReactor reactor, DragInitiator dragFrom);
+	void onDragReactorReady(DragReactor reactor, DragInitiator dragFrom);
 
 	/**
 	 * Dragging is about to stop and reactor must stop accepting drags
 	 */
-	public void onDragReactorStop(DragReactor reactor);
+	void onDragReactorStop(DragReactor reactor);
 
 	/**
 	 * Get DragReactor's Action Type.
 	 * 
 	 * @return DragReactor's Action Type.
 	 */
-	public int getDragReactorActionType(DragReactor reactor);
+	int getDragReactorActionType(DragReactor reactor);
 }

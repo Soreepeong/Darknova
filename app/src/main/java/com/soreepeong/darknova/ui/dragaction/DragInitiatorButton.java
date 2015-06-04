@@ -95,7 +95,7 @@ public class DragInitiatorButton extends Button{
 				mDragInitiator.setReactorContainer(v);
 				if(isInEditMode())
 					return;
-				if(v.getVisibility() == View.GONE)
+				if (v.getVisibility() != View.VISIBLE)
 					return;
 				v.setVisibility(View.GONE);
 				return;
@@ -105,20 +105,20 @@ public class DragInitiatorButton extends Button{
 	}
 
 	/**
+	 * Get action type of this button.
+	 */
+	public int getActionType() {
+		return mDragActionType;
+	}
+
+	/**
 	 * Set action type of this button.
-	 * 
+	 *
 	 * @param nAction
 	 *            Action type.
 	 */
 	public void setActionType(int nAction){
 		mDragActionType = nAction;
-	}
-
-	/**
-	 * Get action type of this button.
-	 */
-	public int getActionType(){
-		return mDragActionType;
 	}
 
 	/**

@@ -27,9 +27,9 @@ import android.widget.TextView;
 
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
-import com.soreepeong.darknova.core.ResTools;
-import com.soreepeong.darknova.core.StringTools;
 import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.tools.ResTools;
+import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.ui.MainActivity;
@@ -45,16 +45,26 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Created by Soreepeong on 2015-05-27.
- * <p/>
- * Autocompleted username
- * Typed username
- * Typed search
- * history
+ * Fragment that shows search suggestions
+ *
+ * @author Soreepeong
  */
 public class SearchSuggestionFragment extends Fragment implements SearchView.OnQueryTextListener, View.OnFocusChangeListener, ImageCache.OnImageCacheReadyListener, AbsListView.OnItemClickListener, MenuItemCompat.OnActionExpandListener, View.OnClickListener{
 	private static final int LIST_COUNT = 15;
-
+	public static Comparator<UserSuggestion> compareUserSuggestionsAlphabetically = new Comparator<UserSuggestion>() {
+		@Override
+		public int compare(UserSuggestion lhs, UserSuggestion rhs) {
+			int res;
+			if ((res = lhs.id.compareTo(rhs.id)) != 0)
+				return res;
+			if ((res = lhs.name.compareTo(rhs.name)) != 0)
+				return res;
+			return 0;
+		}
+	};
+	int mColorAccent;
+	boolean mQuickSearchMode;
+	String mInputText = "";
 	private View mViewFragment;
 	private ListView mViewUserList, mViewSearchList;
 	private ImageButton mViewQuickSearch;
@@ -66,12 +76,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 	private SearchView mSearchView;
 	private MenuItem mMenuItem;
 	private Pattern mSearchOptimizedPattern;
-
-	int mColorAccent;
-
-	boolean mQuickSearchMode;
-
-	String mInputText = "";
 
 	@Nullable
 	@Override
@@ -156,27 +160,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		return true;
 	}
 
-	private class ListCreator extends AsyncTask<String, Object, String> {
-		ArrayList<UserSuggestion> userSuggestions;
-		ArrayList<SearchSuggestion> searchSuggestions;
-		@Override
-		protected String doInBackground(String... params) {
-			userSuggestions = makeUserSuggestions(params[0]);
-			searchSuggestions = makeSearchSuggestions(params[0]);
-			return params[0];
-		}
-
-		@Override
-		protected void onPostExecute(String o) {
-			if(!mInputText.equals(o))
-				return;
-			mUserList = userSuggestions;
-			mSearchList = searchSuggestions;
-			mUserAdapter.notifyDataSetChanged();
-			mSearchAdapter.notifyDataSetChanged();
-		}
-	}
-
 	public void setSearchUi(SearchView v, MenuItem item) {
 		mSearchView = v;
 		mMenuItem = item;
@@ -234,9 +217,9 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 	}
 
 	public void hide() {
-		if(mViewFragment.getVisibility() == View.GONE)
+		if (mViewFragment.getVisibility() != View.VISIBLE)
 			return;
-		ResTools.hideWithAnimation(getActivity(), mViewFragment, R.anim.newtweet_hide);
+		ResTools.hideWithAnimation(getActivity(), mViewFragment, R.anim.newtweet_hide, true);
 	}
 
 	private ArrayList<UserSuggestion> makeUserSuggestions(String user) {
@@ -302,7 +285,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				}
 			}
 			if ((res.size() == 0 || !res.get(0).user.screen_name.equalsIgnoreCase(textallowed)))
-				res.add(0, new UserSuggestion(null, user, user, textallowed, mSearchOptimizedPattern));
+				res.add(0, new UserSuggestion(null, textallowed, user, textallowed, mSearchOptimizedPattern));
 			else
 				res.add(1, new UserSuggestion(null, user, user, textallowed, mSearchOptimizedPattern));
 			if (res.size() >= LIST_COUNT)
@@ -367,7 +350,10 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			if(s.user == null){
 				s.inProgress = true;
 				mUserAdapter.notifyDataSetChanged();
-				new UserSearcher().execute(s.name, s.distanceString);
+				if (position == 0)
+					new UserSearcher().execute(s.name, s.distanceString);
+				else
+					new UserSearcher().execute(s.name);
 				return;
 			}
 			openUser(s.user.user_id, s.user.screen_name);
@@ -391,6 +377,28 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		}
 	}
 
+	private class ListCreator extends AsyncTask<String, Object, String> {
+		ArrayList<UserSuggestion> userSuggestions;
+		ArrayList<SearchSuggestion> searchSuggestions;
+
+		@Override
+		protected String doInBackground(String... params) {
+			userSuggestions = makeUserSuggestions(params[0]);
+			searchSuggestions = makeSearchSuggestions(params[0]);
+			return params[0];
+		}
+
+		@Override
+		protected void onPostExecute(String o) {
+			if (!mInputText.equals(o))
+				return;
+			mUserList = userSuggestions;
+			mSearchList = searchSuggestions;
+			mUserAdapter.notifyDataSetChanged();
+			mSearchAdapter.notifyDataSetChanged();
+		}
+	}
+
 	private class UserSearcher extends AsyncTask<String, Tweeter, ArrayList<Tweeter>>{
 		String query;
 		ArrayList<Tweeter> u;
@@ -400,7 +408,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			query = params[0];
 			TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
 			try{
-				if(!Tweeter.getAvailableTweeters().containsKey(params[1].toLowerCase())){
+				if (params.length >= 2 && !Tweeter.getAvailableTweeters().containsKey(params[1].toLowerCase())) {
 					u = currentUser.lookupUser(params[1]);
 					if(u != null && !u.isEmpty()){
 						publishProgress(u.toArray(new Tweeter[u.size()]));
@@ -615,18 +623,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			return 0;
 		}
 	}
-
-	public static Comparator<UserSuggestion> compareUserSuggestionsAlphabetically = new Comparator<UserSuggestion>() {
-		@Override
-		public int compare(UserSuggestion lhs, UserSuggestion rhs) {
-			int res;
-			if((res = lhs.id.compareTo(rhs.id)) != 0)
-				return res;
-			if((res = lhs.name.compareTo(rhs.name)) != 0)
-				return res;
-			return 0;
-		}
-	};
 
 	public class SearchSuggestion implements Comparable<SearchSuggestion>{
 

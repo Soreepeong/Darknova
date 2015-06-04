@@ -40,10 +40,10 @@ import android.widget.TextView;
 import com.soreepeong.darknova.DarknovaApplication;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
-import com.soreepeong.darknova.core.ResTools;
-import com.soreepeong.darknova.core.StreamTools;
-import com.soreepeong.darknova.core.StringTools;
 import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.tools.ResTools;
+import com.soreepeong.darknova.tools.StreamTools;
+import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Entities;
 import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.twitter.Tweeter;
@@ -70,15 +70,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Created by Soreepeong on 2015-04-28.
+ * Fragment that displays timeline, and some more
+ * ONLY to be used in {@see MainActivity}
+ *
+ * @author Soreepeong
  */
 public class TimelineFragment extends PageFragment implements SwipeRefreshLayout.OnRefreshListener, Handler.Callback, ImageCache.OnImageCacheReadyListener, TwitterEngine.TwitterStreamCallback {
-	private static final int MESSAGE_TIME_UPDATE = 1;
-	private static final int MESSAGE_SAVE_LIST = 3;
-
 	public static final byte LOAD_MORE_ITEM_AVAILABLE = 0;
 	public static final byte LOAD_MORE_ITEM_LOADING = -1;
-
+	private static final int MESSAGE_TIME_UPDATE = 1;
+	private static final int MESSAGE_SAVE_LIST = 3;
 	private static final int SAVE_DELAY = 5000;
 	private static final int SAVE_LENGTH = 200;
 	private static final int MAX_MEMORY_HOLD = 200;
@@ -86,17 +87,15 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	private static final Interpolator mProgressInterpolator = new DecelerateInterpolator();
 
 	private static int mColorAccent;
-
-	private SharedPreferences mPagePositionPreferences;
-
 	private final WeakHashMap<Tweet, HashMap<Page.Element, Byte>> mLoadMoreItems = new WeakHashMap<>();
 	private final ArrayList<Tweet> mSelectedList = new ArrayList<>();
+	private final Handler mHandler;
+	private SharedPreferences mPagePositionPreferences;
 	private String mQuickFilterOriginalString;
 	private List<Tweet> mList;
 	private ArrayList<Pattern> mQuickFilterUsers;
 	private ArrayList<String> mQuickFilterUsersExact;
 	private ArrayList<FilteredTweet> mQuickFilteredList;
-
 	private View mViewFragmentRoot;
 	private RecyclerView mViewList;
 	private LinearLayoutManager mListLayout;
@@ -107,8 +106,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	private TweetAdapter mAdapter;
 	private ImageCache mImageCache;
 	private View.OnLayoutChangeListener mListSizeChangeListener;
-	private final Handler mHandler;
-
 	private PageRefresher mUpdateRefresher;
 	private Thread mListApplier;
 
@@ -118,6 +115,11 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	private File mListCacheFile;
 
 	private boolean mSavePending;
+
+	public TimelineFragment() {
+		super();
+		mHandler = new Handler(this);
+	}
 
 	public static TimelineFragment newInstance(String cacheDir, Page p) {
 		TimelineFragment fragment = new TimelineFragment();
@@ -190,7 +192,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		mIsPagePrepared = false;
 
 		String cacheDir = args.getString("cache-dir");
-		String uniqid = mPage.generateUniqid();
+		String uniqid = StringTools.UrlEncode(mPage.generateUniqid());
 		mListCacheFile = new File(cacheDir, "list_cache_" + uniqid);
 		mBackgroundLoader = new OnCreateBackground(this);
 	}
@@ -199,11 +201,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	public void loadBackground(){
 		if(mBackgroundLoader != null && mBackgroundLoader.getStatus() == AsyncTask.Status.PENDING)
 			mBackgroundLoader.execute();
-	}
-
-	public TimelineFragment() {
-		super();
-		mHandler = new Handler(this);
 	}
 
 	@Override
@@ -705,7 +702,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 			aa = new AlphaAnimation(1, 0);
 			aa.setInterpolator(getActivity(), android.R.anim.accelerate_interpolator);
 			mViewEmptyIndicator.setVisibility(View.GONE);
-		} else if (isEmpty && (mViewEmptyIndicator.getVisibility() == View.GONE)) {
+		} else if (isEmpty && (mViewEmptyIndicator.getVisibility() != View.VISIBLE)) {
 			aa = new AlphaAnimation(0, 1);
 			aa.setInterpolator(getActivity(), android.R.anim.decelerate_interpolator);
 			mViewEmptyIndicator.setVisibility(View.VISIBLE);
@@ -717,13 +714,95 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		mViewEmptyIndicator.startAnimation(aa);
 	}
 
+	public void createAdapter() {
+		if (mAdapter == null)
+			mAdapter = new TweetAdapter();
+		mViewList.setAdapter(mAdapter);
+	}
+
+	@Override
+	public void onRefresh() {
+		loadNewerThan();
+	}
+
+	public void onCompleteRefresh() {
+		if (Looper.getMainLooper() != Looper.myLooper())
+			throw new RuntimeException("MUST be called from the UI Thread");
+		mPage.mList = new WeakReference<>(mList = Collections.unmodifiableList(new ArrayList<Tweet>()));
+		synchronized (mPage.mListPending) {
+			mPage.mListPending.clear();
+		}
+		mAdapter.notifyDataSetChanged();
+		applyEmptyIndicator();
+		onRefresh();
+	}
+
+	public void scrollToTop() {
+		mPage.mIsListAtTop = true;
+		mPage.mPageLastItemPosition = 0;
+		mPage.mPageLastOffset = 0;
+		mListLayout.scrollToPosition(0);
+		mViewList.smoothScrollBy(0, 0);
+	}
+
+	private void loadNewerThan() {
+		if (mUpdateRefresher != null)
+			return;
+		mUpdateRefresher = new PageRefresher(null);
+		mUpdateRefresher.execute();
+	}
+
+	private void loadOlderThan(final Tweet tweet) {
+		boolean noexecute = true;
+		synchronized (mLoadMoreItems) {
+			if (mLoadMoreItems.get(tweet) == null) return;
+			for (Byte b : mLoadMoreItems.get(tweet).values())
+				if (b == LOAD_MORE_ITEM_AVAILABLE)
+					noexecute = false;
+		}
+		if (!noexecute)
+			new PageRefresher(tweet).execute();
+	}
+
+	public boolean isSomethingSelected() {
+		return !mSelectedList.isEmpty();
+	}
+
+	@Override
+	public void clearSelection() {
+		if (!mSelectedList.isEmpty()) {
+			if (mQuickFilteredList != null) {
+				for (Tweet selTweet : mSelectedList) {
+					int i = Collections.binarySearch(mQuickFilteredList, new FilteredTweet(selTweet), Collections.reverseOrder());
+					if (mQuickFilteredList.get(i).isFilteredBySelection) {
+						mQuickFilteredList.remove(i);
+						mAdapter.notifyNonHeaderItemRemoved(i);
+					}
+				}
+				mSelectedList.clear();
+			} else {
+				mSelectedList.clear();
+				mAdapter.notifyDataSetChanged();
+			}
+			applyEmptyIndicator();
+			selectionChanged();
+		}
+	}
+
+	@Override
+	protected void selectionChanged() {
+		super.selectionChanged();
+		if (mQuickFilterOriginalString != null && (mSelectedList.isEmpty() || mQuickFilterString == null))
+			setQuickFilter(mQuickFilterOriginalString);
+	}
+
 	private static class OnCreateBackground extends AsyncTask<Object, Object, Object> {
-		private boolean isNewlyLoadedPage = false;
-		private List<Tweet> mList;
 		private final Page mPage;
 		private final TimelineFragment mFragment;
 		private final File mListCacheFile;
 		private final WeakHashMap<Tweet, HashMap<Page.Element, Byte>> mLoadMoreItems = new WeakHashMap<>();
+		private boolean isNewlyLoadedPage = false;
+		private List<Tweet> mList;
 
 		public OnCreateBackground(TimelineFragment mFragment) {
 			this.mFragment = mFragment;
@@ -825,35 +904,67 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		}
 	}
 
-	public void createAdapter() {
-		if (mAdapter == null)
-			mAdapter = new TweetAdapter();
-		mViewList.setAdapter(mAdapter);
-	}
+	private static class NonElementHeader {
+		private final int mLayoutId;
+		private final long mId;
 
-	@Override
-	public void onRefresh() {
-		loadNewerThan();
-	}
-
-	public void onCompleteRefresh() {
-		if (Looper.getMainLooper() != Looper.myLooper())
-			throw new RuntimeException("MUST be called from the UI Thread");
-		mPage.mList = new WeakReference<>(mList = Collections.unmodifiableList(new ArrayList<Tweet>()));
-		synchronized (mPage.mListPending) {
-			mPage.mListPending.clear();
+		public NonElementHeader(int layoutId) {
+			mLayoutId = layoutId;
+			mId = DarknovaApplication.uniqid();
 		}
-		mAdapter.notifyDataSetChanged();
-		applyEmptyIndicator();
-		onRefresh();
+
+		public int getLayoutId() {
+			return mLayoutId;
+		}
+
+		public long getId() {
+			return mId;
+		}
 	}
 
-	public void scrollToTop() {
-		mPage.mIsListAtTop = true;
-		mPage.mPageLastItemPosition = 0;
-		mPage.mPageLastOffset = 0;
-		mListLayout.scrollToPosition(0);
-		mViewList.smoothScrollBy(0, 0);
+	private static class FilteredTweet implements Comparable<FilteredTweet> {
+		Tweet tweet;
+		boolean isFilteredBySelection;
+		Spannable spannedId;
+		Spannable spannedName;
+		Spannable spannedText;
+
+		FilteredTweet(Tweet tweet) {
+			this.tweet = tweet;
+		}
+
+		public void setSpanned(Spannable s, Matcher m) {
+			if (m == null) {
+				if (s.length() != 0)
+					s.setSpan(new ForegroundColorSpan(mColorAccent), 0, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+				return;
+			}
+			do {
+				for (int i = 1; i <= m.groupCount(); i++)
+					if (m.end(i) - m.start(i) > 0)
+						s.setSpan(new ForegroundColorSpan(mColorAccent), m.start(i), m.end(i), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+			} while (m.find());
+		}
+
+		@Override
+		public int compareTo(@NonNull FilteredTweet another) {
+			return tweet.compareTo(another.tweet);
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			return o instanceof FilteredTweet && tweet.equals(((FilteredTweet) o).tweet);
+		}
+
+		@Override
+		public int hashCode() {
+			return tweet.hashCode();
+		}
+
+		@Override
+		public String toString() {
+			return tweet.toString();
+		}
 	}
 
 	private class FilterApplier extends AsyncTask<String, Object, String> {
@@ -1064,6 +1175,8 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		private final Tweet mInitator;
 		private final int mLoadCount = 200;
 		private volatile int mProgress, mMaxProgress;
+		private int mLastProgress;
+		private long mLastPublishTime;
 
 		public PageRefresher(Tweet initator) {
 			super();
@@ -1172,9 +1285,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 				mUpdateRefresher = null;
 		}
 
-		private int mLastProgress;
-		private long mLastPublishTime;
-
 		@Override
 		public void onNewTweetReceived(Tweet tweet) {
 			mProgress++;
@@ -1238,57 +1348,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 				}
 			}
 		}
-	}
-
-	private void loadNewerThan() {
-		if (mUpdateRefresher != null)
-			return;
-		mUpdateRefresher = new PageRefresher(null);
-		mUpdateRefresher.execute();
-	}
-
-	private void loadOlderThan(final Tweet tweet) {
-		boolean noexecute = true;
-		synchronized (mLoadMoreItems) {
-			if (mLoadMoreItems.get(tweet) == null) return;
-			for (Byte b : mLoadMoreItems.get(tweet).values())
-				if (b == LOAD_MORE_ITEM_AVAILABLE)
-					noexecute = false;
-		}
-		if (!noexecute)
-			new PageRefresher(tweet).execute();
-	}
-
-	public boolean isSomethingSelected() {
-		return !mSelectedList.isEmpty();
-	}
-
-	@Override
-	public void clearSelection() {
-		if (!mSelectedList.isEmpty()) {
-			if (mQuickFilteredList != null) {
-				for (Tweet selTweet : mSelectedList) {
-					int i = Collections.binarySearch(mQuickFilteredList, new FilteredTweet(selTweet), Collections.reverseOrder());
-					if (mQuickFilteredList.get(i).isFilteredBySelection) {
-						mQuickFilteredList.remove(i);
-						mAdapter.notifyNonHeaderItemRemoved(i);
-					}
-				}
-				mSelectedList.clear();
-			} else {
-				mSelectedList.clear();
-				mAdapter.notifyDataSetChanged();
-			}
-			applyEmptyIndicator();
-			selectionChanged();
-		}
-	}
-
-	@Override
-	protected void selectionChanged() {
-		super.selectionChanged();
-		if (mQuickFilterOriginalString != null && (mSelectedList.isEmpty() || mQuickFilterString == null))
-			setQuickFilter(mQuickFilterOriginalString);
 	}
 
 	public class TweetAdapter extends RecyclerView.Adapter<TweetAdapter.CustomViewHolder> {
@@ -1542,42 +1601,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 
 			private Tweet mLastBoundTweet;
 
-			private void previewEntity(Entities entities) {
-				int i = 0;
-				for (Entities.Entity entity : entities.entities) {
-					if (entity instanceof Entities.MediaEntity) {
-						arrPreviews[i].setVisibility(View.VISIBLE);
-						if (mImageCache != null)
-							mImageCache.assignImageView(arrPreviews[i++], ((Entities.MediaEntity) entity).media_url, null);
-					}
-				}
-				divPreviews.setVisibility(i == 0 ? View.GONE : View.VISIBLE);
-				((FrameLayout.LayoutParams) dragActionContainer.getLayoutParams()).bottomMargin =
-						((FrameLayout.LayoutParams) dragInitiatorButton.getLayoutParams()).bottomMargin =
-								i == 0 ? 0 : divPreviews.getLayoutParams().height
-										+ ((LinearLayout.LayoutParams) divPreviews.getLayoutParams()).topMargin
-										+ ((FrameLayout.LayoutParams) ((View) (divPreviews.getParent())).getLayoutParams()).bottomMargin;
-
-				for (; i < arrPreviews.length; i++)
-					arrPreviews[i].setVisibility(View.GONE);
-			}
-
-			private String getDescriptionString(Tweet tweet) {
-				String sTime;
-				sTime = StringTools.UnixtimeToDisplayTime(tweet.created_at);
-				String rtByFormat = null;
-				if (tweet.retweeted_status == null && tweet.retweet_count > 0)
-					rtByFormat = getString(tweet.retweet_count == 1 ? R.string.tweet_description_retweet_user_count : R.string.tweet_description_retweet_user_counts).replace("${count}", Long.toString(tweet.retweet_count));
-				else if (tweet.retweeted_status != null)
-					rtByFormat = getString(R.string.tweet_description_retweet_user).replace("${user}", tweet.user.screen_name);
-				if (rtByFormat != null)
-					return getString(R.string.tweet_description_retweet).replace("${time}", sTime).replace("${via}", tweet.source).replace("${retweet}", rtByFormat);
-				else if (tweet.in_reply_to_status != null)
-					return getString(R.string.tweet_description_reply).replace("${time}", sTime).replace("${via}", tweet.source).replace("${reply}", tweet.in_reply_to_user.screen_name);
-				else
-					return getString(R.string.tweet_description).replace("${time}", sTime).replace("${via}", tweet.source);
-			}
-
 			public TweetViewHolder(View v) {
 				super(v);
 				lblDescription = (TextView) v.findViewById(R.id.lblDescription);
@@ -1613,6 +1636,42 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 				tweetActionReply.setOnLongClickListener(this);
 				tweetActionRetweet.setOnLongClickListener(this);
 				tweetActionFavorite.setOnLongClickListener(this);
+			}
+
+			private void previewEntity(Entities entities) {
+				int i = 0;
+				for (Entities.Entity entity : entities.entities) {
+					if (entity instanceof Entities.MediaEntity) {
+						arrPreviews[i].setVisibility(View.VISIBLE);
+						if (mImageCache != null)
+							mImageCache.assignImageView(arrPreviews[i++], ((Entities.MediaEntity) entity).media_url, null);
+					}
+				}
+				divPreviews.setVisibility(i == 0 ? View.GONE : View.VISIBLE);
+				((FrameLayout.LayoutParams) dragActionContainer.getLayoutParams()).bottomMargin =
+						((FrameLayout.LayoutParams) dragInitiatorButton.getLayoutParams()).bottomMargin =
+								i == 0 ? 0 : divPreviews.getLayoutParams().height
+										+ ((LinearLayout.LayoutParams) divPreviews.getLayoutParams()).topMargin
+										+ ((FrameLayout.LayoutParams) ((View) (divPreviews.getParent())).getLayoutParams()).bottomMargin;
+
+				for (; i < arrPreviews.length; i++)
+					arrPreviews[i].setVisibility(View.GONE);
+			}
+
+			private String getDescriptionString(Tweet tweet) {
+				String sTime;
+				sTime = StringTools.unixtimeToDisplayTime(tweet.created_at);
+				String rtByFormat = null;
+				if (tweet.retweeted_status == null && tweet.retweet_count > 0)
+					rtByFormat = getString(tweet.retweet_count == 1 ? R.string.tweet_description_retweet_user_count : R.string.tweet_description_retweet_user_counts).replace("${count}", Long.toString(tweet.retweet_count));
+				else if (tweet.retweeted_status != null)
+					rtByFormat = getString(R.string.tweet_description_retweet_user).replace("${user}", tweet.user.screen_name);
+				if (rtByFormat != null)
+					return getString(R.string.tweet_description_retweet).replace("${time}", sTime).replace("${via}", tweet.source).replace("${retweet}", rtByFormat);
+				else if (tweet.in_reply_to_status != null)
+					return getString(R.string.tweet_description_reply).replace("${time}", sTime).replace("${via}", tweet.source).replace("${reply}", tweet.in_reply_to_user.screen_name);
+				else
+					return getString(R.string.tweet_description).replace("${time}", sTime).replace("${via}", tweet.source);
 			}
 
 			public void updateSelectionStatus(Tweet tweet) {
@@ -1782,69 +1841,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 			public void onDragEnd(DragInitiator dragInitiator) {
 
 			}
-		}
-	}
-
-	private static class NonElementHeader {
-		private final int mLayoutId;
-		private final long mId;
-
-		public NonElementHeader(int layoutId) {
-			mLayoutId = layoutId;
-			mId = DarknovaApplication.uniqid();
-		}
-
-		public int getLayoutId() {
-			return mLayoutId;
-		}
-
-		public long getId() {
-			return mId;
-		}
-	}
-
-	private static class FilteredTweet implements Comparable<FilteredTweet> {
-		Tweet tweet;
-		boolean isFilteredBySelection;
-		Spannable spannedId;
-		Spannable spannedName;
-		Spannable spannedText;
-
-		FilteredTweet(Tweet tweet) {
-			this.tweet = tweet;
-		}
-
-		public void setSpanned(Spannable s, Matcher m) {
-			if (m == null) {
-				if (s.length() != 0)
-					s.setSpan(new ForegroundColorSpan(mColorAccent), 0, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-				return;
-			}
-			do {
-				for (int i = 1; i <= m.groupCount(); i++)
-					if (m.end(i) - m.start(i) > 0)
-						s.setSpan(new ForegroundColorSpan(mColorAccent), m.start(i), m.end(i), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-			} while (m.find());
-		}
-
-		@Override
-		public int compareTo(@NonNull FilteredTweet another) {
-			return tweet.compareTo(another.tweet);
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			return o instanceof FilteredTweet && tweet.equals(((FilteredTweet) o).tweet);
-		}
-
-		@Override
-		public int hashCode() {
-			return tweet.hashCode();
-		}
-
-		@Override
-		public String toString() {
-			return tweet.toString();
 		}
 	}
 }

@@ -29,8 +29,8 @@ import android.widget.ImageView;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.core.OAuth;
-import com.soreepeong.darknova.core.ResTools;
 import com.soreepeong.darknova.extractors.ImageExtractor;
+import com.soreepeong.darknova.tools.ResTools;
 import com.soreepeong.darknova.twitter.Entities;
 import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.ui.fragments.MediaFragment;
@@ -44,23 +44,19 @@ import java.util.regex.Matcher;
  */
 public class MediaPreviewActivity extends AppCompatActivity implements ImageCache.OnImageCacheReadyListener, View.OnClickListener, Handler.Callback, SwipeableViewPager.OnPageChangeListener {
 
-	private Handler mHandler = new Handler(this);
 	private static final int MESSAGE_HIDE_ACTIONBAR = 1;
-
 	private static final int HIDE_DELAY = 3000;
-
+	public String mInitiatorUrl;
+	private Handler mHandler = new Handler(this);
 	private Toolbar mViewActionbarToolbar;
 	private ActionBar mActionBar;
 	private ImageCache mImageCache;
 	private RecyclerView mViewImageList;
 	private SwipeableViewPager mViewPager;
 	private View mViewRoot;
-
 	private MediaFragmentAdapter mPagerAdapter;
 	private ImageAdapter mAdapter;
 	private PaddedLayoutManager mLayoutManager;
-
-	public String mInitiatorUrl;
 	private ArrayList<Image> mImageList;
 	private int mLastViewPagerPage;
 
@@ -212,11 +208,11 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		if (initiator != null && initiator != mImageList.get(mViewPager.getCurrentItem()))
 			return;
 		mHandler.removeMessages(MESSAGE_HIDE_ACTIONBAR);
-		if (mViewActionbarToolbar.getVisibility() == View.GONE) return;
+		if (mViewActionbarToolbar.getVisibility() != View.VISIBLE) return;
 		mActionBar.hide();
-		ResTools.hideWithAnimation(this, mViewActionbarToolbar, R.anim.actionbar_hide);
+		ResTools.hideWithAnimation(this, mViewActionbarToolbar, R.anim.actionbar_hide, true);
 		if (mImageList.size() < 2) return;
-		ResTools.hideWithAnimation(this, mViewImageList, R.anim.newtweet_hide);
+		ResTools.hideWithAnimation(this, mViewImageList, R.anim.newtweet_hide, true);
 	}
 
 	public void hideActionBarDelayed(Image initiator) {
@@ -293,6 +289,89 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		}
 	}
 
+	public static class Image implements Parcelable {
+		@SuppressWarnings("unused")
+		public static final Parcelable.Creator<Image> CREATOR = new Parcelable.Creator<Image>() {
+			@Override
+			public Image createFromParcel(Parcel in) {
+				return new Image(in);
+			}
+
+			@Override
+			public Image[] newArray(int size) {
+				return new Image[size];
+			}
+		};
+		public String mOriginalUrl;
+		public String mOriginalContentType;
+		public String mThumbnailUrl;
+		public String mResizedUrl;
+		public String mSourceUrl;
+		public OAuth mAuthInfo;
+		public Tweet mRelatedTweet;
+		public boolean mRequireExpansion;
+
+		public Image(Tweet tweet, OAuth auth, Entities.MediaEntity entity) {
+			if (entity.variants == null) {
+				mOriginalUrl = entity.media_url + ":orig";
+				mResizedUrl = entity.media_url;
+				mOriginalContentType = "image/*";
+			} else {
+				mResizedUrl = entity.media_url;
+				mOriginalUrl = entity.variants.get(0).url;
+				mOriginalContentType = entity.variants.get(0).contentType;
+			}
+			mSourceUrl = entity.expanded_url;
+			mAuthInfo = auth;
+			mRelatedTweet = tweet;
+			mThumbnailUrl = entity.media_url; // + ":thumb";
+		}
+
+		public Image(String orig, String cType, String resized, String thumb, String source, OAuth auth, Tweet related, boolean needExpand) {
+			mOriginalUrl = orig;
+			mOriginalContentType = cType;
+			mResizedUrl = resized;
+			mThumbnailUrl = thumb;
+			mSourceUrl = source;
+			mAuthInfo = auth;
+			mRelatedTweet = related;
+			mRequireExpansion = needExpand;
+		}
+
+		protected Image(Parcel in) {
+			mOriginalUrl = in.readString();
+			mOriginalContentType = in.readString();
+			mThumbnailUrl = in.readString();
+			mResizedUrl = in.readString();
+			mSourceUrl = in.readString();
+			mAuthInfo = (OAuth) in.readValue(OAuth.class.getClassLoader());
+			mRelatedTweet = (Tweet) in.readValue(Tweet.class.getClassLoader());
+			mRequireExpansion = in.readByte() != 0x00;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			return super.equals(o);
+		}
+
+		@Override
+		public int describeContents() {
+			return 0;
+		}
+
+		@Override
+		public void writeToParcel(Parcel dest, int flags) {
+			dest.writeString(mOriginalUrl);
+			dest.writeString(mOriginalContentType);
+			dest.writeString(mThumbnailUrl);
+			dest.writeString(mResizedUrl);
+			dest.writeString(mSourceUrl);
+			dest.writeValue(mAuthInfo);
+			dest.writeValue(mRelatedTweet);
+			dest.writeByte((byte) (mRequireExpansion ? 0x01 : 0x00));
+		}
+	}
+
 	private class PaddedLayoutManager extends LinearLayoutManager {
 		PaddedLayoutManager(Context context) {
 			super(context);
@@ -313,12 +392,11 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 	public class MediaFragmentAdapter extends FragmentPagerAdapter {
 
 		public final SparseArray<MediaFragment> mFragments = new SparseArray<>();
+		int requireEnterPage = -1;
 
 		public MediaFragmentAdapter(FragmentManager fm) {
 			super(fm);
 		}
-
-		int requireEnterPage = -1;
 
 		public void enterPage(int position) {
 			if (requireEnterPage != position)
@@ -413,89 +491,5 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 				mViewPager.setCurrentItem(getAdapterPosition());
 			}
 		}
-	}
-
-	public static class Image implements Parcelable {
-		public String mOriginalUrl;
-		public String mOriginalContentType;
-		public String mThumbnailUrl;
-		public String mResizedUrl;
-		public String mSourceUrl;
-		public OAuth mAuthInfo;
-		public Tweet mRelatedTweet;
-		public boolean mRequireExpansion;
-
-		@Override
-		public boolean equals(Object o) {
-			return super.equals(o);
-		}
-
-		public Image(Tweet tweet, OAuth auth, Entities.MediaEntity entity) {
-			if (entity.variants == null) {
-				mOriginalUrl = entity.media_url + ":orig";
-				mResizedUrl = entity.media_url;
-				mOriginalContentType = "image/*";
-			} else {
-				mResizedUrl = entity.media_url;
-				mOriginalUrl = entity.variants.get(0).url;
-				mOriginalContentType = entity.variants.get(0).contentType;
-			}
-			mSourceUrl = entity.expanded_url;
-			mAuthInfo = auth;
-			mRelatedTweet = tweet;
-			mThumbnailUrl = entity.media_url; // + ":thumb";
-		}
-
-		public Image(String orig, String cType, String resized, String thumb, String source, OAuth auth, Tweet related, boolean needExpand) {
-			mOriginalUrl = orig;
-			mOriginalContentType = cType;
-			mResizedUrl = resized;
-			mThumbnailUrl = thumb;
-			mSourceUrl = source;
-			mAuthInfo = auth;
-			mRelatedTweet = related;
-			mRequireExpansion = needExpand;
-		}
-
-		protected Image(Parcel in) {
-			mOriginalUrl = in.readString();
-			mOriginalContentType = in.readString();
-			mThumbnailUrl = in.readString();
-			mResizedUrl = in.readString();
-			mSourceUrl = in.readString();
-			mAuthInfo = (OAuth) in.readValue(OAuth.class.getClassLoader());
-			mRelatedTweet = (Tweet) in.readValue(Tweet.class.getClassLoader());
-			mRequireExpansion = in.readByte() != 0x00;
-		}
-
-		@Override
-		public int describeContents() {
-			return 0;
-		}
-
-		@Override
-		public void writeToParcel(Parcel dest, int flags) {
-			dest.writeString(mOriginalUrl);
-			dest.writeString(mOriginalContentType);
-			dest.writeString(mThumbnailUrl);
-			dest.writeString(mResizedUrl);
-			dest.writeString(mSourceUrl);
-			dest.writeValue(mAuthInfo);
-			dest.writeValue(mRelatedTweet);
-			dest.writeByte((byte) (mRequireExpansion ? 0x01 : 0x00));
-		}
-
-		@SuppressWarnings("unused")
-		public static final Parcelable.Creator<Image> CREATOR = new Parcelable.Creator<Image>() {
-			@Override
-			public Image createFromParcel(Parcel in) {
-				return new Image(in);
-			}
-
-			@Override
-			public Image[] newArray(int size) {
-				return new Image[size];
-			}
-		};
 	}
 }

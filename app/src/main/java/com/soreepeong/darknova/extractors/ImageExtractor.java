@@ -3,7 +3,9 @@ package com.soreepeong.darknova.extractors;
 import java.util.regex.Pattern;
 
 /**
- * Created by Soreepeong on 2015-06-02.
+ * Image extractor for various media provider sites.
+ *
+ * TODO work in progress.
  */
 public class ImageExtractor {
 	public static final Pattern mTwitterPicPattern = Pattern.compile("^https?://(?:[^/]*\\.)?twitter\\.com/([a-z0-9_]{1,15})/status/([0-9]+)/photo/([0-9]+)$", Pattern.CASE_INSENSITIVE);

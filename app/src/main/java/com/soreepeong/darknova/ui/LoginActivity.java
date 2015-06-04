@@ -17,14 +17,15 @@ import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 
 /**
- * Created by Soreepeong on 2015-04-28.
+ * Login activity. Can be called only from AccountAuthenticator.
+ *
+ * @author Soreepeong
  */
 public class LoginActivity extends AccountAuthenticatorActivity implements SwipeRefreshLayout.OnRefreshListener{
 	private WebView mViewBrowser;
 	private View mViewProgress;
 	private TextView mViewProgressText;
 	private SwipeRefreshLayout mViewSwiper;
-	private LoginWebViewClient mWebClient;
 	private TwitterEngine mTwitter;
 
 	public void onCreate(Bundle savedInstanceState){
@@ -36,13 +37,43 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 		mViewProgressText = (TextView) findViewById(R.id.progressText);
 		mViewSwiper = (SwipeRefreshLayout) findViewById(R.id.swipeRefresher);
 		mViewSwiper.setOnRefreshListener(this);
-		mViewBrowser.setWebViewClient(mWebClient = new LoginWebViewClient());
+		mViewBrowser.setWebViewClient(new LoginWebViewClient());
 		new TwitterLoginTask().execute();
 	}
 
 	@Override
 	public void onRefresh() {
 		mViewBrowser.reload();
+	}
+
+	private void addAccount() {
+		final Account account = new Account(mTwitter.getScreenName(), getString(R.string.account_type));
+		final AccountManager am = AccountManager.get(this);
+		final Bundle info = new Bundle();
+		final Bundle accData = new Bundle();
+		final Intent res = new Intent();
+		info.putLong("user_id", mTwitter.getUserId());
+		info.putString("screen_name", mTwitter.getScreenName());
+		info.putString("oauth_token", mTwitter.getAuth().getToken());
+		info.putString("oauth_token_secret", mTwitter.getAuth().getSecretToken());
+		info.putString("consumer_key", mTwitter.getAuth().getApiKey());
+		info.putString("consumer_key_secret", mTwitter.getAuth().getSecretApiKey());
+		accData.putString(AccountManager.KEY_ACCOUNT_NAME, mTwitter.getScreenName());
+		accData.putString(AccountManager.KEY_ACCOUNT_TYPE, getString(R.string.account_type));
+		accData.putBundle(AccountManager.KEY_USERDATA, info);
+		am.addAccountExplicitly(account, null, info);
+		am.setUserData(account, "user_id", Long.toString(mTwitter.getUserId()));
+		am.setUserData(account, "screen_name", mTwitter.getScreenName());
+		am.setUserData(account, "oauth_token", mTwitter.getAuth().getToken());
+		am.setUserData(account, "oauth_token_secret", mTwitter.getAuth().getSecretToken());
+		am.setUserData(account, "consumer_key", mTwitter.getAuth().getApiKey());
+		am.setUserData(account, "consumer_key_secret", mTwitter.getAuth().getSecretApiKey());
+		res.putExtras(accData);
+		setAccountAuthenticatorResult(accData);
+		setResult(RESULT_OK, res);
+		finish();
+		TwitterEngine.prepare(this, true);
+		TwitterEngine.broadcastUserlistChange();
 	}
 
 	private class TwitterLoginTask extends AsyncTask<Object, Object, String> {
@@ -85,35 +116,6 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 			}
 			addAccount();
 		}
-	}
-
-	private void addAccount(){
-		final Account account = new Account(mTwitter.getScreenName(), getString(R.string.account_type));
-		final AccountManager am = AccountManager.get(this);
-		final Bundle info = new Bundle();
-		final Bundle accData = new Bundle();
-		final Intent res = new Intent();
-		info.putLong("user_id", mTwitter.getUserId());
-		info.putString("screen_name", mTwitter.getScreenName());
-		info.putString("oauth_token", mTwitter.getAuth().getToken());
-		info.putString("oauth_token_secret", mTwitter.getAuth().getSecretToken());
-		info.putString("consumer_key", mTwitter.getAuth().getApiKey());
-		info.putString("consumer_key_secret", mTwitter.getAuth().getSecretApiKey());
-		accData.putString(AccountManager.KEY_ACCOUNT_NAME, mTwitter.getScreenName());
-		accData.putString(AccountManager.KEY_ACCOUNT_TYPE, getString(R.string.account_type));
-		accData.putBundle(AccountManager.KEY_USERDATA, info);
-		am.addAccountExplicitly(account, null, info);
-		am.setUserData(account, "user_id", Long.toString(mTwitter.getUserId()));
-		am.setUserData(account, "screen_name", mTwitter.getScreenName());
-		am.setUserData(account, "oauth_token", mTwitter.getAuth().getToken());
-		am.setUserData(account, "oauth_token_secret", mTwitter.getAuth().getSecretToken());
-		am.setUserData(account, "consumer_key", mTwitter.getAuth().getApiKey());
-		am.setUserData(account, "consumer_key_secret", mTwitter.getAuth().getSecretApiKey());
-		res.putExtras(accData);
-		setAccountAuthenticatorResult(accData);
-		setResult(RESULT_OK, res);
-		finish();
-		TwitterEngine.broadcastUserlistChange();
 	}
 
 	private class LoginWebViewClient extends WebViewClient {

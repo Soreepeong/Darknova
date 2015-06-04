@@ -47,6 +47,7 @@ android {
 
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
+	compile 'com.googlecode.mp4parser:isoparser:1.0.5.4'
     compile 'com.android.support:appcompat-v7:22.1.1'
     compile 'com.android.support:recyclerview-v7:22.1.0'
 	compile 'com.fasterxml.jackson.core:jackson-core:2.5.3'
@@ -55,5 +56,5 @@ dependencies {
     compile 'com.h6ah4i.android.widget.advrecyclerview:advrecyclerview:0.7.1'
     compile 'org.apache.commons:commons-lang3:3.4'
     compile 'ch.acra:acra:4.6.2'
-	compile 'pl.droidsonroids.gif:android-gif-drawable:1.1.+'
+	compile 'pl.droidsonroids.gif:android-gif-drawable:1.1.7'
 }

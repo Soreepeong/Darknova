@@ -1,10 +1,5 @@
 package com.soreepeong.darknova.ui.view;
 
-import java.util.ArrayList;
-import java.util.Collections;
-
-import pl.droidsonroids.gif.GifDrawable;
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -22,6 +17,17 @@ import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.widget.OverScroller;
 
+import com.soreepeong.darknova.core.ImageCache;
+
+import java.util.Arrays;
+
+import pl.droidsonroids.gif.GifDrawable;
+
+/**
+ * Large image viewer with pinch-zoom, double tap-zoom, etc.
+ *
+ * @author Soreepeong
+ */
 public class LargeImageView extends View implements Runnable, Handler.Callback{
 
 	public static final int MESSAGE_IMAGE_VIEW_ERROR = 8,
@@ -43,19 +49,29 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 	private Thread mLoaderThread;
 	private String mImgPath;
 	private int mWidth, mHeight;
-	private int mMidX = 0, mMidY = 0;
-	private float zoom = 0, minZoom = 0.5f;
-	private float direction = 0, mAnimateSourceDirection, mAnimateTargetDirection;
-	private boolean bVertical;
-	private OnClickListener clkListener;
-	private GifDrawable mGif;
+	private int mMaxX, mMidX, mMinX, mMaxY, mMidY, mMinY;
+	private float mZoom = 0, mZoomMin = 0.5f;
+	private float mDirection = 0; // in degrees
+	private float mAnimateSourceDirection, mAnimateTargetDirection;
+	private boolean mRotatedVertically;
+	private OnClickListener mClickListener;
+	private GifDrawable mGifDrawable;
 	private Drawable mDrawable;
-	private boolean bNoRotate;
+	private boolean mDisableRotation;
 	private OnImageViewLoadFinishedListener mLoadListener;
-	private boolean bLoadedCalled;
-	private int nMaxX, nMinX, nMaxY, nMinY;
+	private boolean mLoadedCalled; // if mLoadListener is notified of load completion
 
-	private OnImageParamChangedListener mOnImageParamChangedListener;
+	private float mPreviousZoom;
+	private int mPreviousMidX, mPreviousMidY;
+	private float mPinchResizeTouchScale;
+	private boolean mIsMoving, mIsZooming;
+	private float mTouchAvgX, mTouchAvgY, nAutoZoomOldZoom;
+	private long nAutoZoomStartTime;
+	private int touchPointerCount;
+	private float nZoomBaseY, nZoomBaseX, nDragZoomBegin;
+	private boolean bZoomDragging, bIsDoubleTap;
+
+	private OnViewerParamChangedListener mOnViewerParamChangedListener;
 
 	public LargeImageView(Context context){
 		super(context);
@@ -99,22 +115,25 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 		setWillNotDraw(false);
 	}
 
+	/**
+	 * Reset the view
+	 */
 	public void removeImage(){
 		if(mLoaderThread != null){
 			mLoaderThread.interrupt();
 			mLoaderThread = null;
 		}
 		mImgPath = null;
-		zoom = 0;
-		direction = 0;
+		mZoom = 0;
+		mDirection = 0;
 		mDrawable = null;
-		bMoving = bZooming = false;
-		bVertical = false;
-		if(mGif != null)
-			mGif.stop();
-		mGif = null;
-		bNoRotate = true;
-		bLoadedCalled = false;
+		mIsMoving = mIsZooming = false;
+		mRotatedVertically = false;
+		if (mGifDrawable != null)
+			mGifDrawable.stop();
+		mGifDrawable = null;
+		mDisableRotation = true;
+		mLoadedCalled = false;
 		mHandler.removeMessages(MESSAGE_IMAGE_VIEW_CREATE_TO_VIEW);
 		mHandler.removeMessages(MESSAGE_IMAGE_VIEW_APPLY_TO_VIEW);
 		mHandler.removeMessages(MESSAGE_IMAGE_VIEW_APPLY_TO_SINGLE_VIEW);
@@ -122,125 +141,162 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 		mHandler.removeMessages(MESSAGE_IMAGE_VIEW_ROTATE);
 	}
 
+	/**
+	 * Is any image loaded?
+	 *
+	 * @return If the view has image
+	 */
 	public boolean hasImage(){
 		return mImgPath != null;
 	}
 
+	/**
+	 * Load the image from path
+	 *
+	 * @param sFilePath File path
+	 */
 	public void loadImage(String sFilePath){
 		mImgPath = sFilePath;
 		mLoaderThread = new Thread(this);
 		mLoaderThread.start();
 	}
 
+	/**
+	 * Treat the view as loaded, using given width and height
+	 *
+	 * @param width width in px
+	 * @param height height in px
+	 */
 	public void loadEmptyArea(int width, int height){
 		mWidth = width;
 		mHeight = height;
 		mProportion = (float) mHeight / (float) mWidth;
-		if(!bLoadedCalled && mLoadListener != null)
+		if (!mLoadedCalled && mLoadListener != null)
 			mLoadListener.OnImageViewLoadFinished(LargeImageView.this);
-		bLoadedCalled = true;
+		mLoadedCalled = true;
 		applyLayout(true);
 	}
 
-	public void rotateLeft(){
-		if(bNoRotate)
+	/**
+	 * Rotate the image counterclockwise
+	 */
+	public void rotateLeft() {
+		if (mDisableRotation)
 			return;
 		mHandler.removeMessages(MESSAGE_IMAGE_VIEW_ROTATE);
-		mAnimateSourceDirection = direction;
+		mAnimateSourceDirection = mDirection;
 		mAnimateTargetDirection = (((int)(mAnimateTargetDirection / 90) * 90)) - 90;
-		mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_ROTATE, Long.valueOf(System.currentTimeMillis() + mAnimateDuration)));
+		mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_ROTATE, System.currentTimeMillis() + mAnimateDuration));
 		int a = mWidth;
 		mWidth = mHeight;
 		mHeight = a;
-		bVertical = !bVertical;
+		mRotatedVertically = !mRotatedVertically;
 		applyLayout(true);
-		boolean b = mScrollerHorizontal.springBack(mMidX, 0, nMinX, nMaxX, 0, 0);
-		b |= mScrollerVertical.springBack(0, mMidY, 0, 0, nMinY, nMaxY);
+		boolean b = mScrollerHorizontal.springBack(mMidX, 0, mMinX, mMaxX, 0, 0);
+		b |= mScrollerVertical.springBack(0, mMidY, 0, 0, mMinY, mMaxY);
 		if(b){
 			mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REPOSITION);
 			mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_REPOSITION);
 		}
 	}
 
-	public void rotateRight(){
-		if(bNoRotate)
+	/**
+	 * Rotate the image clockwise
+	 */
+	public void rotateRight() {
+		if (mDisableRotation)
 			return;
 		mHandler.removeMessages(MESSAGE_IMAGE_VIEW_ROTATE);
-		mAnimateSourceDirection = direction;
+		mAnimateSourceDirection = mDirection;
 		mAnimateTargetDirection = (((int)(mAnimateTargetDirection / 90) * 90)) + 90;
 		mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_ROTATE, Long.valueOf(System.currentTimeMillis() + mAnimateDuration)));
 		int a = mWidth;
 		mWidth = mHeight;
 		mHeight = a;
-		bVertical = !bVertical;
+		mRotatedVertically = !mRotatedVertically;
 		applyLayout(true);
-		boolean b = mScrollerHorizontal.springBack(mMidX, 0, nMinX, nMaxX, 0, 0);
-		b |= mScrollerVertical.springBack(0, mMidY, 0, 0, nMinY, nMaxY);
+		boolean b = mScrollerHorizontal.springBack(mMidX, 0, mMinX, mMaxX, 0, 0);
+		b |= mScrollerVertical.springBack(0, mMidY, 0, 0, mMinY, mMaxY);
 		if(b){
 			mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REPOSITION);
 			mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_REPOSITION);
 		}
 	}
 
-	public void resetPosition(){
-		zoom = 0;
+	/**
+	 * Reset the position only
+	 */
+	public void resetPosition() {
+		mZoom = 0;
 		applyLayout(true);
 	}
 
-	private void applyLayout(boolean trap){
-		if(zoom == 0){ // not yet prepared
+	private void applyLayout(boolean trap) {
+		if (mZoom == 0) { // not yet prepared
 			mMidX = getWidth() / 2;
 			mMidY = getHeight() / 2;
 			if(mWidth == 0 || mHeight == 0 || mProportion == 0){ // Not loaded
 			}else if(getWidth() == 0 || getHeight() == 0)
-				zoom = 0;
+				mZoom = 0;
 			else if(getWidth() >= mWidth && getHeight() >= mHeight)
-				zoom = minZoom = 1;
+				mZoom = mZoomMin = 1;
 			else if(getHeight() / getWidth() > mProportion)
-				minZoom = zoom = (float)getWidth() / mWidth;
+				mZoomMin = mZoom = (float) getWidth() / mWidth;
 			else
-				minZoom = zoom = (float)getHeight() / mHeight;
-			if(minZoom > 0.25f)
-				minZoom = 0.25f;
+				mZoomMin = mZoom = (float) getHeight() / mHeight;
+			if (mZoomMin > 0.25f)
+				mZoomMin = 0.25f;
 		}
-		nMinX = (int)(getWidth() - (mWidth * zoom / 2));
-		nMaxX = (int)(mWidth * zoom / 2);
-		nMinY = (int)(getHeight() - (mHeight * zoom / 2));
-		nMaxY = (int)(mHeight * zoom / 2);
-		if(getWidth() >= (int)(mWidth * zoom)){
-			mMidX = nMinX = nMaxX = getWidth() / 2;
+		mMinX = (int) (getWidth() - (mWidth * mZoom / 2));
+		mMaxX = (int) (mWidth * mZoom / 2);
+		mMinY = (int) (getHeight() - (mHeight * mZoom / 2));
+		mMaxY = (int) (mHeight * mZoom / 2);
+		if (getWidth() >= (int) (mWidth * mZoom)) {
+			mMidX = mMinX = mMaxX = getWidth() / 2;
 			mScrollerHorizontal.forceFinished(true);
 			mEdgeGlowLeft.finish();
 			mEdgeGlowRight.finish();
 		}
-		if(getHeight() >= (int)(mHeight * zoom)){
-			mMidY = nMinY = nMaxY = getHeight() / 2;
+		if (getHeight() >= (int) (mHeight * mZoom)) {
+			mMidY = mMinY = mMaxY = getHeight() / 2;
 			mScrollerVertical.forceFinished(true);
 			mEdgeGlowTop.finish();
 			mEdgeGlowBottom.finish();
 		}
-		if(trap){
-			mMidX = Math.max(nMinX, Math.min(nMaxX, mMidX));
-			mMidY = Math.max(nMinY, Math.min(nMaxY, mMidY));
+		if(trap) {
+			mMidX = Math.max(mMinX, Math.min(mMaxX, mMidX));
+			mMidY = Math.max(mMinY, Math.min(mMaxY, mMidY));
 		}
 		triggerOnImageParamChangedListener();
 		invalidate();
 	}
 
-	public void setImageParams(int x, int y, float zoom){
-		this.zoom =zoom;
-		nMinX = x;
-		nMinY = y;
+	/**
+	 * Set viewer paramaeters
+	 *
+	 * @param x    X of center
+	 * @param y    Y of center
+	 * @param zoom zoom
+	 */
+	public void setViewerParams(int x, int y, float zoom) {
+		this.mZoom = zoom;
+		mMinX = x;
+		mMinY = y;
 		applyLayout(true);
 	}
 
-	public void setOnImageParamChangedListener(OnImageParamChangedListener l){
-		mOnImageParamChangedListener = l;
+	/**
+	 * Notify every time view parameter is changed and applied
+	 *
+	 * @param l Listener
+	 */
+	public void setOnViewerParamChangedListener(OnViewerParamChangedListener l) {
+		mOnViewerParamChangedListener = l;
 	}
 
-	public void triggerOnImageParamChangedListener(){
-		if(mOnImageParamChangedListener != null)
-			mOnImageParamChangedListener.onImageParamChanged(mMidX, nMinX, nMaxX, mMidY, nMinY, nMaxY, mWidth, mHeight, zoom);
+	public void triggerOnImageParamChangedListener() {
+		if (mOnViewerParamChangedListener != null)
+			mOnViewerParamChangedListener.onImageParamChanged(mMidX, mMinX, mMaxX, mMidY, mMinY, mMaxY, mWidth, mHeight, mZoom);
 	}
 
 	@Override
@@ -249,24 +305,16 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 		super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 	}
 
-	private float touchRscale;
-	private boolean bMoving, bZooming;
-	private float touchAvgX, touchAvgY, nAutoZoomOldZoom;
-	private long nAutoZoomStartTime;
-	private int touchPointerCount;
-	private float nZoomBaseY, nZoomBaseX, nDragZoomBegin;
-	private boolean bZoomDragging, bIsDoubleTap;
+	@Override
+	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+		super.onSizeChanged(w, h, oldw, oldh);
+		applyLayout(true);
+	}
 
-	private void rezoom(){
-		float newZoom, maxZoom;
-		newZoom = zoom;
-		if(zoom < 0.25f)
-			newZoom = 0.25f;
-		maxZoom = Math.max(Math.max(8, (float)getWidth() / mWidth), (float)getHeight() / mHeight);
-		if(zoom > maxZoom)
-			newZoom = maxZoom;
-		if(zoom != newZoom){
-			nAutoZoomOldZoom = zoom;
+	private void smoothZoomTo(float newZoom) {
+		newZoom = Math.min(Math.max(0.25f, newZoom), Math.max(Math.max(8, (float) getWidth() / mWidth), (float) getHeight() / mHeight));
+		if (mZoom != newZoom){
+			nAutoZoomOldZoom = mZoom;
 			nAutoZoomStartTime = System.currentTimeMillis() + mAnimateDuration;
 			mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REZOOM);
 			mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_REZOOM, newZoom));
@@ -275,16 +323,18 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 
 	@Override
 	public boolean onTouchEvent(MotionEvent event){
-		int i;
-		float nowAvgX = 0, nowAvgY = 0, nowRscale = 0, newZoom;
-		switch(event.getActionMasked()){
+		switch(event.getActionMasked()) {
 			case MotionEvent.ACTION_DOWN:
-				bMoving = true;
-				bZooming = false;
+				// Begin transformation
+				mPreviousMidX = mMidX;
+				mPreviousMidY = mMidY;
+				mPreviousZoom = mZoom;
+				mIsMoving = true;
+				mIsZooming = false;
 				bZoomDragging = false;
 				bIsDoubleTap = false;
-				touchAvgX = event.getX();
-				touchAvgY = event.getY();
+				mTouchAvgX = event.getX();
+				mTouchAvgY = event.getY();
 				nZoomBaseX = event.getX();
 				nZoomBaseY = event.getY();
 				touchPointerCount = 1;
@@ -293,215 +343,165 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 				mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REPOSITION);
 				break;
 			case MotionEvent.ACTION_POINTER_DOWN:
-				if(bMoving){
+				// Pinch-zoom
+				if (mIsMoving) {
 					touchPointerCount++;
-					bMoving = true;
-					bZooming = true;
+					mIsMoving = true;
+					mIsZooming = true;
 					mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REZOOM);
-					touchAvgX = touchAvgY = 0;
-					for(i = 0; i < touchPointerCount; i++){
-						touchAvgX += event.getX(i);
-						touchAvgY += event.getY(i);
+					mTouchAvgX = mTouchAvgY = 0;
+					for (int i = 0; i < touchPointerCount; i++) {
+						mTouchAvgX += event.getX(i);
+						mTouchAvgY += event.getY(i);
 					}
-					touchAvgX /= touchPointerCount;
-					touchAvgY /= touchPointerCount;
-					touchRscale = 0;
-					for(i = 0; i < touchPointerCount; i++)
-						touchRscale += Math.sqrt(Math.pow(touchAvgX - event.getX(i), 2) + Math.pow(touchAvgY - event.getY(i), 2));
-					touchRscale /= touchPointerCount;
+					mTouchAvgX /= touchPointerCount;
+					mTouchAvgY /= touchPointerCount;
+					mPinchResizeTouchScale = 0;
+					for (int i = 0; i < touchPointerCount; i++)
+						mPinchResizeTouchScale += Math.sqrt(Math.pow(mTouchAvgX - event.getX(i), 2) + Math.pow(mTouchAvgY - event.getY(i), 2));
+					mPinchResizeTouchScale /= touchPointerCount;
 				}
 				break;
 			case MotionEvent.ACTION_CANCEL:
+				// Cancelled, so revert
+				mMidX = mPreviousMidX;
+				mMidY = mPreviousMidY;
+				mZoom = mPreviousZoom;
+				bZoomDragging = bIsDoubleTap = false;
 			case MotionEvent.ACTION_UP:
 				touchPointerCount = 0;
-				bMoving = false;
-				bZooming = false;
+				mIsMoving = false;
+				mIsZooming = false;
 				mScrollerHorizontal.forceFinished(true);
 				mScrollerVertical.forceFinished(true);
 				mEdgeGlowBottom.onRelease();
 				mEdgeGlowRight.onRelease();
 				mEdgeGlowTop.onRelease();
 				mEdgeGlowLeft.onRelease();
-				if(!bZoomDragging && bIsDoubleTap){
-					ArrayList<Float> arrZooms = new ArrayList<Float>();
-					arrZooms.add(Float.valueOf(1));
-					arrZooms.add(Float.valueOf(4));
-					arrZooms.add(Float.valueOf((float)getWidth() / mWidth)); // Width
-					// fill
-					arrZooms.add(Float.valueOf((float)getHeight() / mHeight)); // Height
-					// fill
-					Collections.sort(arrZooms);
-					if(arrZooms.get(0) > zoom)
-						newZoom = arrZooms.get(0);
-					else if(arrZooms.get(1) > zoom)
-						newZoom = arrZooms.get(1);
-					else if(arrZooms.get(2) > zoom)
-						newZoom = arrZooms.get(2);
-					else if(arrZooms.get(3) > zoom)
-						newZoom = arrZooms.get(3);
-					else
-						newZoom = arrZooms.get(0);
-					nAutoZoomOldZoom = zoom;
-					nAutoZoomStartTime = System.currentTimeMillis() + mAnimateDuration;
-					mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REZOOM);
-					mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_REZOOM, Float.valueOf(newZoom)));
-				}else{
-					boolean b = mScrollerHorizontal.springBack(mMidX, 0, nMinX, nMaxX, 0, 0);
-					b |= mScrollerVertical.springBack(0, mMidY, 0, 0, nMinY, nMaxY);
+				if (!bZoomDragging && bIsDoubleTap) {
+					// double-tap zoom preset
+					float[] arrZooms = new float[]{1, 4, (float) getWidth() / mWidth, (float) getHeight() / mHeight};
+					int i;
+					Arrays.sort(arrZooms);
+					for (i = 0; i < arrZooms.length; i++)
+						if (arrZooms[i] > mZoom) {
+							smoothZoomTo(arrZooms[i]);
+							break;
+						}
+					if (i >= arrZooms.length)
+						smoothZoomTo(arrZooms[0]);
+				} else {
+					// reposition
+					boolean b = mScrollerHorizontal.springBack(mMidX, 0, mMinX, mMaxX, 0, 0);
+					b |= mScrollerVertical.springBack(0, mMidY, 0, 0, mMinY, mMaxY);
 					if(b){
 						mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REPOSITION);
 						mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_REPOSITION);
 					}
 				}
-				rezoom();
 				invalidate();
 				break;
 			case MotionEvent.ACTION_POINTER_UP:
 				touchPointerCount--;
-				if(touchPointerCount == 1){
-					bMoving = true;
-					bZooming = false;
-					for(i = 0; i < event.getPointerCount(); i++){
+				if (touchPointerCount == 1) {
+					mIsMoving = true;
+					mIsZooming = false;
+					for (int i = 0; i < event.getPointerCount(); i++){
 						if(i == event.getActionIndex())
 							continue;
-						touchAvgX = event.getX(i);
-						touchAvgY = event.getY(i);
+						mTouchAvgX = event.getX(i);
+						mTouchAvgY = event.getY(i);
 					}
-					nZoomBaseX = touchAvgX;
-					nZoomBaseY = touchAvgY;
-					rezoom();
-				}else if(touchPointerCount > 1){
-					touchAvgX = touchAvgY = 0;
-					for(i = 0; i < event.getPointerCount(); i++){
+					nZoomBaseX = mTouchAvgX;
+					nZoomBaseY = mTouchAvgY;
+					smoothZoomTo(mZoom);
+				} else if (touchPointerCount > 1) {
+					mTouchAvgX = mTouchAvgY = 0;
+					for (int i = 0; i < event.getPointerCount(); i++){
 						if(i == event.getActionIndex())
 							continue;
-						touchAvgX += event.getX(i);
-						touchAvgY += event.getY(i);
+						mTouchAvgX += event.getX(i);
+						mTouchAvgY += event.getY(i);
 					}
-					touchAvgX /= touchPointerCount;
-					touchAvgY /= touchPointerCount;
-					touchRscale = 0;
-					for(i = 0; i < touchPointerCount; i++)
-						touchRscale += Math.sqrt(Math.pow(touchAvgX - event.getX(i), 2) + Math.pow(touchAvgY - event.getY(i), 2));
-					touchRscale /= touchPointerCount;
+					mTouchAvgX /= touchPointerCount;
+					mTouchAvgY /= touchPointerCount;
+					mPinchResizeTouchScale = 0;
+					for (int i = 0; i < touchPointerCount; i++)
+						mPinchResizeTouchScale += Math.sqrt(Math.pow(mTouchAvgX - event.getX(i), 2) + Math.pow(mTouchAvgY - event.getY(i), 2));
+					mPinchResizeTouchScale /= touchPointerCount;
 				}
 				break;
 			case MotionEvent.ACTION_MOVE:
 				if(bIsDoubleTap){
 					if(Math.abs(event.getY() - nZoomBaseY) >= mConf.getScaledTouchSlop())
 						bZoomDragging = true;
-					if(bZoomDragging){
-						newZoom = (float)(nDragZoomBegin * Math.pow(1 + (event.getY()-nZoomBaseY) / mHeight, 2));
-						if(newZoom < 0.01f)
+					if (bZoomDragging) {
+						float newZoom = (float) (nDragZoomBegin * Math.pow(1 + (event.getY()-nZoomBaseY) / mHeight, 2));
+						if (newZoom < 0.01f)
 							newZoom = 0.01f;
-						mMidX = (int)(nZoomBaseX - ((nZoomBaseX - mMidX) / zoom * newZoom));
-						mMidY = (int)(nZoomBaseY - ((nZoomBaseY - mMidY) / zoom * newZoom));
-						zoom = newZoom;
+						mMidX = (int) (nZoomBaseX - ((nZoomBaseX - mMidX) / mZoom * newZoom));
+						mMidY = (int) (nZoomBaseY - ((nZoomBaseY - mMidY) / mZoom * newZoom));
+						mZoom = newZoom;
 						triggerOnImageParamChangedListener();
 					}
-				}else if(bMoving && event.getPointerCount() == touchPointerCount){
-					for(i = 0; i < event.getPointerCount(); i++){
+				} else if (mIsMoving && event.getPointerCount() == touchPointerCount) {
+					float nowAvgX = 0, nowAvgY = 0, nowRscale;
+					for (int i = 0; i < event.getPointerCount(); i++){
 						nowAvgX += event.getX(i);
 						nowAvgY += event.getY(i);
 					}
 					nowAvgX /= event.getPointerCount();
 					nowAvgY /= event.getPointerCount();
-					mMidX += nowAvgX - touchAvgX;
-					mMidY += nowAvgY - touchAvgY;
-					touchAvgX = nowAvgX;
-					touchAvgY = nowAvgY;
-					if(bZooming){
+					mMidX += nowAvgX - mTouchAvgX;
+					mMidY += nowAvgY - mTouchAvgY;
+					mTouchAvgX = nowAvgX;
+					mTouchAvgY = nowAvgY;
+					if (mIsZooming) {
 						nowRscale = 0;
-						for(i = 0; i < touchPointerCount; i++)
+						for(int i = 0; i < touchPointerCount; i++)
 							nowRscale += Math.sqrt(Math.pow(nowAvgX - event.getX(i), 2) + Math.pow(nowAvgY - event.getY(i), 2));
 						nowRscale /= touchPointerCount;
-						newZoom = zoom * nowRscale / touchRscale;
-						if(newZoom < 0.01f)
+						float newZoom = mZoom * nowRscale / mPinchResizeTouchScale;
+						if (newZoom < 0.01f)
 							newZoom = 0.01f;
-						mMidX = (int)(nowAvgX - (nowAvgX - mMidX) / zoom * newZoom);
-						mMidY = (int)(nowAvgY - (nowAvgY - mMidY) / zoom * newZoom);
-						zoom = newZoom;
-						touchRscale = nowRscale;
+						mMidX = (int) (nowAvgX - (nowAvgX - mMidX) / mZoom * newZoom);
+						mMidY = (int) (nowAvgY - (nowAvgY - mMidY) / mZoom * newZoom);
+						mZoom = newZoom;
+						mPinchResizeTouchScale = nowRscale;
 					}
 				}
 				applyLayout(false);
 
-				// width:  / (bVertical?mHeight:mWidth)
-				int nDrawWidth = (int)Math.min(getWidth(), mWidth * zoom);
-				int nDrawHeight = (int)Math.min(getHeight(), mHeight * zoom);
+				// width:  / (mRotatedVertically?mHeight:mWidth)
+				int nDrawWidth = (int) Math.min(getWidth(), mWidth * mZoom);
+				int nDrawHeight = (int) Math.min(getHeight(), mHeight * mZoom);
 
 
-				if(mMidX > nMaxX)
-					mEdgeGlowLeft.onPull((float)(mMidX - nMaxX) / getWidth(), 1 - (event.getY() - (getHeight() - nDrawHeight) / 2) / nDrawHeight );
-				if(mMidX < nMinX)
-					mEdgeGlowRight.onPull((float)(nMinX - mMidX) / getWidth(), (event.getY() - (getHeight() - nDrawHeight) / 2) / nDrawHeight );
-				if(mMidY > nMaxY)
-					mEdgeGlowTop.onPull((float)(mMidY - nMaxY) / getHeight(), (event.getX() - (getWidth() - nDrawWidth) / 2) / nDrawWidth );
-				if(mMidY < nMinY)
-					mEdgeGlowBottom.onPull((float)(nMinY - mMidY) / getHeight(), 1- (event.getX() - (getWidth() - nDrawWidth) / 2) / nDrawWidth );
-				mMidX = Math.max(nMinX, Math.min(nMaxX, mMidX));
-				mMidY = Math.max(nMinY, Math.min(nMaxY, mMidY));
+				if (mMidX > mMaxX)
+					mEdgeGlowLeft.onPull((float) (mMidX - mMaxX) / getWidth(), 1 - (event.getY() - (getHeight() - nDrawHeight) / 2) / nDrawHeight);
+				if (mMidX < mMinX)
+					mEdgeGlowRight.onPull((float) (mMinX - mMidX) / getWidth(), (event.getY() - (getHeight() - nDrawHeight) / 2) / nDrawHeight);
+				if (mMidY > mMaxY)
+					mEdgeGlowTop.onPull((float) (mMidY - mMaxY) / getHeight(), (event.getX() - (getWidth() - nDrawWidth) / 2) / nDrawWidth);
+				if (mMidY < mMinY)
+					mEdgeGlowBottom.onPull((float) (mMinY - mMidY) / getHeight(), 1 - (event.getX() - (getWidth() - nDrawWidth) / 2) / nDrawWidth);
+				mMidX = Math.max(mMinX, Math.min(mMaxX, mMidX));
+				mMidY = Math.max(mMinY, Math.min(mMaxY, mMidY));
 				break;
 		}
 		mGesture.onTouchEvent(event);
 		return true;
 	}
 
-	@SuppressLint("NewApi")
-	private final class SimpleGestureListener extends GestureDetector.SimpleOnGestureListener{
-		@Override
-		public boolean onDoubleTap(MotionEvent e){
-			nDragZoomBegin = zoom;
-			bIsDoubleTap = true;
-			return true;
-		}
-
-		@Override
-		public boolean onDown(MotionEvent e){
-			mScrollerVertical.forceFinished(true);
-			mScrollerHorizontal.forceFinished(true);
-			return true;
-		}
-
-		@Override
-		public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY){
-			if(mMidX == nMinX || mMidX == nMaxX)
-				velocityX = 0;
-			if(mMidY == nMinY || mMidY == nMaxY)
-				velocityY = 0;
-			if(Math.abs(velocityX) > mConf.getScaledMinimumFlingVelocity() || Math.abs(velocityY) > mConf.getScaledMinimumFlingVelocity()){
-				mScrollerHorizontal.forceFinished(true);
-				mScrollerVertical.forceFinished(true);
-				if(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.GINGERBREAD){
-					mScrollerHorizontal.fling(mMidX, 0, (int)velocityX, 0, nMinX, nMaxX, 0, 0, mConf.getScaledOverflingDistance(), 0);
-					mScrollerVertical.fling(0, mMidY, 0, (int)velocityY, 0, 0, nMinY, nMaxY, 0, mConf.getScaledOverflingDistance());
-				}else{
-					mScrollerHorizontal.fling(mMidX, 0, (int)velocityX, 0, nMinX, nMaxX, 0, 0, 5, 0);
-					mScrollerVertical.fling(0, mMidY, 0, (int)velocityY, 0, 0, nMinY, nMaxY, 0, 5);
-				}
-				mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REPOSITION);
-				mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_REPOSITION);
-			}
-			return true;
-		}
-
-		@Override
-		public boolean onSingleTapConfirmed(MotionEvent e){
-			if(clkListener != null)
-				clkListener.onClick(LargeImageView.this);
-			return true;
-		}
+	@Override
+	public void setOnClickListener(OnClickListener l) {
+		mClickListener = l;
 	}
 
 	@Override
-	public void setOnClickListener(OnClickListener l){
-		clkListener = l;
-	}
-
-	@Override
-	public void run(){
-		bNoRotate = true;
-		try{
+	public void run() {
+		mDisableRotation = true;
+		try {
 			Thread.currentThread().setName("ImageLoader " + mImgPath);
 			BitmapFactory.Options o = new BitmapFactory.Options();
 			o.inJustDecodeBounds = true;
@@ -509,43 +509,44 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 			mWidth = o.outWidth;
 			mHeight = o.outHeight;
 			mProportion = (float) mHeight / (float) mWidth;
-			if(mGif != null){
-				mGif.stop();
-				mGif = null;
+			if (mGifDrawable != null) {
+				mGifDrawable.stop();
+				mGifDrawable = null;
 			}
-			if(o.outMimeType.contains("image/gif"))
-				try{
-					mGif = new GifDrawable(mImgPath);
-					mGif.start();
-					mDrawable = mGif;
-				}catch(Exception e){
+			if (o.outMimeType.contains("image/gif"))
+				try {
+					mGifDrawable = new GifDrawable(mImgPath);
+					mGifDrawable.start();
+					mDrawable = mGifDrawable;
+				} catch(Exception e) {
 					e.printStackTrace();
 				}
-			if(mGif == null)
-				mDrawable = new BitmapDrawable(getResources(), mImgPath);
+			if (mGifDrawable == null) {
+				mDrawable = new BitmapDrawable(getResources(), ImageCache.decodeFile(mImgPath, 4096));
+			}
 			mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_LOADED);
-		}catch(Error e){
+		} catch (Error e) {
 			mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_ERROR, e));
-		}catch(Exception e){
+		} catch (Exception e) {
 			e.printStackTrace();
 			mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_ERROR, e));
 		}finally{
-			bNoRotate = false;
+			mDisableRotation = false;
 		}
 	}
 
 	@Override
-	protected void onDraw(Canvas canvas){
-		boolean bContinue = mGif != null;
-		if(mDrawable != null){
+	protected void onDraw(Canvas canvas) {
+		boolean bContinue = mGifDrawable != null;
+		if (mDrawable != null) {
 			canvas.save();
 			canvas.translate(mMidX, mMidY);
-			canvas.rotate(direction);
-			canvas.scale(zoom, zoom);
-			if(!bVertical){
+			canvas.rotate(mDirection);
+			canvas.scale(mZoom, mZoom);
+			if (!mRotatedVertically) {
 				canvas.translate(-mWidth / 2, -mHeight / 2);
 				mDrawable.setBounds(0, 0, mWidth, mHeight);
-			}else{
+			} else {
 				canvas.translate(-mHeight / 2, -mWidth / 2);
 				mDrawable.setBounds(0, 0, mHeight, mWidth);
 			}
@@ -553,15 +554,15 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 			canvas.restore();
 		}
 
-		int nDrawWidth = (int)Math.min(getWidth(), mWidth * zoom);
-		int nDrawHeight = (int)Math.min(getHeight(), mHeight * zoom);
+		int nDrawWidth = (int) Math.min(getWidth(), mWidth * mZoom);
+		int nDrawHeight = (int) Math.min(getHeight(), mHeight * mZoom);
 
-		if(!mEdgeGlowTop.isFinished()){
+		if (!mEdgeGlowTop.isFinished()) {
 			canvas.translate((getWidth() - nDrawWidth) / 2, 0);
 			mEdgeGlowTop.setSize(nDrawWidth, nDrawHeight);
 			bContinue |= mEdgeGlowTop.draw(canvas);
 		}
-		if(!mEdgeGlowBottom.isFinished()){
+		if (!mEdgeGlowBottom.isFinished()) {
 			canvas.save();
 			canvas.translate(-getWidth() - (getWidth() - nDrawWidth) / 2, getHeight());
 			canvas.rotate(180, getWidth(), 0);
@@ -569,7 +570,7 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 			bContinue |= mEdgeGlowBottom.draw(canvas);
 			canvas.restore();
 		}
-		if(!mEdgeGlowLeft.isFinished()){
+		if (!mEdgeGlowLeft.isFinished()) {
 			canvas.save();
 			canvas.rotate(270);
 			canvas.translate(-nDrawHeight - (getHeight() - nDrawHeight) / 2, 0);
@@ -577,7 +578,7 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 			bContinue |= mEdgeGlowLeft.draw(canvas);
 			canvas.restore();
 		}
-		if(!mEdgeGlowRight.isFinished()){
+		if (!mEdgeGlowRight.isFinished()) {
 			canvas.save();
 			canvas.rotate(90);
 			canvas.translate((getHeight() - nDrawHeight) / 2, -nDrawWidth - (getWidth() - nDrawWidth) / 2);
@@ -597,36 +598,36 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 				mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_ROTATE, msg.arg1, msg.arg2, msg.obj));
 			else
 				dist = 0;
-			direction = mAnimateTargetDirection + (mAnimateSourceDirection - mAnimateTargetDirection) * mInterpolator.getInterpolation(dist);
+			mDirection = mAnimateTargetDirection + (mAnimateSourceDirection - mAnimateTargetDirection) * mInterpolator.getInterpolation(dist);
 			invalidate();
 		}else if(msg.what == MESSAGE_IMAGE_VIEW_ERROR){
 			if(mLoadListener != null)
 				mLoadListener.OnImageViewLoadFailed(LargeImageView.this, (Exception) msg.obj);
 			return true;
-		}else if(msg.what == MESSAGE_IMAGE_VIEW_LOADED){
-			if(!bLoadedCalled && mLoadListener != null)
+		}else if (msg.what == MESSAGE_IMAGE_VIEW_LOADED) {
+			if(!mLoadedCalled && mLoadListener != null)
 				mLoadListener.OnImageViewLoadFinished(LargeImageView.this);
-			bLoadedCalled = true;
+			mLoadedCalled = true;
 			applyLayout(true);
 			return true;
 		}else if(msg.what == MESSAGE_IMAGE_VIEW_REPOSITION){
-			if(bMoving)
+			if(mIsMoving)
 				return true;
 			boolean b = mScrollerHorizontal.computeScrollOffset();
 			b |= mScrollerVertical.computeScrollOffset();
 			if(b){
 				mMidX = mScrollerHorizontal.getCurrX();
 				mMidY = mScrollerVertical.getCurrY();
-				if(mScrollerHorizontal.isOverScrolled()){
-					if(mMidX > nMaxX)
-						mEdgeGlowLeft.onAbsorb((int)mScrollerHorizontal.getCurrVelocity());
-					if(mMidX < nMinX)
+				if (mScrollerHorizontal.isOverScrolled()){
+					if(mMidX > mMaxX)
+						mEdgeGlowLeft.onAbsorb((int) mScrollerHorizontal.getCurrVelocity());
+					if(mMidX < mMinX)
 						mEdgeGlowRight.onAbsorb((int)mScrollerHorizontal.getCurrVelocity());
 				}
-				if(mScrollerVertical.isOverScrolled()){
-					if(mMidY > nMaxY)
-						mEdgeGlowTop.onAbsorb((int)mScrollerVertical.getCurrVelocity());
-					if(mMidY < nMinY)
+				if (mScrollerVertical.isOverScrolled()){
+					if(mMidY > mMaxY)
+						mEdgeGlowTop.onAbsorb((int) mScrollerVertical.getCurrVelocity());
+					if(mMidY < mMinY)
 						mEdgeGlowBottom.onAbsorb((int)mScrollerVertical.getCurrVelocity());
 				}
 				mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_REPOSITION));
@@ -636,8 +637,8 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 			}
 			applyLayout(false);
 			return true;
-		}else if(msg.what == MESSAGE_IMAGE_VIEW_REZOOM){
-			if(bZooming)
+		}else if (msg.what == MESSAGE_IMAGE_VIEW_REZOOM){
+			if(mIsZooming)
 				return true;
 			float dist = (nAutoZoomStartTime - System.currentTimeMillis()) / (float)mAnimateDuration;
 			float destZoom = (Float)msg.obj;
@@ -646,26 +647,71 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 				newZoom += (nAutoZoomOldZoom - destZoom) * mInterpolator.getInterpolation(dist);
 				mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_REZOOM, destZoom));
 			}
-			mMidX = (int)(nZoomBaseX - ((nZoomBaseX - mMidX) / zoom * newZoom));
-			mMidY = (int)(nZoomBaseY - ((nZoomBaseY - mMidY) / zoom * newZoom));
-			zoom = newZoom;
+			mMidX = (int) (nZoomBaseX - ((nZoomBaseX - mMidX) / mZoom * newZoom));
+			mMidY = (int) (nZoomBaseY - ((nZoomBaseY - mMidY) / mZoom * newZoom));
+			mZoom = newZoom;
 			applyLayout(true);
 			return true;
 		}
 		return false;
 	}
 
-	public void setOnImageViewLoadFinsihedListener(OnImageViewLoadFinishedListener l){
+	public void setOnImageViewLoadFinsihedListener(OnImageViewLoadFinishedListener l) {
 		this.mLoadListener = l;
 	}
 
-	public static interface OnImageViewLoadFinishedListener{
-		public void OnImageViewLoadFinished(LargeImageView v);
+	public interface OnImageViewLoadFinishedListener {
+		void OnImageViewLoadFinished(LargeImageView v);
 
-		public void OnImageViewLoadFailed(LargeImageView v, Exception exception);
+		void OnImageViewLoadFailed(LargeImageView v, Exception exception);
 	}
 
-	public interface OnImageParamChangedListener{
-		public void onImageParamChanged(int x, int minX, int maxX, int y, int minY, int maxY, int width, int height, float zoom);
+	public interface OnViewerParamChangedListener {
+		void onImageParamChanged(int x, int minX, int maxX, int y, int minY, int maxY, int width, int height, float zoom);
+	}
+
+	private final class SimpleGestureListener extends GestureDetector.SimpleOnGestureListener {
+		@Override
+		public boolean onDoubleTap(MotionEvent e) {
+			nDragZoomBegin = mZoom;
+			bIsDoubleTap = true;
+			return true;
+		}
+
+		@Override
+		public boolean onDown(MotionEvent e) {
+			mScrollerVertical.forceFinished(true);
+			mScrollerHorizontal.forceFinished(true);
+			return true;
+		}
+
+		@Override
+		public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+			if (mMidX == mMinX || mMidX == mMaxX)
+				velocityX = 0;
+			if (mMidY == mMinY || mMidY == mMaxY)
+				velocityY = 0;
+			if (Math.abs(velocityX) > mConf.getScaledMinimumFlingVelocity() || Math.abs(velocityY) > mConf.getScaledMinimumFlingVelocity()) {
+				mScrollerHorizontal.forceFinished(true);
+				mScrollerVertical.forceFinished(true);
+				if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.GINGERBREAD) {
+					mScrollerHorizontal.fling(mMidX, 0, (int) velocityX, 0, mMinX, mMaxX, 0, 0, mConf.getScaledOverflingDistance(), 0);
+					mScrollerVertical.fling(0, mMidY, 0, (int) velocityY, 0, 0, mMinY, mMaxY, 0, mConf.getScaledOverflingDistance());
+				} else {
+					mScrollerHorizontal.fling(mMidX, 0, (int) velocityX, 0, mMinX, mMaxX, 0, 0, 5, 0);
+					mScrollerVertical.fling(0, mMidY, 0, (int) velocityY, 0, 0, mMinY, mMaxY, 0, 5);
+				}
+				mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REPOSITION);
+				mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_REPOSITION);
+			}
+			return true;
+		}
+
+		@Override
+		public boolean onSingleTapConfirmed(MotionEvent e) {
+			if (mClickListener != null)
+				mClickListener.onClick(LargeImageView.this);
+			return true;
+		}
 	}
 }

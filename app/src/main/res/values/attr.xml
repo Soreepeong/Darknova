@@ -7,4 +7,5 @@
 		<attr name="action_type" format="reference" />
 		<attr name="action_on_leave" format="boolean" />
 	</declare-styleable>
+	<attr name="new_tweet_bg" format="reference|color"/>
 </resources>

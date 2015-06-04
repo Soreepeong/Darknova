@@ -13,17 +13,19 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.soreepeong.darknova.R;
-import com.soreepeong.darknova.core.ArrayTools;
 import com.soreepeong.darknova.core.HTTPRequest;
 import com.soreepeong.darknova.core.OAuth;
-import com.soreepeong.darknova.core.StreamTools;
-import com.soreepeong.darknova.core.StringTools;
 import com.soreepeong.darknova.services.DarknovaService;
+import com.soreepeong.darknova.tools.ArrayTools;
+import com.soreepeong.darknova.tools.StreamTools;
+import com.soreepeong.darknova.tools.StringTools;
 
 import org.acra.ACRA;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -38,17 +40,33 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Created by Soreepeong on 2015-04-24.
+ * Twitter APIs
+ *
+ * @author Soreepeong
  */
 public class TwitterEngine {
+	public static final int MAX_IMAGE_MEDIA_SIZE = 5 * 1048576;
+	public static final int MAX_VIDEO_MEDIA_SIZE = 15 * 1048576;
+	public static final byte[] CRLF = new byte[]{'\r', '\n'};
+	public static final int[] CRLF_FAILURE = ArrayTools.computeFailure(CRLF);
 	protected static final String DEFAULT_API_KEY = "xAMJy6IMIBF6KY2RQAyvw";
 	protected static final String DEFAULT_SECRET_API_KEY = "qq8aNTvEVlVn9NWJwZTJwCLrluGOXoX8dt7rI4A24";
-
 	protected static final int MAX_STREAM_HOLD = 1048576 * 3; // 3MB
-
 	protected static final SimpleDateFormat CREATED_AT_STRING = new SimpleDateFormat("EEE MMM dd HH:mm:ss ZZZZZ yyyy", Locale.ENGLISH);
 	protected static final Pattern TWITTER_PROFILE_IMAGE_MATCHER = Pattern.compile("^(.*?)(?:_normal|_bigger|_mini|)(\\.[A-Za-z_0-9]+|)?$");
-
+	protected static final ArrayList<OnUserlistChangedListener> mUserlistChangedListener = new ArrayList<>();
+	protected static final CopyOnWriteArrayList<StreamableTwitterEngine> mTwitter = new CopyOnWriteArrayList<>();
+	protected static final Runnable BROADCAST_USERLIST_CHANGE_RUNNABLE = new Runnable() {
+		@Override
+		public void run() {
+			synchronized (mUserlistChangedListener) {
+				List<StreamableTwitterEngine> mEngines = Collections.unmodifiableList(new ArrayList<>(mTwitter));
+				for (OnUserlistChangedListener l : mUserlistChangedListener)
+					l.onUserlistChanged(mEngines);
+				TwitterStreamServiceReceiver.sendServiceMessage(Message.obtain(null, DarknovaService.MESSAGE_USERLIST_CHANGED));
+			}
+		}
+	};
 	/**
 	 * Twitter API Base Paths
 	 */
@@ -58,21 +76,31 @@ public class TwitterEngine {
 	protected static String AUTH_REQUEST_TOKEN_URL = "https://api.twitter.com/oauth/request_token";
 	protected static String AUTH_ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token";
 	protected static String AUTH_AUTHORIZE_URL = "https://api.twitter.com/oauth/authorize";
-
+	protected static SharedPreferences mTwitterConfiguration;
 	protected final OAuth auth;
 	protected final JsonFactory JSON;
-
 	protected long mUserId;
 	protected String mScreenName;
 	protected Tweeter mTweeter;
 
-	public static final byte[] CRLF = new byte[]{'\r', '\n'};
-	public static final int[] CRLF_FAILURE = ArrayTools.indexOfFailureFunction(CRLF);
+	/**
+	 * Initialize with default API Key.
+	 */
+	public TwitterEngine() {
+		this(DEFAULT_API_KEY, DEFAULT_SECRET_API_KEY);
+	}
 
-	protected static SharedPreferences mTwitterConfiguration;
-	protected static final ArrayList<OnUserlistChangedListener> mUserlistChangedListener = new ArrayList<>();
-	protected static final CopyOnWriteArrayList<StreamableTwitterEngine> mTwitter = new CopyOnWriteArrayList<>();
+	/**
+	 * Initialize with given API Key.
+	 *
+	 * @param apiKey
+	 * @param secretApiKey
+	 */
+	public TwitterEngine(String apiKey, String secretApiKey) {
+		auth = new OAuth(apiKey, secretApiKey);
+		JSON = new JsonFactory();
 
+	}
 
 	public static void addOnUserlistChangedListener(OnUserlistChangedListener l) {
 		synchronized (mUserlistChangedListener) {
@@ -86,18 +114,6 @@ public class TwitterEngine {
 			mUserlistChangedListener.remove(l);
 		}
 	}
-
-	protected static final Runnable BROADCAST_USERLIST_CHANGE_RUNNABLE = new Runnable() {
-		@Override
-		public void run() {
-			synchronized (mUserlistChangedListener) {
-				List<StreamableTwitterEngine> mEngines = Collections.unmodifiableList(new ArrayList<>(mTwitter));
-				for (OnUserlistChangedListener l : mUserlistChangedListener)
-					l.onUserlistChanged(mEngines);
-				TwitterStreamServiceReceiver.sendServiceMessage(Message.obtain(null, DarknovaService.MESSAGE_USERLIST_CHANGED));
-			}
-		}
-	};
 
 	public static void broadcastUserlistChange() {
 		new Handler(Looper.getMainLooper()).post(BROADCAST_USERLIST_CHANGE_RUNNABLE);
@@ -145,7 +161,7 @@ public class TwitterEngine {
 
 	public static void prepare(Context context, boolean invalidate) {
 		synchronized (mTwitter) {
-			if(invalidate)
+			if (invalidate)
 				mTwitter.clear();
 			if (!mTwitter.isEmpty())
 				return;
@@ -175,23 +191,33 @@ public class TwitterEngine {
 		}
 	}
 
-	/**
-	 * Initialize with default API Key.
-	 */
-	public TwitterEngine() {
-		this(DEFAULT_API_KEY, DEFAULT_SECRET_API_KEY);
+	public static long getConfigurationLong(String key, long defaultValue) {
+		return mTwitterConfiguration.getLong(key, defaultValue);
 	}
 
-	/**
-	 * Initialize with given API Key.
-	 *
-	 * @param apiKey
-	 * @param secretApiKey
-	 */
-	public TwitterEngine(String apiKey, String secretApiKey) {
-		auth = new OAuth(apiKey, secretApiKey);
-		JSON = new JsonFactory();
-
+	protected static String decodeText(String text, Entities entity) {
+		final String[][] replacements = {{"&lt;", "<"}, {"&gt;", ">"}, {"&amp;", "&"}};
+		int i = 0, last = 0;
+		if (text == null) return null;
+		StringBuilder sb = new StringBuilder();
+		wholeLoop:
+		while ((i = text.indexOf("&", i)) != -1) {
+			sb.append(text.substring(last, i));
+			for (String[] rep : replacements)
+				if (text.startsWith(rep[0], i)) {
+					sb.append(rep[1]);
+					for (Entities.Entity e : entity.entities) {
+						if (e.indice_left > i) e.indice_left -= rep[1].length() - 1;
+						if (e.indice_right > i) e.indice_right -= rep[1].length() - 1;
+					}
+					last = i += rep[0].length();
+					continue wholeLoop;
+				}
+			sb.append("&");
+			last = i = i + 1;
+		}
+		sb.append(text.substring(last));
+		return sb.toString();
 	}
 
 	public void setUserInfo(long user_id, String screen_name) {
@@ -223,9 +249,10 @@ public class TwitterEngine {
 	}
 
 	public String startNewLogin(String callbackUrl) throws RequestException {
-		HTTPRequest request = HTTPRequest.getRequest(AUTH_REQUEST_TOKEN_URL, null, true, callbackUrl == null ? "" : ("oauth_callback=" + StringTools.UrlEncode(callbackUrl)), false); 		if(request == null) 			return null;
+		HTTPRequest request = HTTPRequest.getRequest(AUTH_REQUEST_TOKEN_URL, null, true, callbackUrl == null ? "" : ("oauth_callback=" + StringTools.UrlEncode(callbackUrl)), false);
+		if (request == null) return null;
 		try {
-			request.addParameter("Authorization", auth.getRequestTokenHeader(AUTH_REQUEST_TOKEN_URL, callbackUrl));
+			request.addRequestHeader("Authorization", auth.getRequestTokenHeader(AUTH_REQUEST_TOKEN_URL, callbackUrl));
 			request.submitRequest();
 			if (request.getStatusCode() != 200)
 				throw new RequestException("startNewLogin", request);
@@ -252,9 +279,10 @@ public class TwitterEngine {
 	public String authenticate(String token, String pin) throws RequestException {
 		if (!auth.getToken().equals(token))
 			throw new RequestException("authenticate", "oauth token wrong");
-		HTTPRequest request = HTTPRequest.getRequest(AUTH_ACCESS_TOKEN_URL, null, true, "oauth_verifier=" + StringTools.UrlEncode(pin), false); 		if(request == null) 			return null;
+		HTTPRequest request = HTTPRequest.getRequest(AUTH_ACCESS_TOKEN_URL, null, true, "oauth_verifier=" + StringTools.UrlEncode(pin), false);
+		if (request == null) return null;
 		try {
-			request.addParameter("Authorization", auth.getAuthorizeHeader(AUTH_ACCESS_TOKEN_URL, pin));
+			request.addRequestHeader("Authorization", auth.getAuthorizeHeader(AUTH_ACCESS_TOKEN_URL, pin));
 			request.submitRequest();
 			if (request.getStatusCode() != 200)
 				throw new RequestException("startNewLogin", request);
@@ -505,7 +533,6 @@ public class TwitterEngine {
 		return Tweet.updateTweet(res);
 	}
 
-
 	protected ArrayList<Tweet> parseTweetArray(JsonParser parser, TweetCallback callback) throws IOException, ParseException {
 		ArrayList<Tweet> res = new ArrayList<>();
 		while (!Thread.currentThread().isInterrupted() && parser.nextToken() != JsonToken.END_ARRAY) {
@@ -530,7 +557,8 @@ public class TwitterEngine {
 	}
 
 	public ArrayList<Tweet> getTweetArrayRequest(String url, String post, TweetCallback callback) throws RequestException {
-		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + url, auth, post != null, post, false); 		if(request == null) 			return null;
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + url, auth, post != null, post, false);
+		if (request == null) return null;
 		InputStream in = null;
 		try {
 			request.submitRequest();
@@ -548,7 +576,8 @@ public class TwitterEngine {
 	}
 
 	public ArrayList<Tweeter> getTweeterArrayRequest(String url, String post) throws RequestException {
-		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + url, auth, post != null, post, false); 		if(request == null) 			return null;
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + url, auth, post != null, post, false);
+		if (request == null) return null;
 		InputStream in = null;
 		try {
 			request.submitRequest();
@@ -580,16 +609,17 @@ public class TwitterEngine {
 				(count > 0 ? "&count=" + count : "") + (since_id > 0 ? "&since_id=" + since_id : "") + (max_id > 0 ? "&max_id=" + max_id : ""), null, callback);
 	}
 
-	public ArrayList<Tweeter> lookupUser(long... ids) throws RequestException{
-		if(ids.length > 1){
+	public ArrayList<Tweeter> lookupUser(long... ids) throws RequestException {
+		if (ids.length > 1) {
 			StringBuilder query = new StringBuilder("user_id=");
 			query.append(ids[0]);
-			for(int i = ids.length - 1; i >= 1; i--){
+			for (int i = ids.length - 1; i >= 1; i--) {
 				query.append(",").append(ids[i]);
 			}
 			return getTweeterArrayRequest("users/lookup.json", query.toString());
-		}else{
-			HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "users/show.json?user_id="+ids[0], auth, false, null, false); 		if(request == null) 			return null;
+		} else {
+			HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "users/show.json?user_id=" + ids[0], auth, false, null, false);
+			if (request == null) return null;
 			InputStream in = null;
 			try {
 				request.submitRequest();
@@ -609,16 +639,17 @@ public class TwitterEngine {
 		}
 	}
 
-	public ArrayList<Tweeter> lookupUser(String... screen_names) throws RequestException{
-		if(screen_names.length > 1){
+	public ArrayList<Tweeter> lookupUser(String... screen_names) throws RequestException {
+		if (screen_names.length > 1) {
 			StringBuilder query = new StringBuilder("screen_name=");
 			query.append(screen_names[0]);
-			for(int i = screen_names.length - 1; i >= 1; i--){
+			for (int i = screen_names.length - 1; i >= 1; i--) {
 				query.append(",").append(screen_names[i]);
 			}
 			return getTweeterArrayRequest("users/lookup.json", query.toString());
-		}else{
-			HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "users/show.json?screen_name="+screen_names[0], auth, false, null, false); 		if(request == null) 			return null;
+		} else {
+			HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "users/show.json?screen_name=" + screen_names[0], auth, false, null, false);
+			if (request == null) return null;
 			InputStream in = null;
 			try {
 				request.submitRequest();
@@ -638,8 +669,27 @@ public class TwitterEngine {
 		}
 	}
 
-	public ArrayList<Tweeter> searchUser(String q, int count, int page) throws RequestException{
-		return getTweeterArrayRequest("users/search.json?q="+StringTools.UrlEncode(q)+"&count="+count+"&page="+page, null);
+	public long uploadMedia(File localFile) throws RequestException {
+		HTTPRequest request = HTTPRequest.getRequest(UPLOAD_BASE_PATH + "media/upload.json", auth, true, null, true);
+		if (request == null) throw new RequestException("lookupUser", "Nulled");
+		InputStream in = null;
+		try {
+			request.addMultipartFileParameter("media", localFile);
+			request.submitRequest();
+			if (request.getStatusCode() != 200)
+				throw new RequestException("lookupUser", request);
+			JSONObject parsed = new JSONObject(request.getWholeData());
+			return parsed.getLong("media_id");
+		} catch (JSONException e) {
+			throw new RequestException("lookupUser", e);
+		} finally {
+			StreamTools.close(in);
+			request.close();
+		}
+	}
+
+	public ArrayList<Tweeter> searchUser(String q, int count, int page) throws RequestException {
+		return getTweeterArrayRequest("users/search.json?q=" + StringTools.UrlEncode(q) + "&count=" + count + "&page=" + page, null);
 	}
 
 	public Tweet postTweet(String status, long in_reply_to_status_id, long latitude, long longitude, boolean display_coordinates, List<Long> media_ids) throws RequestException {
@@ -649,7 +699,8 @@ public class TwitterEngine {
 			while (!media_ids.isEmpty())
 				post += "," + media_ids.remove(0);
 		}
-		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "statuses/update.json", auth, true, post, false); 		if(request == null) 			return null;
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "statuses/update.json", auth, true, post, false);
+		if (request == null) return null;
 		InputStream in = null;
 		try {
 			request.submitRequest();
@@ -667,7 +718,8 @@ public class TwitterEngine {
 	}
 
 	public Tweet postRetweet(long id) throws RequestException {
-		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "statuses/retweet/" + id + ".json", auth, true, null, false); 		if(request == null) 			return null;
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "statuses/retweet/" + id + ".json", auth, true, null, false);
+		if (request == null) return null;
 		InputStream in = null;
 		try {
 			request.submitRequest();
@@ -689,12 +741,13 @@ public class TwitterEngine {
 			while (parser.nextToken() != JsonToken.END_OBJECT) {
 				String key = parser.getCurrentName();
 				parser.nextToken();
-				parseConfiguration(parser, path + "." + key, editor);
+				parseConfiguration(parser, path.isEmpty() ? key : path + "." + key, editor);
 			}
 		} else if (parser.getCurrentToken() == JsonToken.START_ARRAY) {
 			int i = 0;
 			while (parser.nextToken() != JsonToken.END_ARRAY) {
-				parseConfiguration(parser, path + "." + i++, editor);
+				parseConfiguration(parser, (path.isEmpty() ? "" : path + ".") + i, editor);
+				i++;
 			}
 		} else {
 			try {
@@ -706,7 +759,8 @@ public class TwitterEngine {
 	}
 
 	public void loadConfiguration() throws RequestException {
-		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "help/configuration.json", auth, false, null, false); 		if(request == null) 			return;
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "help/configuration.json", auth, false, null, false);
+		if (request == null) return;
 		InputStream in = null;
 		try {
 			request.submitRequest();
@@ -749,35 +803,14 @@ public class TwitterEngine {
 		public void onStreamStop(StreamableTwitterEngine engine);
 	}
 
-	public class RequestException extends Exception {
-		public RequestException(String functionName, Exception exception) {
-			exception.printStackTrace();
-		}
-
-		public RequestException(String functionName, String description) {
-			android.util.Log.d("TwitterEngine " + functionName, description);
-		}
-
-		public RequestException(String functionName, HTTPRequest request) {
-			try {
-				android.util.Log.d("TwitterEngine " + functionName, request.getWholeData());
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-			;
-			if (request.getLastError() != null)
-				request.getLastError().printStackTrace();
-		}
-	}
-
 	public static class StreamableTwitterEngine extends TwitterEngine {
 
+		protected final ArrayList<TwitterStreamCallback> mStreamCallbacks = new ArrayList<>();
+		protected final ArrayList<Long> mStreamFriendsList = new ArrayList<>();
 		protected Thread mStreamThread;
 		protected HTTPRequest mStreamConnection;
 		protected long mStreamLastActivityTime;
-		protected final ArrayList<TwitterStreamCallback> mStreamCallbacks = new ArrayList<>();
 		protected Handler mHandler = new Handler(Looper.getMainLooper());
-		protected final ArrayList<Long> mStreamFriendsList = new ArrayList<>();
 		protected final TwitterStreamCallback mStreamCallback = new TwitterStreamCallback() {
 
 			@Override
@@ -863,6 +896,104 @@ public class TwitterEngine {
 				synchronized (mStreamCallbacks) {
 					for (TwitterStreamCallback c : mStreamCallbacks)
 						c.onNewTweetReceived(tweet);
+				}
+			}
+		};
+		protected Runnable mStreamRunner = new Runnable() {
+			@Override
+			public void run() {
+				Thread.currentThread().setName("StreamThread for " + getScreenName());
+				int errorWaitTime = 0;
+				mStreamCallback.onStreamStart(StreamableTwitterEngine.this);
+				try {
+					while (!Thread.interrupted()) {
+						Thread.sleep(errorWaitTime);
+						HTTPRequest conn = mStreamConnection = HTTPRequest.getRequest(STREAM_BASE_PATH + "user.json", auth, false, null, true);
+						InputStream in = null;
+						try {
+							int statusCode;
+							if (conn == null) {
+								statusCode = 0;
+							} else {
+								conn.setConnectTimeout(10000);
+								conn.setReadTimeout(90000);
+								conn.submitRequest();
+								statusCode = conn.getStatusCode();
+							}
+							if (statusCode != 200) {
+								if (statusCode == 0) { // Network error
+									if (errorWaitTime < 16000)
+										errorWaitTime += 250;
+								} else if (statusCode == 420) { // Rate Limit
+									if (errorWaitTime < 60000)
+										errorWaitTime += 60000;
+									else
+										errorWaitTime *= 2;
+									if (errorWaitTime > 600000)
+										errorWaitTime = 600000;
+								} else {
+									if (errorWaitTime < 5000)
+										errorWaitTime += 5000;
+									else
+										errorWaitTime *= 2;
+									if (errorWaitTime > 320000)
+										errorWaitTime = 320000;
+								}
+								if (Thread.interrupted())
+									break;
+								mStreamCallback.onStreamError(StreamableTwitterEngine.this, new RequestException("StreamRunner", conn));
+								continue;
+							}
+							errorWaitTime = 0;
+							in = conn.getInputStream(false);
+							mStreamLastActivityTime = System.currentTimeMillis();
+							mStreamCallback.onStreamConnected(StreamableTwitterEngine.this);
+							byte[] buffer = new byte[8192];
+							int searchFrom = 0;
+							ByteBuffer data = ByteBuffer.allocate(buffer.length);
+							while (!Thread.interrupted()) {
+								int read = in.read(buffer, 0, Math.max(1, Math.min(buffer.length, in.available())));
+								if (data.remaining() < read) {
+									ByteBuffer tmp = ByteBuffer.allocate(data.capacity() * 2);
+									tmp.put(data.array(), 0, data.position());
+									data = tmp;
+								}
+								data.put(buffer, 0, read);
+								while (!mStreamCallbacks.isEmpty()) {
+									int pos = ArrayTools.indexOf(data.array(), searchFrom, data.position(), CRLF, CRLF_FAILURE);
+									if (pos == -1) {
+										searchFrom = Math.max(0, data.position() - CRLF.length + 1);
+										break;
+									}
+									parseStreamMessage(new String(data.array(), 0, pos));
+									data.limit(data.position());
+									data.position(pos + CRLF.length);
+									data.compact();
+									searchFrom = 0;
+								}
+								if (data.position() > MAX_STREAM_HOLD)
+									Thread.currentThread().interrupt();
+							}
+						} catch (Exception e) {
+							errorWaitTime = 250;
+							if (Thread.interrupted())
+								break;
+							e.printStackTrace();
+							mStreamCallback.onStreamError(StreamableTwitterEngine.this, e);
+						} finally {
+							StreamTools.close(in);
+							conn.close();
+							if (mStreamConnection == conn)
+								mStreamConnection = null;
+						}
+					}
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				} finally {
+					mStreamFriendsList.clear();
+					if (mStreamThread == Thread.currentThread())
+						mStreamThread = null;
+					mStreamCallback.onStreamStop(StreamableTwitterEngine.this);
 				}
 			}
 		};
@@ -1053,129 +1184,26 @@ public class TwitterEngine {
 		public boolean isStreamUsed() {
 			return mStreamThread != null;
 		}
-
-		protected Runnable mStreamRunner = new Runnable() {
-			@Override
-			public void run() {
-				Thread.currentThread().setName("StreamThread for " + getScreenName());
-				int errorWaitTime = 0;
-				mStreamCallback.onStreamStart(StreamableTwitterEngine.this);
-				try {
-					while (!Thread.interrupted()) {
-						Thread.sleep(errorWaitTime);
-						HTTPRequest conn = mStreamConnection = HTTPRequest.getRequest(STREAM_BASE_PATH + "user.json", auth, false, null, true);
-						InputStream in = null;
-						try {
-							int statusCode;
-							if(conn == null){
-								statusCode = 0;
-							}else{
-								conn.setConnectTimeout(10000);
-								conn.setReadTimeout(90000);
-								conn.submitRequest();
-								statusCode = conn.getStatusCode();
-							}
-							if (statusCode != 200) {
-								if (statusCode == 0) { // Network error
-									if (errorWaitTime < 16000)
-										errorWaitTime += 250;
-								} else if (statusCode == 420) { // Rate Limit
-									if (errorWaitTime < 60000)
-										errorWaitTime += 60000;
-									else
-										errorWaitTime *= 2;
-									if (errorWaitTime > 600000)
-										errorWaitTime = 600000;
-								} else {
-									if (errorWaitTime < 5000)
-										errorWaitTime += 5000;
-									else
-										errorWaitTime *= 2;
-									if (errorWaitTime > 320000)
-										errorWaitTime = 320000;
-								}
-								if (Thread.interrupted())
-									break;
-								mStreamCallback.onStreamError(StreamableTwitterEngine.this, new RequestException("StreamRunner", conn));
-								continue;
-							}
-							errorWaitTime = 0;
-							in = conn.getInputStream(false);
-							mStreamLastActivityTime = System.currentTimeMillis();
-							mStreamCallback.onStreamConnected(StreamableTwitterEngine.this);
-							byte[] buffer = new byte[8192];
-							int searchFrom = 0;
-							ByteBuffer data = ByteBuffer.allocate(buffer.length);
-							while (!Thread.interrupted()) {
-								int read = in.read(buffer, 0, Math.max(1, Math.min(buffer.length, in.available())));
-								if (data.remaining() < read) {
-									ByteBuffer tmp = ByteBuffer.allocate(data.capacity() * 2);
-									tmp.put(data.array(), 0, data.position());
-									data = tmp;
-								}
-								data.put(buffer, 0, read);
-								while (!mStreamCallbacks.isEmpty()) {
-									int pos = ArrayTools.indexOf(data.array(), searchFrom, data.position(), CRLF, CRLF_FAILURE);
-									if (pos == -1) {
-										searchFrom = Math.max(0, data.position() - CRLF.length + 1);
-										break;
-									}
-									parseStreamMessage(new String(data.array(), 0, pos));
-									data.limit(data.position());
-									data.position(pos + CRLF.length);
-									data.compact();
-									searchFrom = 0;
-								}
-								if (data.position() > MAX_STREAM_HOLD)
-									Thread.currentThread().interrupt();
-							}
-						} catch (Exception e) {
-							errorWaitTime = 250;
-							if (Thread.interrupted())
-								break;
-							e.printStackTrace();
-							mStreamCallback.onStreamError(StreamableTwitterEngine.this, e);
-						} finally {
-							StreamTools.close(in);
-							conn.close();
-							if (mStreamConnection == conn)
-								mStreamConnection = null;
-						}
-					}
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				} finally {
-					mStreamFriendsList.clear();
-					if (mStreamThread == Thread.currentThread())
-						mStreamThread = null;
-					mStreamCallback.onStreamStop(StreamableTwitterEngine.this);
-				}
-			}
-		};
 	}
 
-	protected static String decodeText(String text, Entities entity) {
-		final String[][] replacements = {{"&lt;", "<"}, {"&gt;", ">"}, {"&amp;", "&"}};
-		int i = 0, last = 0;
-		if (text == null) return null;
-		StringBuilder sb = new StringBuilder();
-		wholeLoop:
-		while ((i = text.indexOf("&", i)) != -1) {
-			sb.append(text.substring(last, i));
-			for (String[] rep : replacements)
-				if (text.startsWith(rep[0], i)) {
-					sb.append(rep[1]);
-					for (Entities.Entity e : entity.entities) {
-						if (e.indice_left > i) e.indice_left -= rep[1].length() - 1;
-						if (e.indice_right > i) e.indice_right -= rep[1].length() - 1;
-					}
-					last = i += rep[0].length();
-					continue wholeLoop;
-				}
-			sb.append("&");
-			last = i = i + 1;
+	public class RequestException extends Exception {
+		public RequestException(String functionName, Exception exception) {
+			exception.printStackTrace();
 		}
-		sb.append(text.substring(last));
-		return sb.toString();
+
+		public RequestException(String functionName, String description) {
+			android.util.Log.d("TwitterEngine " + functionName, description);
+		}
+
+		public RequestException(String functionName, HTTPRequest request) {
+			try {
+				android.util.Log.d("TwitterEngine " + functionName, request.getWholeData());
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			;
+			if (request.getLastError() != null)
+				request.getLastError().printStackTrace();
+		}
 	}
 }

@@ -34,13 +34,11 @@ import com.soreepeong.darknova.R;
  */
 public class DragInitiatorToolbar extends Toolbar{
 
+	private final int mViewLocation[] = new int[2];
 	/** DragInitiator associated to this button. */
 	private DragInitiator mDragInitiator;
-
 	/** Action Type of this button */
 	private int mDragActionType = 0;
-
-	private final int mViewLocation[] = new int[2];
 
 	public DragInitiatorToolbar(Context context){
 		super(context);
@@ -98,7 +96,7 @@ public class DragInitiatorToolbar extends Toolbar{
 				mDragInitiator.setReactorContainer(v);
 				if(isInEditMode())
 					return;
-				if(v.getVisibility() == View.GONE)
+				if (v.getVisibility() != View.VISIBLE)
 					return;
 				v.setVisibility(View.GONE);
 				return;

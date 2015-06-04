@@ -2,19 +2,19 @@ package com.soreepeong.darknova.ui.fragments;
 
 import android.accounts.AccountManager;
 import android.app.Activity;
+import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.support.v4.app.Fragment;
-import android.content.SharedPreferences;
-import android.content.res.Configuration;
-import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.support.v7.app.ActionBarDrawerToggle;
+import android.support.v4.app.Fragment;
 import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
@@ -36,9 +36,8 @@ import com.h6ah4i.android.widget.advrecyclerview.draggable.RecyclerViewDragDropM
 import com.h6ah4i.android.widget.advrecyclerview.utils.AbstractDraggableItemViewHolder;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
-import com.soreepeong.darknova.core.ResTools;
 import com.soreepeong.darknova.settings.Page;
-import com.soreepeong.darknova.twitter.Tweet;
+import com.soreepeong.darknova.tools.ResTools;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.twitter.TwitterStreamServiceReceiver;
@@ -64,35 +63,28 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 	 * expands it. This shared preference tracks this.
 	 */
 	private static final String PREF_USER_LEARNED_DRAWER = "navigation_drawer_learned";
-
+	private static final int MESSAGE_SERVICE_TIMEOUT = 1;
+	private static final int SERVICE_COMMUNICATION_TIMEOUT = 30000;
+	private final ArrayList<TwitterEngine> mStreamPowerChangeWaitingEngines = new ArrayList<>();
+	private final Handler mHandler = new Handler(this);
 	/**
 	 * A pointer to the current callbacks instance (the Activity).
 	 */
 	private NavigationDrawerCallbacks mCallbacks;
-
 	/**
 	 * Helper component that ties the action bar to the navigation drawer.
 	 */
 	private ActionBarDrawerToggle mActionBarDrawerToggle;
-
 	private SharedPreferences mDefaultPreference;
 	private DrawerLayout mDrawerLayout;
 	private RecyclerView mDrawerList;
 	private View mFragmentContainerView;
-
 	private int mCurrentPage = 0;
 	private boolean mFromSavedInstanceState;
 	private boolean mUserLearnedDrawer;
-
 	private TwitterEngine mCurrentUser;
 	private long mCurrentUserId;
 	private ImageCache mImageCache;
-
-	private final ArrayList<TwitterEngine> mStreamPowerChangeWaitingEngines = new ArrayList<>();
-	private final Handler mHandler = new Handler(this);
-	private static final int MESSAGE_SERVICE_TIMEOUT = 1;
-	private static final int SERVICE_COMMUNICATION_TIMEOUT = 30000;
-
 	private NavigationDrawerAdapter mPageAdapter;
 	private RecyclerViewDragDropManager mRecyclerViewDragDropManager;
 
@@ -351,6 +343,10 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 		return false;
 	}
 
+	public interface NavigationDrawerCallbacks {
+		void onNavigationDrawerItemSelected(int position);
+	}
+
 	public class NavigationDrawerAdapter extends RecyclerView.Adapter<NavigationDrawerAdapter.ViewHolder> implements Tweeter.OnUserInformationChangedListener, DraggableItemAdapter<NavigationDrawerAdapter.ViewHolder> {
 
 		final ArrayList<Page> mListedPages;
@@ -398,10 +394,10 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 		@Override
 		public int getItemViewType(int position) {
 			if (position == 0)
-				return 0;
+				return R.layout.row_drawer_header;
 			if(position-1 >= (mIsPageListing? mListedPages.size(): mListedUsers.size()))
-				return 3; // button
-			return mIsPageListing ? 1 : 2;
+				return R.layout.row_drawer_button; // button
+			return mIsPageListing ? R.layout.row_drawer_page : R.layout.row_drawer_account;
 		}
 
 		@Override
@@ -426,25 +422,15 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 
 		@Override
 		public NavigationDrawerAdapter.ViewHolder onCreateViewHolder(ViewGroup viewGroup, int viewType) {
-			switch(viewType){
-				case 0:
-					return new ViewHolder(LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.row_drawer_header, viewGroup, false));
-				case 1:
-					return new ViewHolder(LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.row_drawer_page, viewGroup, false));
-				case 2:
-					return new ViewHolder(LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.row_drawer_account, viewGroup, false));
-				case 3:
-					return new ViewHolder(LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.row_drawer_button, viewGroup, false));
-			}
-			return null;
+			return new ViewHolder(LayoutInflater.from(viewGroup.getContext()).inflate(viewType, viewGroup, false));
 		}
 
 		@Override
-		public void onBindViewHolder(NavigationDrawerAdapter.ViewHolder vh, int position) {
+		public void onBindViewHolder(final NavigationDrawerAdapter.ViewHolder vh, int position) {
 			int itemType=getItemViewType(position);
 			position= getItemActualPosition(position);
 			switch(itemType){
-				case 0:{
+				case R.layout.row_drawer_header: {
 					if(mCurrentUser != null){
 						Tweeter user = mCurrentUser.getTweeter();
 						if(mImageCache != null){
@@ -456,7 +442,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					}
 					return;
 				}
-				case 1: {
+				case R.layout.row_drawer_page: {
 					vh.textView.setText(mListedPages.get(position).name);
 					vh.actionButton.setVisibility(mListEditMode || position >= Page.mSavedPageLength ? View.VISIBLE : View.GONE);
 					if(mListEditMode){
@@ -496,7 +482,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					}
 					return;
 				}
-				case 2:{
+				case R.layout.row_drawer_account: {
 					vh.actionButton.setVisibility(mListEditMode ? View.VISIBLE : View.GONE);
 					vh.useStream.setVisibility(mListEditMode ? View.GONE : View.VISIBLE);
 					TwitterEngine engine = TwitterEngine.getTwitterEngine(getActivity(), mListedUsers.get(position).user_id);
@@ -512,7 +498,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					}
 					return;
 				}
-				case 3:{
+				case R.layout.row_drawer_button: {
 					switch(position){
 						case 0:{ // Add
 							vh.textView.setText(mIsPageListing?R.string.drawer_add_page:R.string.drawer_add_account);
@@ -642,7 +628,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					actionButton.setOnClickListener(this);
 				}
 				if(mViewShowAccountList!=null)
-					mViewShowAccountList.setOnClickListener(this);
+					((View) mViewShowAccountList.getParent()).setOnClickListener(this);
 			}
 
 			@Override
@@ -650,24 +636,13 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				int position = getItemActualPosition(getAdapterPosition());
 				int viewType = getItemViewType();
 				switch(viewType){
-					case 0:{ // Nav Header
-						if(v.equals(mViewShowAccountList)){
+					case R.layout.row_drawer_header: { // Nav Header
+						if (v.equals(mViewShowAccountList.getParent())) {
 							mListEditMode = false;
 							mIsPageListing = !mIsPageListing;
+							notifyDataSetChanged();
 							mViewShowAccountList.setRotation(mIsPageListing ? 0 : 180);
 
-							int newSize, oldSize;
-							if(mIsPageListing){
-								newSize = mPageAdapter.mListedPages.size() + mPageAdapter.mPageBtnCount;
-								oldSize = mPageAdapter.mListedUsers.size() + mPageAdapter.mUserBtnCount;
-							}else{
-								oldSize = mPageAdapter.mListedPages.size() + mPageAdapter.mPageBtnCount;
-								newSize = mPageAdapter.mListedUsers.size() + mPageAdapter.mUserBtnCount;
-							}
-							int i = 0;
-							for(; i <= Math.min(oldSize, newSize); i++) mPageAdapter.notifyItemChanged(i+1);
-							for(; i <= newSize; i++) mPageAdapter.notifyItemInserted(i+1);
-							for(; i <= oldSize; i++) mPageAdapter.notifyItemRemoved(i+1);
 							RotateAnimation ani = new RotateAnimation(-180, 0, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
 							ani.setDuration(300);
 							ani.setInterpolator(getActivity(), android.R.anim.accelerate_decelerate_interpolator);
@@ -675,7 +650,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 						}
 						return;
 					}
-					case 1:{ // Page
+					case R.layout.row_drawer_page: { // Page
 						if(v.equals(actionButton)){
 							int newIndex = Page.removePage(position).getParentPageIndex();
 							Page.broadcastPageChange();
@@ -694,13 +669,13 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 						}
 						return;
 					}
-					case 2:{ //User
+					case R.layout.row_drawer_account: { //User
 						if(!mListEditMode){
 							selectUser(TwitterEngine.getTwitterEngine(getActivity(), mListedUsers.get(position).user_id));
 						}
 						return;
 					}
-					case 3:{ // Button
+					case R.layout.row_drawer_button: { // Button
 						switch(position){
 							case 0:{ // Add
 								if(mIsPageListing){
@@ -736,10 +711,5 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				return false;
 			}
 		}
-	}
-
-
-	public interface NavigationDrawerCallbacks {
-		void onNavigationDrawerItemSelected(int position);
 	}
 }

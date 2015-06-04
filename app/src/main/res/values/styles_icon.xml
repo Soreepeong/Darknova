@@ -8,9 +8,11 @@
 		<item name="ic_content_clear">@drawable/ic_clear_white_36dp</item>
 		<item name="ic_content_create">@drawable/ic_create_white_36dp</item>
 		<item name="ic_content_drafts">@drawable/ic_drafts_white_36dp</item>
+		<item name="ic_navigation_expand_less">@drawable/ic_expand_less_white_36dp</item>
 		<item name="ic_navigation_expand_more">@drawable/ic_expand_more_white_36dp</item>
 		<item name="ic_content_filter_list">@drawable/ic_filter_list_white_36dp</item>
 		<item name="ic_action_get_app">@drawable/ic_get_app_white_36dp</item>
+		<item name="ic_image_image">@drawable/ic_image_white_36dp</item>
 		<item name="ic_communication_location_off">@drawable/ic_location_off_white_36dp</item>
 		<item name="ic_communication_location_on">@drawable/ic_location_on_white_36dp</item>
 		<item name="ic_action_lock">@drawable/ic_lock_white_36dp</item>
@@ -25,6 +27,7 @@
 		<item name="ic_action_settings">@drawable/ic_settings_white_36dp</item>
 		<item name="ic_action_star_rate">@drawable/ic_star_rate_white_36dp</item>
 		<item name="ic_editor_vertical_align_top">@drawable/ic_vertical_align_top_white_36dp</item>
+		<item name="ic_av_videocam">@drawable/ic_videocam_white_36dp</item>
 
 	</style>
 	<style name="WithIcon.NoActionBar.Light" parent="Theme.AppCompat.NoActionBar">
@@ -35,9 +38,11 @@
 		<item name="ic_content_clear">@drawable/ic_clear_black_36dp</item>
 		<item name="ic_content_create">@drawable/ic_create_black_36dp</item>
 		<item name="ic_content_drafts">@drawable/ic_drafts_black_36dp</item>
+		<item name="ic_navigation_expand_less">@drawable/ic_expand_less_black_36dp</item>
 		<item name="ic_navigation_expand_more">@drawable/ic_expand_more_black_36dp</item>
 		<item name="ic_content_filter_list">@drawable/ic_filter_list_black_36dp</item>
 		<item name="ic_action_get_app">@drawable/ic_get_app_black_36dp</item>
+		<item name="ic_image_image">@drawable/ic_image_black_36dp</item>
 		<item name="ic_communication_location_off">@drawable/ic_location_off_black_36dp</item>
 		<item name="ic_communication_location_on">@drawable/ic_location_on_black_36dp</item>
 		<item name="ic_action_lock">@drawable/ic_lock_black_36dp</item>
@@ -52,6 +57,7 @@
 		<item name="ic_action_settings">@drawable/ic_settings_black_36dp</item>
 		<item name="ic_action_star_rate">@drawable/ic_star_rate_black_36dp</item>
 		<item name="ic_editor_vertical_align_top">@drawable/ic_vertical_align_top_black_36dp</item>
+		<item name="ic_av_videocam">@drawable/ic_videocam_black_36dp</item>
 
 	</style>
 </resources>

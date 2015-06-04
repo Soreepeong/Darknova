@@ -17,9 +17,6 @@
  */
 package com.soreepeong.darknova.ui.dragaction;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-
 import android.content.Context;
 import android.os.SystemClock;
 import android.util.AttributeSet;
@@ -32,6 +29,9 @@ import android.widget.FrameLayout;
 
 import com.soreepeong.darknova.R;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+
 /**
  * A parent layout which must contain every drag-related objects. DragInitiator
  * starts drag action, and DragReactor reacts to drag action.
@@ -41,35 +41,28 @@ import com.soreepeong.darknova.R;
 public class DragParentFrameLayout extends FrameLayout {
 
 	/**
-	 * Drag Initiator. Null if not dragging.
-	 */
-	private DragInitiator mLastDragInitiator;
-
-	/**
 	 * Currently perceivable drag reactors.
 	 */
 	private final ArrayList<View> mPossibleDragReactors = new ArrayList<>();
-
-	/**
-	 * Pointer ID which is currently dragging.
-	 */
-	private int mDragPointerId;
-
 	/**
 	 * Currently active drag reactors.
 	 */
 	private final ArrayList<View> mActiveReactors = new ArrayList<>();
-
 	private final HashMap<View, Long> mActiveReactorDownTime = new HashMap<>();
-
-	private boolean mActuallyDragging;
-
 	/**
 	 * Location of each views of DragReactors. Used in dispatchTouchEvent.
 	 * Defined here for lesser GC.
 	 */
 	private final int[] myPosition = new int[2], viewPosition = new int[2];
-
+	/**
+	 * Drag Initiator. Null if not dragging.
+	 */
+	private DragInitiator mLastDragInitiator;
+	/**
+	 * Pointer ID which is currently dragging.
+	 */
+	private int mDragPointerId;
+	private boolean mActuallyDragging;
 	private int mCurrentTouches;
 
 	public DragParentFrameLayout(Context context) {
@@ -170,6 +163,7 @@ public class DragParentFrameLayout extends FrameLayout {
 		} else {
 			if (mLastDragInitiator != null) {
 				switch (ev.getActionMasked()) {
+					case MotionEvent.ACTION_POINTER_UP:
 					case MotionEvent.ACTION_UP:
 					case MotionEvent.ACTION_CANCEL:
 						break;
@@ -205,6 +199,7 @@ public class DragParentFrameLayout extends FrameLayout {
 				super.dispatchTouchEvent(ev);
 				if (mDragPointerId == -1) {
 					switch (ev.getActionMasked()) {
+						case MotionEvent.ACTION_POINTER_UP:
 						case MotionEvent.ACTION_UP:
 						case MotionEvent.ACTION_CANCEL:
 							mLastDragInitiator.onDragStop();

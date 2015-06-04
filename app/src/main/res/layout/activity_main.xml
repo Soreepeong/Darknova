@@ -1,7 +1,7 @@
 <android.support.v4.widget.DrawerLayout
+	android:id="@+id/drawer_layout"
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto"
-	android:id="@+id/drawer_layout"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
 	android:fitsSystemWindows="true">
@@ -36,7 +36,7 @@
 
 			<fragment
 				android:id="@+id/fragment_new_tweet"
-				android:name="com.soreepeong.darknova.ui.fragments.NewTweetFragment"
+				android:name="com.soreepeong.darknova.ui.fragments.NewTemplateTweetFragment"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
 				android:layout_gravity="bottom"/>
@@ -59,8 +59,8 @@
 				android:background="@drawable/actionbar_bg"
 				android:elevation="@dimen/fab_elevation_lollipop"
 				android:minHeight="@dimen/abc_action_bar_default_height_material"
-				app:action_type="@+id/drag_action_type_actionbar"
-				app:action_on_leave="true" />
+				app:action_on_leave="true"
+				app:action_type="@+id/drag_action_type_actionbar"/>
 		<com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectFrameLayout
 			android:id="@+id/drag_action_type_actionbar"
 			android:layout_width="match_parent"

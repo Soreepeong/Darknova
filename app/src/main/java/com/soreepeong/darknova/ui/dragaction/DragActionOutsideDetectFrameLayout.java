@@ -8,7 +8,9 @@ import android.widget.FrameLayout;
 import com.soreepeong.darknova.R;
 
 /**
- * Created by Soreepeong on 2015-05-31.
+ * FrameLayout that will tell DragParentFrameLayout whether this view is selected
+ *
+ * @author Soreepeong
  */
 public class DragActionOutsideDetectFrameLayout extends FrameLayout{
 

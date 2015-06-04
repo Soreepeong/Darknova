@@ -22,14 +22,14 @@ import android.support.v4.app.NotificationCompat;
 
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
-import com.soreepeong.darknova.core.StreamTools;
-import com.soreepeong.darknova.core.StringTools;
 import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.tools.StreamTools;
+import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
-import com.soreepeong.darknova.twitter.TwitterEngine.StreamableTwitterEngine;
 import com.soreepeong.darknova.twitter.TwitterEngine.OnUserlistChangedListener;
+import com.soreepeong.darknova.twitter.TwitterEngine.StreamableTwitterEngine;
 import com.soreepeong.darknova.ui.MainActivity;
 
 import java.io.File;
@@ -38,7 +38,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -70,10 +69,8 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	public static final int MESSAGE_UPDATE_NOTIFICATION = 10000;
 	public static final int MESSAGE_ACTUAL_STREAM_QUIT = 10001;
 	public static final int MESSAGE_ACTUAL_STREAM_BREAK = 10002;
-
-	private static final int DELAY_QUIT_TIME = 5 * 60000; // 5 min.
 	public static final String NOTIFICATION_LIST_FILE = "notification-list";
-
+	private static final int DELAY_QUIT_TIME = 5 * 60000; // 5 min.
 	private final Handler mHandler = new Handler(Looper.getMainLooper(), this);
 	private final Messenger mMessenger = new Messenger(mHandler);
 	private final ArrayList<StreamableTwitterEngine> mActiveStreams = new ArrayList<>();
@@ -564,11 +561,22 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	}
 
 	private static class ActivityNotification implements ImageCache.OnImageAvailableListener, Parcelable {
+		@SuppressWarnings("unused")
+		public static final Parcelable.Creator<ActivityNotification> CREATOR = new Parcelable.Creator<ActivityNotification>() {
+			@Override
+			public ActivityNotification createFromParcel(Parcel in) {
+				return new ActivityNotification(in);
+			}
+
+			@Override
+			public ActivityNotification[] newArray(int size) {
+				return new ActivityNotification[size];
+			}
+		};
 		private static final int NEW_TWEET = 0;
 		private static final int NEW_MENTION = 1;
 		private static final int NEW_DM = 2;
 		private static final int NEW_PAGE_ITEM = 3;
-
 		private final Tweet mTarget;
 		private final Tweeter mTargetUser;
 		private final Tweeter mSourceUser;
@@ -581,6 +589,14 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 			mTarget = targetTweet;
 			mSourceUser = sourceUser;
 			mTargetUser = targetUser;
+		}
+
+		protected ActivityNotification(Parcel in) {
+			mTarget = (Tweet) in.readValue(Tweet.class.getClassLoader());
+			mTargetUser = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
+			mSourceUser = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
+			mNotificationType = in.readInt();
+			mTickerShown = in.readByte() != 0x00;
 		}
 
 		public String getNotificationTitle(Context context) {
@@ -640,14 +656,6 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 			return null;
 		}
 
-		protected ActivityNotification(Parcel in) {
-			mTarget = (Tweet) in.readValue(Tweet.class.getClassLoader());
-			mTargetUser = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
-			mSourceUser = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
-			mNotificationType = in.readInt();
-			mTickerShown = in.readByte() != 0x00;
-		}
-
 		@Override
 		public int describeContents() {
 			return 0;
@@ -661,19 +669,6 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 			dest.writeInt(mNotificationType);
 			dest.writeByte((byte) (mTickerShown ? 0x01 : 0x00));
 		}
-
-		@SuppressWarnings("unused")
-		public static final Parcelable.Creator<ActivityNotification> CREATOR = new Parcelable.Creator<ActivityNotification>() {
-			@Override
-			public ActivityNotification createFromParcel(Parcel in) {
-				return new ActivityNotification(in);
-			}
-
-			@Override
-			public ActivityNotification[] newArray(int size) {
-				return new ActivityNotification[size];
-			}
-		};
 
 		@Override
 		public void onImageAvailable(String url, BitmapDrawable bmp) {

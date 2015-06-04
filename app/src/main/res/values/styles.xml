@@ -9,9 +9,11 @@
 		<item name="fab_colorPressed">#7c4dff</item> <!-- A200 -->
 		<item name="fab_colorNormal">#651fff</item> <!-- A400 -->
 		<item name="drawerArrowStyle">@style/DrawerArrowStyle</item>
+		<item name="new_tweet_bg">#A0000000</item>
     </style>
 
-	<style name="AppTheme" parent="AppBaseTheme"></style>
+	<style name="AppTheme" parent="AppBaseTheme">
+	</style>
 
 	<style name="TransparentAppTheme" parent="AppTheme">
 		<item name="android:windowNoTitle">true</item>

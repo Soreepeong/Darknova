@@ -39,7 +39,7 @@ public class DragInitiator{
 	private DragParentFrameLayout mViewDragParent;
 
 	/** Drag initiator callbacks. */
-	private DragInitiatorCallbacks dragInitiatorCallbacks;
+	private DragInitiatorCallbacks mCallbacks;
 
 	/** Starting touch position. */
 	private float mStartTouchPositionX;
@@ -76,18 +76,8 @@ public class DragInitiator{
 	}
 
 	/**
-	 * Set DragParentLayout associated with this DragInitiator.
-	 * 
-	 * @param vwParent
-	 *            DragParentLayout associated with this DragInitiator.
-	 */
-	public void setParent(DragParentFrameLayout vwParent){
-		this.mViewDragParent = vwParent;
-	}
-
-	/**
 	 * Find drag parent.
-	 * 
+	 *
 	 * @return The DragParentLayout which is associated with this DragInitiator,
 	 *         or null if neither set nor found
 	 */
@@ -105,6 +95,15 @@ public class DragInitiator{
 		return vwFinder;
 	}
 
+	/**
+	 * Set DragParentLayout associated with this DragInitiator.
+	 *
+	 * @param vwParent DragParentLayout associated with this DragInitiator.
+	 */
+	public void setParent(DragParentFrameLayout vwParent) {
+		this.mViewDragParent = vwParent;
+	}
+
 	public boolean keepContainerOnClick(){
 		return mKeepContainerOnClick;
 	}
@@ -113,20 +112,20 @@ public class DragInitiator{
 		mKeepContainerOnClick = b;
 	}
 
-	public void setReactorContainer(View v){
-		mViewReactor = v;
-	}
-
 	public View getReactorContainer(){
 		return mViewReactor;
 	}
 
-	public void setActionOnCancel(boolean b){
-		mActionOnCancel = b;
+	public void setReactorContainer(View v) {
+		mViewReactor = v;
 	}
 
 	public boolean getActionOnCancel(){
 		return mActionOnCancel;
+	}
+
+	public void setActionOnCancel(boolean b) {
+		mActionOnCancel = b;
 	}
 
 	/**
@@ -136,7 +135,7 @@ public class DragInitiator{
 	 *            DragInitiatorCallbacks to set.
 	 */
 	public void setDragInitiatorCallbacks(DragInitiatorCallbacks dragInitiatorCallbacks){
-		this.dragInitiatorCallbacks = dragInitiatorCallbacks;
+		this.mCallbacks = dragInitiatorCallbacks;
 	}
 
 	/**
@@ -162,8 +161,8 @@ public class DragInitiator{
 	 * Called back by DragParentLayout when drag has quit.
 	 */
 	public void onDragStop(){
-		if(dragInitiatorCallbacks != null)
-			dragInitiatorCallbacks.onDragEnd(this);
+		if (mCallbacks != null)
+			mCallbacks.onDragEnd(this);
 		if(mViewReactor != null){
 			AlphaAnimation aa = new AlphaAnimation(1, 0);
 			aa.setDuration(300);
@@ -177,8 +176,8 @@ public class DragInitiator{
 	 * Called back by DragParentLayout when drag has started.
 	 */
 	public void onDragStart(){
-		if(dragInitiatorCallbacks != null)
-			dragInitiatorCallbacks.onDragStart(this);
+		if (mCallbacks != null)
+			mCallbacks.onDragStart(this);
 		if(mViewReactor != null){
 			AlphaAnimation aa = new AlphaAnimation(0, 1);
 			aa.setDuration(100);
@@ -189,8 +188,8 @@ public class DragInitiator{
 	}
 
 	public void onDragPrepare(){
-		if(dragInitiatorCallbacks != null)
-			dragInitiatorCallbacks.onDragPrepare(this);
+		if (mCallbacks != null)
+			mCallbacks.onDragPrepare(this);
 	}
 
 	/**

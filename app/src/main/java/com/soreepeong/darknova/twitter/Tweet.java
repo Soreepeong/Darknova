@@ -2,13 +2,16 @@ package com.soreepeong.darknova.twitter;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.support.annotation.NonNull;
 
-import com.soreepeong.darknova.core.WeakValueHashMap;
+import com.soreepeong.darknova.tools.WeakValueHashMap;
 
 import java.util.HashMap;
 
 /**
- * Created by Soreepeong on 2015-04-28.
+ * Twitter tweet
+ *
+ * @author Soreepeong
  */
 public class Tweet implements Parcelable, Comparable<Tweet>{
 
@@ -29,75 +32,39 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 	public Tweet in_reply_to_status;
 	public Tweeter in_reply_to_user;
 	public HashMap<Long, ForUserInfo> perUserInfo;
-
-	@Override
-	public boolean equals(Object o) {
-		return o instanceof Tweet &&  id == ((Tweet)o).id;
-	}
-
-	@Override
-	public int compareTo(Tweet another) {
-		return id < another.id ? -1 : (id == another.id ? 0 : 1);
-	}
-
-	@Override
-	public int hashCode() {
-		return (int) id;
-	}
-
-	public void addForUserInfo(long user_id, boolean favorited, boolean retweeted){
-		ForUserInfo ui = new ForUserInfo();
-		ui.favorited = favorited; ui.retweeted = retweeted;
-		perUserInfo.put(user_id, ui);
-	}
-
-	public boolean favoriteExists(){
-		for(ForUserInfo ui : perUserInfo.values())
-			if(ui.favorited) return true;
-		return false;
-	}
-
-	public boolean retweetExists(){
-		for(ForUserInfo ui : perUserInfo.values())
-			if(ui.retweeted) return true;
-		return false;
-	}
-
-
-	public static class InternalInformation implements Parcelable{
-		public long lastUpdated;
-		public boolean stub;
-
-		public InternalInformation(){}
-
-		protected InternalInformation(Parcel in) {
-			lastUpdated = in.readLong();
-			stub = in.readByte() != 0x00;
+	@SuppressWarnings("unused")
+	public static final Parcelable.Creator<Tweet> CREATOR = new Parcelable.Creator<Tweet>() {
+		@Override
+		public Tweet createFromParcel(Parcel in) {
+			return updateTweet(new Tweet(in));
 		}
 
 		@Override
-		public int describeContents() {
-			return 0;
+		public Tweet[] newArray(int size) {
+			return new Tweet[size];
 		}
+	};
 
-		@Override
-		public void writeToParcel(Parcel dest, int flags) {
-			dest.writeLong(lastUpdated);
-			dest.writeByte((byte) (stub ? 0x01 : 0x00));
-		}
+	private Tweet() {
+		perUserInfo = new HashMap<>();
+	}
 
-		@SuppressWarnings("unused")
-		public static final Parcelable.Creator<InternalInformation> CREATOR = new Parcelable.Creator<InternalInformation>() {
-			@Override
-			public InternalInformation createFromParcel(Parcel in) {
-				return new InternalInformation(in);
-			}
-
-			@Override
-			public InternalInformation[] newArray(int size) {
-				return new InternalInformation[size];
-			}
-		};
+	protected Tweet(Parcel in) {
+		info = (InternalInformation) in.readValue(InternalInformation.class.getClassLoader());
+		id = in.readLong();
+		created_at = in.readLong();
+		text = in.readString();
+		retweet_count = in.readInt();
+		favourites_count = in.readInt();
+		source = in.readString();
+		possibly_sensitive = in.readByte() != 0x00;
+		removed = in.readByte() != 0x00;
+		user = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
+		retweeted_status = (Tweet) in.readValue(Tweet.class.getClassLoader());
+		entities = (Entities) in.readValue(Entities.class.getClassLoader());
+		in_reply_to_status = (Tweet) in.readValue(Tweet.class.getClassLoader());
+		in_reply_to_user = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
+		in.readMap(perUserInfo = new HashMap<>(), ForUserInfo.class.getClassLoader());
 	}
 
 	public static Tweet getExistingTweet(long id){
@@ -121,7 +88,7 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 			t = tweet;
 			mTweets.put(tweet.id, t);
 		}else{
-			if(tweet.info.stub == false && tweet.info.lastUpdated > t.info.lastUpdated){
+			if (!tweet.info.stub && tweet.info.lastUpdated > t.info.lastUpdated) {
 				t.info = tweet.info;
 				t.id = tweet.id;
 				t.created_at = tweet.created_at;
@@ -146,26 +113,38 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 		return new Tweet();
 	}
 
-	private Tweet(){
-		perUserInfo = new HashMap<>();
+	@Override
+	public boolean equals(Object o) {
+		return o instanceof Tweet && id == ((Tweet) o).id;
 	}
 
-	protected Tweet(Parcel in) {
-		info = (InternalInformation) in.readValue(InternalInformation.class.getClassLoader());
-		id = in.readLong();
-		created_at = in.readLong();
-		text = in.readString();
-		retweet_count = in.readInt();
-		favourites_count = in.readInt();
-		source = in.readString();
-		possibly_sensitive = in.readByte() != 0x00;
-		removed = in.readByte() != 0x00;
-		user = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
-		retweeted_status = (Tweet) in.readValue(Tweet.class.getClassLoader());
-		entities = (Entities) in.readValue(Entities.class.getClassLoader());
-		in_reply_to_status = (Tweet) in.readValue(Tweet.class.getClassLoader());
-		in_reply_to_user = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
-		perUserInfo = (HashMap) in.readHashMap(ForUserInfo.class.getClassLoader());
+	@Override
+	public int compareTo(@NonNull Tweet another) {
+		return id < another.id ? -1 : (id == another.id ? 0 : 1);
+	}
+
+	@Override
+	public int hashCode() {
+		return (int) id;
+	}
+
+	public void addForUserInfo(long user_id, boolean favorited, boolean retweeted) {
+		ForUserInfo ui = new ForUserInfo();
+		ui.favorited = favorited;
+		ui.retweeted = retweeted;
+		perUserInfo.put(user_id, ui);
+	}
+
+	public boolean favoriteExists() {
+		for (ForUserInfo ui : perUserInfo.values())
+			if (ui.favorited) return true;
+		return false;
+	}
+
+	public boolean retweetExists() {
+		for (ForUserInfo ui : perUserInfo.values())
+			if (ui.retweeted) return true;
+		return false;
 	}
 
 	@Override
@@ -192,20 +171,55 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 		dest.writeMap(perUserInfo);
 	}
 
-	@SuppressWarnings("unused")
-	public static final Parcelable.Creator<Tweet> CREATOR = new Parcelable.Creator<Tweet>() {
-		@Override
-		public Tweet createFromParcel(Parcel in) {
-			return updateTweet(new Tweet(in));
+	public static class InternalInformation implements Parcelable {
+		@SuppressWarnings("unused")
+		public static final Parcelable.Creator<InternalInformation> CREATOR = new Parcelable.Creator<InternalInformation>() {
+			@Override
+			public InternalInformation createFromParcel(Parcel in) {
+				return new InternalInformation(in);
+			}
+
+			@Override
+			public InternalInformation[] newArray(int size) {
+				return new InternalInformation[size];
+			}
+		};
+		public long lastUpdated;
+		public boolean stub;
+
+		public InternalInformation() {
+		}
+
+		protected InternalInformation(Parcel in) {
+			lastUpdated = in.readLong();
+			stub = in.readByte() != 0x00;
 		}
 
 		@Override
-		public Tweet[] newArray(int size) {
-			return new Tweet[size];
+		public int describeContents() {
+			return 0;
 		}
-	};
+
+		@Override
+		public void writeToParcel(Parcel dest, int flags) {
+			dest.writeLong(lastUpdated);
+			dest.writeByte((byte) (stub ? 0x01 : 0x00));
+		}
+	}
 
 	public static class ForUserInfo implements Parcelable{
+		@SuppressWarnings("unused")
+		public static final Parcelable.Creator<ForUserInfo> CREATOR = new Parcelable.Creator<ForUserInfo>() {
+			@Override
+			public ForUserInfo createFromParcel(Parcel in) {
+				return new ForUserInfo(in);
+			}
+
+			@Override
+			public ForUserInfo[] newArray(int size) {
+				return new ForUserInfo[size];
+			}
+		};
 		public boolean favorited;
 		public boolean retweeted;
 
@@ -226,18 +240,5 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 			dest.writeByte((byte) (favorited ? 0x01 : 0x00));
 			dest.writeByte((byte) (retweeted ? 0x01 : 0x00));
 		}
-
-		@SuppressWarnings("unused")
-		public static final Parcelable.Creator<ForUserInfo> CREATOR = new Parcelable.Creator<ForUserInfo>() {
-			@Override
-			public ForUserInfo createFromParcel(Parcel in) {
-				return new ForUserInfo(in);
-			}
-
-			@Override
-			public ForUserInfo[] newArray(int size) {
-				return new ForUserInfo[size];
-			}
-		};
 	}
 }

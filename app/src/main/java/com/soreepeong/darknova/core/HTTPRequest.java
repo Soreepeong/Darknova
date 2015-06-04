@@ -5,6 +5,9 @@ import android.os.Looper;
 import android.support.annotation.Nullable;
 
 import com.soreepeong.darknova.extractors.ImageExtractor;
+import com.soreepeong.darknova.tools.ArrayTools;
+import com.soreepeong.darknova.tools.StreamTools;
+import com.soreepeong.darknova.tools.StringTools;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -26,21 +29,23 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
- * Created by Soreepeong on 2015-04-27.
+ * Wrapper for HttpURLConnection made because original one won't close immediately
+ *
+ * @author Soreepeong
  */
 public class HTTPRequest {
 	private static final byte[] HTTP_HEADER_SEPARATOR = new byte[]{'\r', '\n', '\r', '\n'};
-	private static final int[] HTTP_HEADER_SEPARATOR_FAILURE = ArrayTools.indexOfFailureFunction(HTTP_HEADER_SEPARATOR);
+	private static final int[] HTTP_HEADER_SEPARATOR_FAILURE = ArrayTools.computeFailure(HTTP_HEADER_SEPARATOR);
 	private static final int BYTE_BUFFER_SIZE = 2048;
 	private static final int MAX_HEADER_SIZE = 65536;
 	private static final Pattern URI_BASIC_PATTERN = Pattern.compile("^[a-z0-9]+:.*$", Pattern.CASE_INSENSITIVE);
 	private static volatile int mConnectionId;
-	private HttpUrlConnectionCloseFixer mConnectionBehind;
-	private HttpURLConnection mConnection;
 	private final boolean mIsPostRequest, mIsMultipartRequest;
-	private ArrayList<MultipartPart> arrMultipart;
 	private final String mMultipartBoundary;
 	private final String mPostData;
+	private HttpURLConnectionCloseFixer mConnectionBehind;
+	private HttpURLConnection mConnection;
+	private ArrayList<MultipartPart> arrMultipart;
 	private Exception mLastError;
 	private boolean mRequested;
 	private HashMap<String, String> mRequestHeaders = new HashMap<>();
@@ -48,6 +53,19 @@ public class HTTPRequest {
 	private long mPosted = 0, mPostSize = 0;
 	private InputStream mInputStream;
 	private OutputStream mOutputStream;
+
+	private HTTPRequest(OAuth auth, boolean bPost, String sPostData, boolean cancelOffered) throws IOException {
+		if (cancelOffered)
+			mConnectionBehind = new HttpURLConnectionCloseFixer();
+		mMultipartBoundary = "MultipartBoundary" + StringTools.getRandomString(32);
+		mIsPostRequest = bPost;
+		mPostData = sPostData;
+		mAuth = auth;
+		mIsMultipartRequest = mIsPostRequest && mPostData == null;
+		if (mIsMultipartRequest) {
+			arrMultipart = new ArrayList<>();
+		}
+	}
 
 	/**
 	 * Get HTTP Request prepared
@@ -67,19 +85,6 @@ public class HTTPRequest {
 		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
-		}
-	}
-
-	private HTTPRequest(OAuth auth, boolean bPost, String sPostData, boolean cancelOffered) throws IOException {
-		if (cancelOffered)
-			mConnectionBehind = new HttpUrlConnectionCloseFixer();
-		mMultipartBoundary = "MultipartBoundary" + StringTools.getRandomString(32);
-		mIsPostRequest = bPost;
-		mPostData = sPostData;
-		mAuth = auth;
-		mIsMultipartRequest = mIsPostRequest && mPostData == null;
-		if (mIsMultipartRequest) {
-			arrMultipart = new ArrayList<>();
 		}
 	}
 
@@ -106,6 +111,11 @@ public class HTTPRequest {
 		mLastError = null;
 	}
 
+	/**
+	 * Submit request immediately
+	 *
+	 * @return True if succeed
+	 */
 	public boolean submitRequest() {
 		mRequested = true;
 		int nRedirects = 8;
@@ -115,8 +125,9 @@ public class HTTPRequest {
 					mConnection.setRequestProperty(sName, mRequestHeaders.get(sName));
 				if (mIsPostRequest) {
 					mConnection.setDoOutput(true);
+					calculatePostSize();
+					mConnection.setFixedLengthStreamingMode((int) mPostSize);
 					mConnection.setRequestProperty("Content-Length", Long.toString(mPostSize));
-					mConnection.setFixedLengthStreamingMode((int) getPostSize());
 					if (mIsMultipartRequest) {
 						mConnection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + mMultipartBoundary);
 						mOutputStream = mConnection.getOutputStream();
@@ -147,10 +158,20 @@ public class HTTPRequest {
 		return false;
 	}
 
+	/**
+	 * Set read timeout
+	 *
+	 * @param t Timeout
+	 */
 	public void setReadTimeout(int t) {
 		mConnection.setReadTimeout(t);
 	}
 
+	/**
+	 * Set connect timeout
+	 *
+	 * @param t Timeout
+	 */
 	public void setConnectTimeout(int t) {
 		mConnection.setConnectTimeout(t);
 	}
@@ -160,18 +181,39 @@ public class HTTPRequest {
 			throw new RuntimeException("Not requested yet.");
 	}
 
-	public void addParameter(String sName, String sValue) {
+	/**
+	 * Add request HTTP header
+	 *
+	 * @param sName  Header name
+	 * @param sValue Header value
+	 */
+	public void addRequestHeader(String sName, String sValue) {
 		mRequestHeaders.put(sName, sValue);
 	}
 
+	/**
+	 * Get URL, after redirection, if requested.
+	 *
+	 * @return The URL
+	 */
 	public String getUrl() {
 		return mConnection.getURL().toExternalForm();
 	}
 
+	/**
+	 * Get last error occured.
+	 *
+	 * @return Last error. Null if no error has occured.
+	 */
 	public Exception getLastError() {
 		return mLastError;
 	}
 
+	/**
+	 * Get status code.
+	 *
+	 * @return HTTP Status Code. Zero if the server didn't respond.
+	 */
 	public int getStatusCode() {
 		checkRequested();
 		try {
@@ -182,28 +224,58 @@ public class HTTPRequest {
 		}
 	}
 
+	/**
+	 * Get post progress in bytes
+	 *
+	 * @return sent bytes
+	 */
 	public long getPostProgress() {
 		return mPosted;
 	}
 
+	/**
+	 * Get post progress max in bytes
+	 *
+	 * @return bytes sent and to send
+	 */
 	public long getPostLength() {
 		return mPostSize;
 	}
 
+	/**
+	 * Get content type.
+	 *
+	 * @return Content type.
+	 */
 	public String getContentType() {
 		checkRequested();
 		return mConnection.getContentType();
 	}
 
+	/**
+	 * Get input length.
+	 *
+	 * @return Length.
+	 */
 	public long getInputLength() {
 		checkRequested();
 		return mConnection.getContentLength();
 	}
 
+	/**
+	 * Get buffered input stream
+	 * @return Input stream for the response
+	 */
 	public InputStream getInputStream() {
 		return getInputStream(true);
 	}
 
+	/**
+	 * Get input stream
+	 *
+	 * @param bUseBufferedStream Wrap the stream in {@see BufferedInputStream}
+	 * @return Input stream for the response
+	 */
 	public InputStream getInputStream(boolean bUseBufferedStream) {
 		InputStream in;
 		checkRequested();
@@ -219,10 +291,21 @@ public class HTTPRequest {
 		}
 	}
 
+	/**
+	 * Read all data
+	 *
+	 * @return all data
+	 */
 	public String getWholeData() {
 		return getWholeData(-1);
 	}
 
+	/**
+	 * Read all data up to {@param readUpTo}
+	 *
+	 * @param readUpTo Maximum length of bytes to read
+	 * @return data read
+	 */
 	public String getWholeData(int readUpTo) {
 		checkRequested();
 		InputStream in = null;
@@ -245,15 +328,33 @@ public class HTTPRequest {
 		return new String(bos.toByteArray());
 	}
 
+	/**
+	 * Get response header
+	 *
+	 * @param sName header key
+	 * @return header value
+	 */
 	public String getHeader(String sName) {
 		checkRequested();
 		return mConnection.getHeaderField(sName);
 	}
 
+	/**
+	 * Add parameter for multipart post request
+	 *
+	 * @param sName parameter key
+	 * @param sValue parameter value
+	 */
 	public void addMultipartParameter(String sName, String sValue) {
 		arrMultipart.add(new MultipartPart(sName, sValue));
 	}
 
+	/**
+	 * Add parameter for multipart post request
+	 *
+	 * @param sName parameter key
+	 * @param file parameter file
+	 */
 	public void addMultipartFileParameter(String sName, File file) {
 		arrMultipart.add(new MultipartPart(sName, file));
 	}
@@ -272,7 +373,7 @@ public class HTTPRequest {
 		recordAndWrite(s.getBytes());
 	}
 
-	private long getPostSize() {
+	private void calculatePostSize() {
 		if (mIsMultipartRequest) {
 			mPostSize = 0;
 			for (MultipartPart pt : arrMultipart)
@@ -281,7 +382,6 @@ public class HTTPRequest {
 		} else {
 			mPostSize = mPostData.getBytes().length;
 		}
-		return mPostSize;
 	}
 
 	private void putMultipartRequest() throws IOException{
@@ -295,6 +395,73 @@ public class HTTPRequest {
 		mOutputStream.flush();
 	}
 
+	public void close() {
+		if (Looper.getMainLooper() == Looper.myLooper()) {
+			new Thread() {
+				@Override
+				public void run() {
+					close();
+				}
+			}.start();
+			return;
+		}
+		if (mConnectionBehind != null)
+			mConnectionBehind.close();
+		StreamTools.close(mInputStream);
+		StreamTools.close(mOutputStream);
+		mConnection.disconnect();
+	}
+
+	private static class HeaderInspectResult {
+		public final ArrayList<String[]> mHeaders = new ArrayList<>();
+		public String mRawHeader;
+		public String mFirstLine;
+		public String mMethod, mLocation;
+
+		public HeaderInspectResult(PushbackInputStream in) throws IOException {
+			final byte buffer[] = new byte[MAX_HEADER_SIZE];
+			int read;
+			int search = 0;
+			int position = 0;
+			while (!Thread.interrupted() && -1 != (read = in.read(buffer, position, buffer.length - position))) {
+				position += read;
+				if (position >= buffer.length)
+					throw new IOException("Header not received");
+				if (0 <= (search = ArrayTools.indexOf(buffer, search, position, HTTP_HEADER_SEPARATOR, HTTP_HEADER_SEPARATOR_FAILURE)))
+					break;
+				search = Math.max(0, position - HTTP_HEADER_SEPARATOR.length + 1);
+			}
+			in.unread(buffer, search + HTTP_HEADER_SEPARATOR.length, position - search - HTTP_HEADER_SEPARATOR.length);
+			mRawHeader = new String(buffer, 0, search);
+			for (String s : mRawHeader.split("\r\n")) {
+				if (mFirstLine == null)
+					mFirstLine = s;
+				else if (s.contains(":")) {
+					String sKey = s.substring(0, s.indexOf(":"));
+					String sValue = s.substring(sKey.length() + 2);
+					mHeaders.add(new String[]{sKey, sValue});
+				}
+			}
+			mMethod = mFirstLine.substring(0, mFirstLine.indexOf(" "));
+			mLocation = mFirstLine.substring(mMethod.length() + 1, mFirstLine.lastIndexOf(" "));
+		}
+
+		public String getHeader(String key) {
+			for (String[] h : mHeaders)
+				if (h[0].equalsIgnoreCase(key))
+					return h[1];
+			return null;
+		}
+
+		public String getHeadersWithoutProxy() {
+			StringBuilder s = new StringBuilder();
+			for (String[] h : mHeaders)
+				if (!h[0].toLowerCase(Locale.ENGLISH).startsWith("proxy-") && !h[0].equals("connection"))
+					s.append(h[0]).append(": ").append(h[1]).append("\r\n");
+			return s.toString();
+		}
+	}
+
 	private class MultipartPart {
 		static final int TYPE_STRING = 1, TYPE_FILE = 2;
 		final int partType;
@@ -303,27 +470,6 @@ public class HTTPRequest {
 		final String paramFileName;
 		final File file;
 		final long fileLength, partLength;
-
-		public void writePost() throws IOException {
-			byte[] buffer = new byte[BYTE_BUFFER_SIZE];
-			switch (partType) {
-				case TYPE_FILE: {
-					recordAndWrite("Content-Disposition: form-data; name=\"" + paramName + "\"; filename=\"" + paramFileName + "\"\r\n" + "Content-Length: " + fileLength + "\r\n" + "Content-Transfer-Encoding: binary\r\n" + "Content-Type: application/octet-stream\r\n" + "\r\n");
-					InputStream in = null;
-					try {
-						in = new FileInputStream(file);
-						int bytesRead;
-						while (!Thread.interrupted() && (bytesRead = in.read(buffer)) > 0)
-							recordAndWrite(buffer, 0, bytesRead);
-					} finally {
-						StreamTools.close(in);
-					}
-					return;
-				}
-				case MultipartPart.TYPE_STRING:
-					recordAndWrite("Content-Disposition: form-data; name=\"" + (paramName) + "\"\r\n" + "Content-Length: " + paramData.getBytes().length + "\r\n" + "\r\n" + paramData);
-			}
-		}
 
 		public MultipartPart(String name, File f) {
 			partType = TYPE_FILE;
@@ -350,28 +496,33 @@ public class HTTPRequest {
 			fileLength = 0;
 			partLength = paramName.getBytes().length + Integer.toString(paramData.getBytes().length).length() + paramData.getBytes().length + 61;
 		}
-	}
 
-	public void close() {
-		if (Looper.getMainLooper() == Looper.myLooper()) {
-			new Thread() {
-				@Override
-				public void run() {
-					close();
+		public void writePost() throws IOException {
+			byte[] buffer = new byte[BYTE_BUFFER_SIZE];
+			switch (partType) {
+				case TYPE_FILE: {
+					recordAndWrite("Content-Disposition: form-data; name=\"" + paramName + "\"; filename=\"" + paramFileName + "\"\r\n" + "Content-Length: " + fileLength + "\r\n" + "Content-Transfer-Encoding: binary\r\n" + "Content-Type: application/octet-stream\r\n" + "\r\n");
+					InputStream in = null;
+					try {
+						in = new FileInputStream(file);
+						int bytesRead;
+						while (!Thread.interrupted() && (bytesRead = in.read(buffer)) > 0)
+							recordAndWrite(buffer, 0, bytesRead);
+					} finally {
+						StreamTools.close(in);
+					}
+					return;
 				}
-			}.start();
-			return;
+				case MultipartPart.TYPE_STRING:
+					recordAndWrite("Content-Disposition: form-data; name=\"" + (paramName) + "\"\r\n" + "Content-Length: " + paramData.getBytes().length + "\r\n" + "\r\n" + paramData);
+			}
 		}
-		if (mConnectionBehind != null)
-			mConnectionBehind.close();
-		StreamTools.close(mInputStream);
-		StreamTools.close(mOutputStream);
-		mConnection.disconnect();
 	}
 
-	private class HttpUrlConnectionCloseFixer implements Runnable {
+	private class HttpURLConnectionCloseFixer implements Runnable {
 		private final ServerSocket mSocketListener;
 		private final Proxy mProxy;
+		private final int conId = mConnectionId++;
 		private Thread mReceiverThread, mSenderThread;
 		private String mConnectionVerifier;
 		private Socket mLocalSocket;
@@ -383,7 +534,7 @@ public class HTTPRequest {
 		private PushbackInputStream mLocalInput, mRemoteInput;
 		private OutputStream mLocalOutput, mRemoteOutput;
 
-		private HttpUrlConnectionCloseFixer() throws IOException {
+		private HttpURLConnectionCloseFixer() throws IOException {
 			mSocketListener = new ServerSocket(0);
 			mProxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", mSocketListener.getLocalPort()));
 			mConnectionVerifier = StringTools.getRandomString(64);
@@ -423,14 +574,14 @@ public class HTTPRequest {
 
 		@Override
 		public void run() {
-			Thread.currentThread().setName("Connection " + mConnectionId + " [Receiver]");
+			Thread.currentThread().setName("Connection " + conId + " [Receiver]");
 			try {
 				prepareLocal();
 				prepareRemote();
 				mSenderThread = new Thread() {
 					@Override
 					public void run() {
-						Thread.currentThread().setName("Connection " + mConnectionId + " [Sender]");
+						Thread.currentThread().setName("Connection " + conId + " [Sender]");
 						String sRemoteHeader = mLocalHeader.mMethod + " " + mPath + " HTTP/1.1\r\n" +
 								"Connection: close\r\n" +
 								mLocalHeader.getHeadersWithoutProxy() + "\r\n";
@@ -496,56 +647,6 @@ public class HTTPRequest {
 			}
 			mRemoteInput = new PushbackInputStream(mRemoteSocket.getInputStream(), MAX_HEADER_SIZE);
 			mRemoteOutput = mRemoteSocket.getOutputStream();
-		}
-	}
-
-	private static class HeaderInspectResult {
-		public final ArrayList<String[]> mHeaders = new ArrayList<>();
-		public String mRawHeader;
-		public String mFirstLine;
-		public String mMethod, mLocation;
-
-		public HeaderInspectResult(PushbackInputStream in) throws IOException {
-			final byte buffer[] = new byte[MAX_HEADER_SIZE];
-			int read;
-			int search = 0;
-			int position = 0;
-			while (!Thread.interrupted() && -1 != (read = in.read(buffer, position, buffer.length - position))) {
-				position += read;
-				if (position >= buffer.length)
-					throw new IOException("Header not received");
-				if (0 <= (search = ArrayTools.indexOf(buffer, search, position, HTTP_HEADER_SEPARATOR, HTTP_HEADER_SEPARATOR_FAILURE)))
-					break;
-				search = Math.max(0, position - HTTP_HEADER_SEPARATOR.length + 1);
-			}
-			in.unread(buffer, search + HTTP_HEADER_SEPARATOR.length, position - search - HTTP_HEADER_SEPARATOR.length);
-			mRawHeader = new String(buffer, 0, search);
-			for (String s : mRawHeader.split("\r\n")) {
-				if (mFirstLine == null)
-					mFirstLine = s;
-				else if (s.contains(":")) {
-					String sKey = s.substring(0, s.indexOf(":"));
-					String sValue = s.substring(sKey.length() + 2);
-					mHeaders.add(new String[]{sKey, sValue});
-				}
-			}
-			mMethod = mFirstLine.substring(0, mFirstLine.indexOf(" "));
-			mLocation = mFirstLine.substring(mMethod.length() + 1, mFirstLine.lastIndexOf(" "));
-		}
-
-		public String getHeader(String key) {
-			for (String[] h : mHeaders)
-				if (h[0].equalsIgnoreCase(key))
-					return h[1];
-			return null;
-		}
-
-		public String getHeadersWithoutProxy() {
-			StringBuilder s = new StringBuilder();
-			for (String[] h : mHeaders)
-				if (!h[0].toLowerCase(Locale.ENGLISH).startsWith("proxy-") && !h[0].equals("connection"))
-					s.append(h[0]).append(": ").append(h[1]).append("\r\n");
-			return s.toString();
 		}
 	}
 }

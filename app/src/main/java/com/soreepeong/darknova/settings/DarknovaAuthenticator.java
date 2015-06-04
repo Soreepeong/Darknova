@@ -12,13 +12,16 @@ import android.os.Bundle;
 import com.soreepeong.darknova.ui.LoginActivity;
 
 /**
- * Created by Soreepeong on 2015-04-28.
- * https://udinic.wordpress.com/2013/04/24/write-your-own-android-authenticator/
+ * Darknova Twitter Account Authenticator
+ * <p/>
+ * Referenced {@see https://udinic.wordpress.com/2013/04/24/write-your-own-android-authenticator/}
+ *
+ * @author Soreepeong
  */
-public class ArtwaveAuthenticator extends AbstractAccountAuthenticator{
+public class DarknovaAuthenticator extends AbstractAccountAuthenticator {
 	private Context mContext;
 
-	public ArtwaveAuthenticator(Context context){
+	public DarknovaAuthenticator(Context context) {
 		super(context);
 		mContext = context;
 	}

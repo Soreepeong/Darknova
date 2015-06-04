@@ -8,7 +8,9 @@ import android.widget.LinearLayout;
 import com.soreepeong.darknova.R;
 
 /**
- * Created by Soreepeong on 2015-05-31.
+ * LinearLayout that will tell DragParentFrameLayout whether this view is selected
+ *
+ * @author Soreepeong
  */
 public class DragActionOutsideDetectLinearLayout extends LinearLayout{
 

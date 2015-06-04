@@ -7,18 +7,20 @@ import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 
 /**
- * Created by Soreepeong on 2015-05-27.
+ * Minimal image cache ContentProvider.
+ *
+ * @author Soreepeong
  */
 public class ImageCacheProvider extends ContentProvider {
+	public static final Uri PROVIDER_URI = Uri.parse("content://com.soreepeong.darknova.core.ImageCache.ImageCacheProvider/");
 	private static final String KEY_TABLE_NAME = "cache_keys";
-	public static final Uri PROVIDER_URI=Uri.parse("content://com.soreepeong.darknova.core.ImageCache.ImageCacheProvider/");
 	private SQLiteDatabase mDb;
 
 	@Override
 	public boolean onCreate() {
 		mDb = SQLiteDatabase.openOrCreateDatabase(getContext().getCacheDir().toString() + "files.db", null);
 		mDb.execSQL("CREATE TABLE IF NOT EXISTS " + KEY_TABLE_NAME + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, created INTEGER, size INTEGER DEFAULT 0)");
-		mDb.delete(KEY_TABLE_NAME, "size=0", null); // cleanup
+		mDb.delete(KEY_TABLE_NAME, "size=0", null); // temporary row cleanup
 		return true;
 	}
 

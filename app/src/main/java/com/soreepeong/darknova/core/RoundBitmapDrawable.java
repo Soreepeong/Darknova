@@ -10,6 +10,9 @@ import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 
+/**
+ * Round bitmap drawable
+ */
 public class RoundBitmapDrawable extends BitmapDrawable {
 	private final BitmapDrawable mBitmap;
 	private final Paint mPaint;

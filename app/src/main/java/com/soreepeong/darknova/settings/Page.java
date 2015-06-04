@@ -7,7 +7,7 @@ import android.support.annotation.NonNull;
 
 import com.soreepeong.darknova.DarknovaApplication;
 import com.soreepeong.darknova.R;
-import com.soreepeong.darknova.core.StringTools;
+import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Entities;
 import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.twitter.Tweeter;
@@ -27,7 +27,67 @@ import java.util.List;
 public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 	public static final ArrayList<Page> pages = new ArrayList<>();
 	public static final ArrayList<OnPageListChangedListener> mPagesListener = new ArrayList<>();
+	@SuppressWarnings("unused")
+	public static final Parcelable.Creator<Page> CREATOR = new Parcelable.Creator<Page>() {
+		@Override
+		public Page createFromParcel(Parcel in) {
+			return new Page(in);
+		}
+
+		@Override
+		public Page[] newArray(int size) {
+			return new Page[size];
+		}
+	};
+	private static final Comparator<Element> elementComparator = new Comparator<Element>() {
+		@Override
+		public int compare(Element lhs, Element rhs) {
+			return lhs.generateUniqid().compareTo(rhs.generateUniqid());
+		}
+	};
 	public static int mSavedPageLength = 0;
+	public final String name;
+	public final int iconResId;
+	public final List<Element> elements;
+	public final Object mListEditLock = new Object();
+	public final ArrayList<Tweet> mListPending = new ArrayList<>();
+	private final long mId;
+	private final List<WeakReference<Page>> mParentPage;
+	public WeakReference<List<Tweet>> mList;
+	public TimelineFragment mConnectedFragment;
+	public boolean mIsListAtTop;
+	public int mPageLastItemPosition, mPageLastOffset;
+	private Thread mList_holdRemover;
+
+	protected Page(String name, int iconResId, List<Element> elements, Page parentPage) {
+		this.name = name;
+		this.iconResId = iconResId;
+		this.elements = Collections.unmodifiableList(elements);
+		mId = DarknovaApplication.uniqid();
+		if (parentPage == null) {
+			mParentPage = null;
+			return;
+		}
+		ArrayList<WeakReference<Page>> parents = new ArrayList<>();
+		while (true) {
+			parents.add(new WeakReference<>(parentPage));
+			int parentIndex = parentPage.getParentPageIndex();
+			if (parentIndex == -1)
+				break;
+			parentPage = pages.get(parentIndex);
+		}
+		mParentPage = parents;
+	}
+
+	protected Page(Parcel in) {
+		name = in.readString();
+		iconResId = in.readInt();
+		ArrayList<Element> newElements = new ArrayList<>();
+		in.readList(newElements, Element.class.getClassLoader());
+		elements = Collections.unmodifiableList(newElements);
+		mId = DarknovaApplication.uniqid();
+		mParentPage = null;
+	}
 
 	public static void addOnPageChangedListener(OnPageListChangedListener p){
 		synchronized (mPagesListener){
@@ -73,19 +133,6 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 			removePage(p = pages.get(index));
 		return p;
 	}
-
-	private final long mId;
-	public final String name;
-	public final int iconResId;
-	public final List<Element> elements;
-	public final Object mListEditLock = new Object();
-	public final ArrayList<Tweet> mListPending = new ArrayList<>();
-	private final List<WeakReference<Page>> mParentPage;
-	public WeakReference<List<Tweet>> mList;
-	private Thread mList_holdRemover;
-	public TimelineFragment mConnectedFragment;
-	public boolean mIsListAtTop;
-	public int mPageLastItemPosition, mPageLastOffset;
 
 	public void setFragment(TimelineFragment frag){
 		if(mList_holdRemover != null){
@@ -170,6 +217,80 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 			mConnectedFragment.onNewTweetReceived(tweet);
 	}
 
+	public boolean canHave(Tweet tweet) {
+		for (Element e : elements)
+			if (e.canHave(tweet))
+				return true;
+		return false;
+	}
+
+	public boolean containsStream(TwitterEngine.StreamableTwitterEngine engine) {
+		for (Element e : elements)
+			if (e.containsStream(engine.getUserId()))
+				return true;
+		return false;
+	}
+
+	public int getParentPageIndex() {
+		if (mParentPage != null) {
+			for (WeakReference<Page> p : mParentPage) {
+				Page page = p.get();
+				if (page == null) continue;
+				int pos = pages.indexOf(page);
+				if (pos == -1) continue;
+				return pos;
+			}
+		}
+		return -1;
+	}
+
+	public String generateUniqid() {
+		StringBuilder sb = new StringBuilder();
+		for (Element e : elements) {
+			if (sb.length() > 0)
+				sb.append(":");
+			sb.append(e.generateUniqid());
+		}
+		return StringTools.UrlEncode(sb.toString());
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof Page))
+			return false;
+		Page p2 = (Page) o;
+		if (p2.elements.size() != elements.size())
+			return false;
+		ArrayList<Element> e = new ArrayList<>(p2.elements);
+		e.removeAll(elements);
+		return e.isEmpty();
+	}
+
+	public long getId() {
+		return mId;
+	}
+
+	@Override
+	public int hashCode() {
+		return elements.hashCode();
+	}
+
+	@Override
+	public int describeContents() {
+		return 0;
+	}
+
+	@Override
+	public void writeToParcel(Parcel dest, int flags) {
+		dest.writeString(name);
+		dest.writeInt(iconResId);
+		dest.writeList(elements);
+	}
+
+	public interface OnPageListChangedListener {
+		void onPageListChanged();
+	}
+
 	public static class Element implements Parcelable {
 		/** Functions returning tweets */
 		public static final int FUNCTION_HOME_TIMELINE = 0;
@@ -200,12 +321,22 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 		/** Functions returning DMs */
 		public static final int FUNCTION_DM_RECEIVED = 19;
 		public static final int FUNCTION_DM_SENT = 20;
+		@SuppressWarnings("unused")
+		public static final Parcelable.Creator<Element> CREATOR = new Parcelable.Creator<Element>() {
+			@Override
+			public Element createFromParcel(Parcel in) {
+				return new Element(in);
+			}
 
+			@Override
+			public Element[] newArray(int size) {
+				return new Element[size];
+			}
+		};
 		public final long twitterEngineId;
 		public final int function;
 		public final long id;
 		public final String name;
-
 		private TwitterEngine mTwitterEngine;
 		private String mUniqid;
 
@@ -239,15 +370,18 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 					((((Element)o).name != null && ((Element)o).name.equals(name)) ||
 							(name == null && ((Element)o).name == null));
 		}
+
 		public String generateUniqid(){
 			if(mUniqid != null)
 				return mUniqid;
 			mUniqid = twitterEngineId + "." + function + "." + id + "." + name;
 			return mUniqid;
 		}
+
 		public boolean containsStream(TwitterEngine e){
 			return e != null && containsStream(e.getUserId());
 		}
+
 		public boolean containsStream(long user_id){
 			switch(function){
 				case FUNCTION_HOME_TIMELINE:
@@ -317,19 +451,6 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 			dest.writeString(name);
 		}
 
-		@SuppressWarnings("unused")
-		public static final Parcelable.Creator<Element> CREATOR = new Parcelable.Creator<Element>() {
-			@Override
-			public Element createFromParcel(Parcel in) {
-				return new Element(in);
-			}
-
-			@Override
-			public Element[] newArray(int size) {
-				return new Element[size];
-			}
-		};
-
 		public ElementHeader createHeader(int viewType){
 			ElementHeader header = new ElementHeader();
 			header.mId = DarknovaApplication.uniqid();
@@ -360,130 +481,6 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 			}
 		}
 	}
-
-	public boolean canHave(Tweet tweet){
-		for(Element e : elements)
-			if(e.canHave(tweet))
-				return true;
-		return false;
-	}
-
-	public boolean containsStream(TwitterEngine.StreamableTwitterEngine engine){
-		for(Element e : elements)
-			if(e.containsStream(engine.getUserId()))
-				return true;
-		return false;
-	}
-
-	public int getParentPageIndex(){
-		if(mParentPage != null){
-			for(WeakReference<Page> p : mParentPage){
-				Page page = p.get();
-				if(page == null) continue;
-				int pos = pages.indexOf(page);
-				if(pos == -1) continue;
-				return pos;
-			}
-		}
-		return -1;
-	}
-
-	public String generateUniqid(){
-		StringBuilder sb = new StringBuilder();
-		for(Element e : elements){
-			if(sb.length() > 0)
-				sb.append(":");
-			sb.append(e.generateUniqid());
-		}
-		return StringTools.UrlEncode(sb.toString());
-	}
-
-	@Override
-	public boolean equals(Object o) {
-		if(!(o instanceof Page))
-			return false;
-		Page p2 = (Page) o;
-		if(p2.elements.size()!=elements.size())
-			return false;
-		ArrayList<Element> e = new ArrayList<>(p2.elements);
-		e.removeAll(elements);
-		return e.isEmpty();
-	}
-
-	public long getId(){
-		return mId;
-	}
-
-	@Override
-	public int hashCode() {
-		return elements.hashCode();
-	}
-
-	protected Page(String name, int iconResId, List<Element> elements, Page parentPage){
-		this.name = name;
-		this.iconResId = iconResId;
-		this.elements = Collections.unmodifiableList(elements);
-		mId = DarknovaApplication.uniqid();
-		if(parentPage == null){
-			mParentPage = null;
-			return;
-		}
-		ArrayList<WeakReference<Page>> parents = new ArrayList<>();
-		while(true){
-			parents.add(new WeakReference<>(parentPage));
-			int parentIndex = parentPage.getParentPageIndex();
-			if(parentIndex == -1)
-				break;
-			parentPage = pages.get(parentIndex);
-		}
-		mParentPage = parents;
-	}
-
-	protected Page(Parcel in) {
-		name = in.readString();
-		iconResId = in.readInt();
-		ArrayList<Element> newElements = new ArrayList<>();
-		in.readList(newElements, Element.class.getClassLoader());
-		elements = Collections.unmodifiableList(newElements);
-		mId = DarknovaApplication.uniqid();
-		mParentPage = null;
-	}
-
-	@Override
-	public int describeContents() {
-		return 0;
-	}
-
-	@Override
-	public void writeToParcel(Parcel dest, int flags) {
-		dest.writeString(name);
-		dest.writeInt(iconResId);
-		dest.writeList(elements);
-	}
-
-	@SuppressWarnings("unused")
-	public static final Parcelable.Creator<Page> CREATOR = new Parcelable.Creator<Page>() {
-		@Override
-		public Page createFromParcel(Parcel in) {
-			return new Page(in);
-		}
-
-		@Override
-		public Page[] newArray(int size) {
-			return new Page[size];
-		}
-	};
-
-	public interface OnPageListChangedListener{
-		void onPageListChanged();
-	}
-
-	private static final Comparator<Element> elementComparator = new Comparator<Element>() {
-		@Override
-		public int compare(Element lhs, Element rhs) {
-			return lhs.generateUniqid().compareTo(rhs.generateUniqid());
-		}
-	};
 
 	public static class Builder{
 		String mName;

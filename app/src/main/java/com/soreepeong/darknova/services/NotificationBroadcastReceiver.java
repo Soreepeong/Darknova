@@ -16,7 +16,9 @@ import com.soreepeong.darknova.ui.MainActivity;
 import java.io.File;
 
 /**
- * Created by Soreepeong on 2015-05-27.
+ * Notification broadcast receiver.
+ *
+ * @author Soreepeong
  */
 public class NotificationBroadcastReceiver extends BroadcastReceiver {
 
@@ -30,7 +32,7 @@ public class NotificationBroadcastReceiver extends BroadcastReceiver {
 		NotificationManager mNotification = ((NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE));
 
 		switch (intent.getAction()) {
-			case ConnectivityManager.CONNECTIVITY_ACTION:{
+			case ConnectivityManager.CONNECTIVITY_ACTION: {
 				if (b != null) {
 					try {
 						new Messenger(b).send(Message.obtain(null, DarknovaService.MESSAGE_BREAK_CONNECTION));
@@ -65,7 +67,7 @@ public class NotificationBroadcastReceiver extends BroadcastReceiver {
 				}
 				break;
 			}
-			case KEEP_STREAMING:{
+			case KEEP_STREAMING: {
 				if (b != null) {
 					try {
 						new Messenger(b).send(Message.obtain(null, DarknovaService.MESSAGE_STREAM_QUIT_CANCEL));
