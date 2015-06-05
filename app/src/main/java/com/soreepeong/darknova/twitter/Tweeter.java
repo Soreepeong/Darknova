@@ -76,14 +76,18 @@ public class Tweeter implements Parcelable {
 				mResolveRequiredUsers.clear();
 			}
 			for (Tweeter t : toLoad.keySet()) {
+				if (!t.info.stub && t.info.lastUpdated > System.currentTimeMillis() - 3600_000) // 60 min
+					continue;
 				if (byEngine.get(toLoad.get(t)) == null)
 					byEngine.put(toLoad.get(t), new ArrayList<Tweeter>());
 				byEngine.get(toLoad.get(t)).add(t);
 			}
 			for (final TwitterEngine engine : byEngine.keySet()) {
 				final long[] ids = new long[byEngine.get(engine).size()];
-				for (int i = byEngine.get(engine).size() - 1; i >= 0; i--)
+				for (int i = byEngine.get(engine).size() - 1; i >= 0; i--) {
 					ids[i] = byEngine.get(engine).get(i).user_id;
+					android.util.Log.d("Tweeter-Resolver", engine.getScreenName() + ": " + byEngine.get(engine).get(i).screen_name);
+				}
 				new Thread() {
 					@Override
 					public void run() {
@@ -192,8 +196,10 @@ public class Tweeter implements Parcelable {
 					// diff: a!=b && (a==null || !a.equals(b))
 					changed |= t.name != user.name && (t.name == null || !t.name.equals(user.name));
 					t.name = user.name;
-					changed |= t.description != user.description && (t.description == null || !t.description.equals(user.description));
-					t.description = user.description;
+					if (user.description != null) {
+						changed |= t.description != user.description && (t.description == null || !t.description.equals(user.description));
+						t.description = user.description;
+					}
 					changed |= t.location != user.location && (t.location == null || !t.location.equals(user.location));
 					t.location = user.location;
 					changed |= t.url != user.url && (t.url == null || !t.url.equals(user.url));
@@ -272,7 +278,17 @@ public class Tweeter implements Parcelable {
 
 	public void addOnChangeListener(OnUserInformationChangedListener listener) {
 		synchronized (mChangeListeners) {
-			mChangeListeners.add(new WeakReference<>(listener));
+			Iterator<WeakReference<OnUserInformationChangedListener>> iter = mChangeListeners.iterator();
+			boolean already = false;
+			while (iter.hasNext()) {
+				WeakReference<OnUserInformationChangedListener> ref = iter.next();
+				OnUserInformationChangedListener l = ref.get();
+				if (l == null)
+					iter.remove();
+				already |= l == listener;
+			}
+			if (!already)
+				mChangeListeners.add(new WeakReference<>(listener));
 		}
 	}
 
@@ -363,6 +379,7 @@ public class Tweeter implements Parcelable {
 		public void onUserInformationChanged(Tweeter tweeter) {
 			mCacheSaver.removeMessages(SAVE);
 			mCacheSaver.sendEmptyMessageDelayed(SAVE, 500);
+			TwitterEngine.applyAccountInformationChanges();
 		}
 
 		@Override

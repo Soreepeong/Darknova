@@ -129,6 +129,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	}
 
 	private void initMediaPlayer() {
+		if (getView() == null)
+			return;
 		if (mVideoLocation == null)
 			return;
 		else
@@ -165,6 +167,14 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	@Override
 	public void onDestroyView() {
 		super.onDestroyView();
+		mViewFragmentRoot = null;
+		mViewImageViewer = null;
+		mViewPageInfo = null;
+		mViewPageInfoText = null;
+		mViewLoadInfoText = null;
+		mViewProgress = null;
+		mViewCancelButton = null;
+		mViewSurface = null;
 	}
 
 	@Override
@@ -193,6 +203,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			clearMediaPlayer();
 			return;
 		}
+		if (getView() == null)
+			return;
 		mViewPageInfo.setVisibility(View.GONE);
 		((MediaPreviewActivity) getActivity()).hideActionBarDelayed(mImage);
 		mViewImageViewer.loadEmptyArea(mp.getVideoWidth(), mp.getVideoHeight());
@@ -214,6 +226,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 	@Override
 	public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+		if (getView() == null)
+			return;
 		if (isInPlaybackState()) {
 			mMediaPlayer.start();
 			mMediaPlayerStatus = STATE_PLAYING;
@@ -228,6 +242,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 	@Override
 	public void onVideoSizeChanged(MediaPlayer mp, int width, int height) {
+		if (getView() == null)
+			return;
 		mViewSurface.getHolder().setFixedSize(width, height);
 	}
 
@@ -239,6 +255,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 	@Override
 	public void onResume() {
+		if (getView() == null)
+			return;
 		initMediaPlayer();
 		mViewImageViewer.setViewerParams(mViewerX, mViewerY, mViewerZoom);
 		super.onResume();
@@ -255,6 +273,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	}
 
 	public void resetPosition() {
+		if (getView() == null)
+			return;
 		if (mViewImageViewer.hasImage())
 			mViewImageViewer.resetPosition();
 	}
@@ -365,15 +385,19 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	public void OnImageViewLoadFinished(LargeImageView v) {
 		if (mImageLoader != null)
 			return;
-		mViewPageInfo.setVisibility(View.GONE);
-		((MediaPreviewActivity) getActivity()).hideActionBarDelayed(mImage);
+		if (getView() != null) {
+			mViewPageInfo.setVisibility(View.GONE);
+			((MediaPreviewActivity) getActivity()).hideActionBarDelayed(mImage);
+		}
 	}
 
 	@Override
 	public void OnImageViewLoadFailed(LargeImageView v, Exception nError) {
-		mViewPageInfoText.setText(R.string.mediapreview_error);
-		mViewLoadInfoText.setText(nError == null ? "" : nError.toString());
-		mViewCancelButton.setText(R.string.mediapreview_retry);
+		if (getView() != null) {
+			mViewPageInfoText.setText(R.string.mediapreview_error);
+			mViewLoadInfoText.setText(nError == null ? "" : nError.toString());
+			mViewCancelButton.setText(R.string.mediapreview_retry);
+		}
 	}
 
 	@Override
@@ -384,22 +408,22 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		path = mImageCache.getCachedImagePath(mImage.mOriginalUrl);
 		if (path != null) {
 			mImageFile = new File(path);
-			if (mImageFile.exists()) {
+			if (mImageFile.exists() && getView() != null) {
 				mViewImageViewer.removeImage();
 				if (mImage.mOriginalContentType != null && mImage.mOriginalContentType.toLowerCase().startsWith("video/")) {
 					mVideoLocation = mImageFile.getAbsolutePath();
 					initMediaPlayer();
 				} else {
 					mViewImageViewer.loadImage(mImageFile.getAbsolutePath());
-					downloadOriginal = false;
 				}
+				downloadOriginal = false;
 			}
 		}
 		if (downloadOriginal) {
 			mImageLoader = new ImageLoaderTask();
 			mImageLoader.execute(mImage.mOriginalUrl);
 			path = mImageCache.getCachedImagePath(mImage.mResizedUrl);
-			if (path != null) {
+			if (path != null && getView() != null) {
 				File resizedFile = new File(path);
 				if (resizedFile.exists()) {
 					mViewPageInfoText.setText(R.string.mediapreview_reading);
@@ -420,6 +444,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		mViewerX = x;
 		mViewerY = y;
 		mViewerZoom = zoom;
+		if (getView() == null)
+			return;
 		FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mViewSurface.getLayoutParams();
 		lp.topMargin = y - h / 2;
 		lp.leftMargin = x - w / 2;
@@ -460,7 +486,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			byte buffer[] = new byte[65536];
 			try {
 				mDownloader = HTTPRequest.getRequest(params[0], mImage.mAuthInfo, false, null, true);
-				mTempFile = File.createTempFile("downloader", null, new File(mImageCache.getCacheDir()));
+				mTempFile = File.createTempFile("downloader", null, mImageCache.getCacheFile());
 				publishProgress();
 				Thread.sleep(50);
 				mDownloader.submitRequest();
@@ -529,6 +555,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 		@Override
 		protected void onProgressUpdate(Object... values) {
+			if (getView() == null)
+				return;
 			if (!mConnected) {
 				mViewPageInfoText.setText(R.string.mediapreview_connecting);
 				mViewLoadInfoText.setText("");
@@ -541,6 +569,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 				if (mSize == 0)
 					mViewLoadInfoText.setText(StringTools.fileSize(mReceived));
 				else {
+					mViewProgress.setIndeterminate(false);
 					mViewLoadInfoText.setText(StringTools.fileSize(mReceived) + " / " + StringTools.fileSize(mSize));
 					if (mProgressAnimator != null)
 						mProgressAnimator.cancel();
@@ -554,6 +583,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 		@Override
 		protected void onPreExecute() {
+			if (getView() == null)
+				return;
 			mViewPageInfo.setVisibility(View.VISIBLE);
 			mViewProgress.setIndeterminate(true);
 			mViewCancelButton.setText(R.string.mediapreview_cancel);
@@ -561,6 +592,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 		@Override
 		protected void onPostExecute(File file) {
+			if (getView() == null)
+				return;
 			mViewCancelButton.setText(R.string.mediapreview_retry);
 			if (mSaveCopy) {
 				if (mDownloadedFile == null)
@@ -592,9 +625,10 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 				mViewLoadInfoText.setText(mException == null ? "" : mException.toString());
 			} else {
 				mViewPageInfo.setVisibility(View.GONE);
-				if (mImageFile == null) {
-					mImageFile = new File(mImageCache.makeTempPath(url));
-				}
+				String path = mImageCache.getCachedImagePath(url);
+				if (path == null)
+					path = mImageCache.makeTempPath(url);
+				mImageFile = new File(path);
 				if (mImageFile.exists())
 					mImageFile.delete();
 				if (!file.renameTo(mImageFile))

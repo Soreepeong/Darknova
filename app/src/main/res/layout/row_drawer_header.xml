@@ -14,7 +14,7 @@
 		android:src="@drawable/wallpaper"
 		android:tint="#30000000"/>
 
-	<RelativeLayout
+	<FrameLayout
 		android:layout_width="match_parent"
 		android:layout_height="168dp"
 		android:background="@android:color/transparent">
@@ -23,9 +23,6 @@
 			android:id="@+id/imgAvatar"
 			android:layout_width="64dp"
 			android:layout_height="64dp"
-			android:layout_alignParentLeft="true"
-			android:layout_alignParentStart="true"
-			android:layout_alignParentTop="true"
 			android:layout_marginBottom="8dp"
 			android:layout_marginLeft="16dp"
 			android:layout_marginStart="16dp"
@@ -34,9 +31,7 @@
 		<com.soreepeong.darknova.ui.view.ChildBlockingFrameLayout
 			android:layout_width="64dp"
 			android:layout_height="64dp"
-			android:layout_alignParentBottom="true"
-			android:layout_alignParentEnd="true"
-			android:layout_alignParentRight="true"
+			android:layout_gravity="end|bottom"
 			android:background="@drawable/ripple_bg"
 			android:clickable="true">
 
@@ -51,35 +46,33 @@
 
 		<TextView
 			android:id="@+id/txtScreenName"
-			android:layout_width="0dp"
+			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_alignParentBottom="true"
-			android:layout_alignParentLeft="true"
-			android:layout_alignParentStart="true"
-			android:layout_marginBottom="16dp"
+			android:layout_gravity="start|bottom"
+			android:layout_marginBottom="12sp"
+			android:layout_marginEnd="80dp"
 			android:layout_marginLeft="16dp"
-			android:layout_marginRight="16dp"
-			android:layout_toLeftOf="@id/show_account_list"
-			android:layout_toStartOf="@id/show_account_list"
+			android:layout_marginRight="80dp"
+			android:layout_marginStart="16dp"
 			android:text="@string/placeholder"
 			android:textColor="@android:color/white"
 			android:textSize="14sp"/>
 
 		<TextView
 			android:id="@+id/txtUsername"
-			android:layout_width="0dp"
+			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_above="@id/txtScreenName"
-			android:layout_alignEnd="@id/txtScreenName"
-			android:layout_alignLeft="@id/txtScreenName"
-			android:layout_alignRight="@id/txtScreenName"
-			android:layout_alignStart="@id/txtScreenName"
-			android:layout_marginBottom="4dp"
+			android:layout_gravity="start|bottom"
+			android:layout_marginBottom="32dp"
+			android:layout_marginEnd="80dp"
+			android:layout_marginLeft="16dp"
+			android:layout_marginRight="80dp"
+			android:layout_marginStart="16dp"
 			android:text="@string/placeholder"
 			android:textColor="@android:color/white"
 			android:textSize="14sp"
 			android:textStyle="bold"/>
-	</RelativeLayout>
+	</FrameLayout>
 
 	<View
 		android:id="@+id/separator"

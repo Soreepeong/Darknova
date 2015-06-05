@@ -40,7 +40,9 @@ import java.util.ArrayList;
 import java.util.regex.Matcher;
 
 /**
- * Created by Soreepeong on 2015-06-02.
+ * Media preview activity
+ *
+ * @author Soreepeong
  */
 public class MediaPreviewActivity extends AppCompatActivity implements ImageCache.OnImageCacheReadyListener, View.OnClickListener, Handler.Callback, SwipeableViewPager.OnPageChangeListener {
 
@@ -63,6 +65,13 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 	private int mBackgroundColorIndex;
 	private int[] mBackgroundColors = new int[]{0xA0000000, 0xFFFFFFFF, 0xFF000000};
 
+	public static void previewLink(Context context, Entities.UrlEntity e) {
+		Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(e.expanded_url), context, MediaPreviewActivity.class);
+		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+		intent.putExtra("darknova.caller", "darknova");
+		context.startActivity(intent);
+	}
+
 	public static void previewTweetImages(Context context, OAuth auth, Tweet t, int selectedIndex) {
 		ArrayList<Image> images = new ArrayList<>();
 		for (Entities.Entity e : t.entities.entities) {
@@ -71,6 +80,7 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		}
 		if (images.size() > 0) {
 			Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(images.get(0).mSourceUrl), context, MediaPreviewActivity.class);
+			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 			intent.putExtra("pictures", images);
 			intent.putExtra("index", selectedIndex);
 			context.startActivity(intent);
@@ -81,6 +91,8 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		if (!getIntent().getAction().equals(Intent.ACTION_VIEW) || !extractAction(getIntent())) {
+			Intent i = new Intent(Intent.ACTION_VIEW, getIntent().getData());
+			startActivity(i);
 			finish();
 			return;
 		}
@@ -123,7 +135,14 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 			Matcher twitterPicMatcher = ImageExtractor.mTwitterPicPattern.matcher(mInitiatorUrl);
 			if (twitterPicMatcher.matches()) {
 				try {
-					mImageList.add(new Image(null, null, null, null, mInitiatorUrl, null, Tweet.getTweet(Long.parseLong(twitterPicMatcher.group(2))), true));
+					Tweet t = Tweet.getTweet(Long.parseLong(twitterPicMatcher.group(2)));
+					if (t.info.stub)
+						mImageList.add(new Image(null, null, null, null, mInitiatorUrl, null, t, true));
+					else
+						for (Entities.Entity e : t.entities.entities) {
+							if (e instanceof Entities.MediaEntity)
+								mImageList.add(new Image(t, null, (Entities.MediaEntity) e));
+						}
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -195,13 +214,12 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		mHandler.removeMessages(MESSAGE_HIDE_ACTIONBAR);
 		if (mViewActionbarToolbar.getVisibility() == View.VISIBLE) return;
 		mViewActionbarToolbar.setVisibility(View.VISIBLE);
-		mActionBar.show();
 		mViewActionbarToolbar.clearAnimation();
-		mViewActionbarToolbar.startAnimation(AnimationUtils.loadAnimation(this, R.anim.actionbar_show));
+		mViewActionbarToolbar.startAnimation(AnimationUtils.loadAnimation(this, R.anim.show_downward));
 		if (mImageList.size() < 2) return;
 		mViewImageList.clearAnimation();
 		mViewImageList.setVisibility(View.VISIBLE);
-		mViewImageList.startAnimation(AnimationUtils.loadAnimation(this, R.anim.newtweet_show));
+		mViewImageList.startAnimation(AnimationUtils.loadAnimation(this, R.anim.show_upward));
 	}
 
 	public void hideActionBar(Image initiator) {
@@ -209,10 +227,9 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 			return;
 		mHandler.removeMessages(MESSAGE_HIDE_ACTIONBAR);
 		if (mViewActionbarToolbar.getVisibility() != View.VISIBLE) return;
-		mActionBar.hide();
-		ResTools.hideWithAnimation(this, mViewActionbarToolbar, R.anim.actionbar_hide, true);
+		ResTools.hideWithAnimation(this, mViewActionbarToolbar, R.anim.hide_upward, true);
 		if (mImageList.size() < 2) return;
-		ResTools.hideWithAnimation(this, mViewImageList, R.anim.newtweet_hide, true);
+		ResTools.hideWithAnimation(this, mViewImageList, R.anim.hide_downward, true);
 	}
 
 	public void hideActionBarDelayed(Image initiator) {
@@ -233,8 +250,6 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 
 	@Override
 	public void onClick(View v) {
-		if (v.equals(mViewActionbarToolbar)) {
-		}
 	}
 
 	@Override
@@ -317,9 +332,17 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 				mResizedUrl = entity.media_url;
 				mOriginalContentType = "image/*";
 			} else {
-				mResizedUrl = entity.media_url;
-				mOriginalUrl = entity.variants.get(0).url;
-				mOriginalContentType = entity.variants.get(0).contentType;
+				mOriginalUrl = mResizedUrl = entity.media_url;
+				int maxBitrate = -1;
+				for (Entities.MediaEntity.MediaVariants var : entity.variants) {
+					if (var.contentType.toLowerCase().startsWith("video/mp4")) {
+						if (var.bitrate > maxBitrate) {
+							mOriginalUrl = var.url;
+							mOriginalContentType = var.contentType;
+							maxBitrate = var.bitrate;
+						}
+					}
+				}
 			}
 			mSourceUrl = entity.expanded_url;
 			mAuthInfo = auth;

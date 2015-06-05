@@ -64,11 +64,12 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	public static final int MESSAGE_STREAM_CALLBACK_PREPARED = 1103;
 
 	public static final int MESSAGE_CLEAR_NOTIFICATION = 1;
-	public static final int MESSAGE_USERLIST_CHANGED = 3;
 
 	public static final int MESSAGE_UPDATE_NOTIFICATION = 10000;
 	public static final int MESSAGE_ACTUAL_STREAM_QUIT = 10001;
 	public static final int MESSAGE_ACTUAL_STREAM_BREAK = 10002;
+	public static final int MESSAGE_USER_REMOVED_STREAM_STOP = 10003;
+	public static final int MESSAGE_USER_REMOVED_STREAM_STOP_WAIT_DURATION = 1000;
 	public static final String NOTIFICATION_LIST_FILE = "notification-list";
 	private static final int DELAY_QUIT_TIME = 5 * 60000; // 5 min.
 	private final Handler mHandler = new Handler(Looper.getMainLooper(), this);
@@ -76,6 +77,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	private final ArrayList<StreamableTwitterEngine> mActiveStreams = new ArrayList<>();
 	private final ArrayList<ActivityNotification> mActivities = new ArrayList<>();
 	private final Object mCallbackModifyLock = new Object();
+	private final ArrayList<StreamableTwitterEngine> mRemovalPendingStreamingUsers = new ArrayList<>();
 	private Messenger mCallback;
 	private Page mNotifyChecker;
 	private ImageCache mImageCache;
@@ -83,12 +85,11 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	private boolean mIsForegroundService;
 	private boolean mIsWaitingForQuit;
 
-
 	@Override
 	public void onCreate() {
 		super.onCreate();
 		Page.Builder builder = new Page.Builder();
-		for (StreamableTwitterEngine e : TwitterEngine.getStreamableTwitterEngines(this)) {
+		for (StreamableTwitterEngine e : TwitterEngine.getStreamables()) {
 			e.addStreamCallback(this);
 			builder.e().add(new Page.Element(e, Page.Element.FUNCTION_MENTIONS, 0, null));
 		}
@@ -103,9 +104,19 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	@Override
 	public void onUserlistChanged(List<StreamableTwitterEngine> engines) {
 		Page.Builder builder = new Page.Builder();
-		for (StreamableTwitterEngine e : engines) {
-			e.addStreamCallback(this);
-			builder.e().add(new Page.Element(e, Page.Element.FUNCTION_MENTIONS, 0, null));
+		synchronized (mRemovalPendingStreamingUsers) {
+			for (StreamableTwitterEngine e : engines) {
+				e.addStreamCallback(this);
+				builder.e().add(new Page.Element(e, Page.Element.FUNCTION_MENTIONS, 0, null));
+				if (mRemovalPendingStreamingUsers.contains(e))
+					mHandler.removeMessages(MESSAGE_USER_REMOVED_STREAM_STOP, mRemovalPendingStreamingUsers.remove(mRemovalPendingStreamingUsers.indexOf(e)));
+			}
+			for (StreamableTwitterEngine e : new ArrayList<>(mActiveStreams)) {
+				if (!engines.contains(e) && !mRemovalPendingStreamingUsers.contains(e)) {
+					mHandler.sendMessageDelayed(Message.obtain(mHandler, MESSAGE_USER_REMOVED_STREAM_STOP, e), MESSAGE_USER_REMOVED_STREAM_STOP_WAIT_DURATION);
+					mRemovalPendingStreamingUsers.add(e);
+				}
+			}
 		}
 		mNotifyChecker = builder.build();
 	}
@@ -224,6 +235,15 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	@Override
 	public boolean handleMessage(final Message msg) {
 		switch (msg.what) {
+			case MESSAGE_USER_REMOVED_STREAM_STOP: {
+				synchronized (mRemovalPendingStreamingUsers) {
+					if (mRemovalPendingStreamingUsers.remove(msg.obj)) {
+						((StreamableTwitterEngine) msg.obj).setUseStream(false);
+						removeActiveStream((StreamableTwitterEngine) msg.obj);
+					}
+				}
+				return true;
+			}
 			case MESSAGE_BREAK_CONNECTION: {
 				if (!mActiveStreams.isEmpty()) {
 					mHandler.removeMessages(MESSAGE_ACTUAL_STREAM_BREAK);
@@ -266,7 +286,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 			}
 			case MESSAGE_STREAM_START: {
 				long user_id = (((long) msg.arg1) << 32) | (long) msg.arg2;
-				StreamableTwitterEngine e = TwitterEngine.getTwitterEngine(this, user_id);
+				StreamableTwitterEngine e = TwitterEngine.get(user_id);
 				if (e != null) {
 					e.setUseStream(true);
 				}
@@ -274,14 +294,10 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 			}
 			case MESSAGE_STREAM_STOP: {
 				long user_id = (((long) msg.arg1) << 32) | (long) msg.arg2;
-				StreamableTwitterEngine e = TwitterEngine.getTwitterEngine(this, user_id);
+				StreamableTwitterEngine e = TwitterEngine.get(user_id);
 				if (e != null) {
 					e.setUseStream(false);
 				}
-				return true;
-			}
-			case MESSAGE_USERLIST_CHANGED: {
-				TwitterEngine.prepare(this, true);
 				return true;
 			}
 			case MESSAGE_CLEAR_NOTIFICATION: {

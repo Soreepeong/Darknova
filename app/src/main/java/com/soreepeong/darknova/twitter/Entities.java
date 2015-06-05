@@ -129,6 +129,9 @@ public class Entities implements Parcelable {
 				return new UrlEntity[size];
 			}
 		};
+
+		public boolean _show_expanded;
+
 		public String url;
 		public String display_url;
 		public String expanded_url;

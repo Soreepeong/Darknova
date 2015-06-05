@@ -113,6 +113,8 @@ public abstract class PageFragment extends Fragment{
 		mPage = args.getParcelable("page");
 		if(!Page.pages.contains(mPage))
 			Page.pages.add(mPage);
+		else
+			mPage = Page.pages.get(Page.pages.indexOf(mPage));
 	}
 
 	public Page getRepresentingPage(){

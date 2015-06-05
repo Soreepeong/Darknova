@@ -1,6 +1,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
 			 android:layout_width="match_parent"
-			 android:layout_height="48dp"
+			 android:layout_height="wrap_content"
+			 android:animateLayoutChanges="true"
 			 android:background="@drawable/recyclerview_item_bg"
 			 android:clickable="true"
 			 android:focusable="true">
@@ -8,8 +9,8 @@
 	<Switch
 		android:id="@+id/use_stream"
 		android:layout_width="70dp"
-		android:layout_height="match_parent"
-		android:layout_gravity="center_vertical|end"
+		android:layout_height="48dp"
+		android:layout_gravity="end"
 		android:checked="true"
 		android:padding="16dp"
 		/>
@@ -23,20 +24,21 @@
 		android:padding="8dp"
 		android:src="@drawable/ic_launcher"
 		/>
+
 	<ImageButton
-		android:background="?attr/selectableItemBackground"
 		android:id="@+id/action_button"
 		android:layout_width="48dp"
 		android:layout_height="48dp"
-		android:padding="8dp"
-		android:src="?attr/ic_content_clear"
 		android:layout_gravity="end"
+		android:background="?attr/selectableItemBackground"
+		android:padding="8dp"
+		android:src="?attr/ic_navigation_menu"
 		/>
 
 	<TextView
 		android:id="@+id/item_name"
 		android:layout_width="match_parent"
-		android:layout_height="match_parent"
+		android:layout_height="48dp"
 		android:layout_marginEnd="70dp"
 		android:layout_marginLeft="72dp"
 		android:layout_marginRight="70dp"
@@ -45,4 +47,60 @@
 		android:text="@string/placeholder"
 		android:textColor="?android:attr/textColorPrimary"
 		android:textSize="14sp"/>
+
+	<FrameLayout
+		android:id="@+id/account_manage_container"
+		android:layout_width="match_parent"
+		android:layout_height="96dp"
+		android:layout_marginTop="48dp">
+
+		<FrameLayout
+			android:id="@+id/account_setting"
+			android:layout_width="match_parent"
+			android:layout_height="48dp"
+			android:background="?selectableItemBackground"
+			android:paddingLeft="32dp"
+			android:paddingRight="32dp">
+
+			<ImageView
+				android:layout_width="48dp"
+				android:layout_height="48dp"
+				android:padding="8dp"
+				android:src="?attr/ic_action_settings"/>
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="match_parent"
+				android:layout_marginLeft="72dp"
+				android:layout_marginStart="72dp"
+				android:gravity="center_vertical|start"
+				android:text="@string/drawer_menu_account_settings"
+				android:textAppearance="?android:textAppearanceButton"/>
+		</FrameLayout>
+
+		<FrameLayout
+			android:id="@+id/account_logout"
+			android:layout_width="match_parent"
+			android:layout_height="48dp"
+			android:layout_marginTop="48dp"
+			android:background="?selectableItemBackground"
+			android:paddingLeft="32dp"
+			android:paddingRight="32dp">
+
+			<ImageView
+				android:layout_width="48dp"
+				android:layout_height="48dp"
+				android:padding="8dp"
+				android:src="?attr/ic_content_clear"/>
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="match_parent"
+				android:layout_marginLeft="72dp"
+				android:layout_marginStart="72dp"
+				android:gravity="center_vertical|start"
+				android:text="@string/drawer_menu_account_logout"
+				android:textAppearance="?android:textAppearanceButton"/>
+		</FrameLayout>
+	</FrameLayout>
 </FrameLayout>

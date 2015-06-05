@@ -136,7 +136,7 @@ public class TwitterStreamServiceReceiver {
 				public void handleMessage(Message msg) {
 					Bundle b = msg.getData();
 					b.setClassLoader(mContext.getClassLoader());
-					TwitterEngine.StreamableTwitterEngine e = TwitterEngine.getTwitterEngine(mContext, b.getLong("user_id"));
+					TwitterEngine.StreamableTwitterEngine e = TwitterEngine.get(b.getLong("user_id"));
 					switch (msg.what) {
 						case DarknovaService.MESSAGE_STREAM_CALLBACK_PREPARED:{
 							synchronized (mServiceReadyListeners) {

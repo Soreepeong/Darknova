@@ -44,7 +44,6 @@ import org.apmem.tools.layouts.FlowLayout;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
@@ -96,7 +95,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 		mViewEditor = (EditText) mViewNewTweet.findViewById(R.id.editor);
 		mViewAccount = (FlowLayout) mViewNewTweet.findViewById(R.id.account_list);
 		mUserMaps = new HashMap<>();
-		refillUserMaps(TwitterEngine.getTwitterEngines(getActivity()));
+		refillUserMaps(TwitterEngine.getAll());
 		mViewNewTweet.setVisibility(View.GONE);
 		mViewWriteBtn.setOnClickListener(this);
 		mViewClearBtn.setOnClickListener(this);
@@ -176,7 +175,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 
 	public void onImageCacheReady(ImageCache cache) {
 		mImageCache = cache;
-		refillUserMaps(TwitterEngine.getTwitterEngines(getActivity()));
+		refillUserMaps(TwitterEngine.getAll());
 		mAttachmentAdapter.notifyDataSetChanged();
 		mUserAdapter.notifyDataSetChanged();
 	}
@@ -194,7 +193,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 		if (mIsShown) {
 			if (mViewNewTweet.getVisibility() == View.VISIBLE) return;
 			mViewNewTweet.setVisibility(View.VISIBLE);
-			mViewNewTweet.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.newtweet_show));
+			mViewNewTweet.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.show_upward));
 			mViewEditor.requestFocus();
 		} else
 			mListener.onNewTweetVisibilityChanged(false);
@@ -205,7 +204,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 		if (mListener != null)
 			mListener.onNewTweetVisibilityChanged(true);
 		if (mViewNewTweet.getVisibility() != View.VISIBLE) return;
-		ResTools.hideWithAnimation(getActivity(), mViewNewTweet, R.anim.newtweet_hide, true);
+		ResTools.hideWithAnimation(getActivity(), mViewNewTweet, R.anim.hide_downward, true);
 	}
 
 	public void showNewTweet() {
@@ -215,7 +214,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 		if (mViewNewTweet.getVisibility() == View.VISIBLE) return;
 		mViewNewTweet.setVisibility(View.VISIBLE);
 
-		mViewNewTweet.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.newtweet_show));
+		mViewNewTweet.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.show_upward));
 		mViewEditor.requestFocus();
 		if (mListener != null)
 			mListener.onNewTweetVisibilityChanged(true);
@@ -229,7 +228,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 	public void hideNewTweet() {
 		mIsShown = false;
 		if (mViewNewTweet.getVisibility() != View.VISIBLE) return;
-		ResTools.hideWithAnimation(getActivity(), mViewNewTweet, R.anim.newtweet_hide, true);
+		ResTools.hideWithAnimation(getActivity(), mViewNewTweet, R.anim.hide_downward, true);
 		if (mListener != null)
 			mListener.onNewTweetVisibilityChanged(false);
 
@@ -267,7 +266,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 		ArrayList<TwitterEngine> postFrom = new ArrayList<>();
 		for (Tweeter ttr : mUserMaps.keySet())
 			if (mUserMaps.get(ttr).isChecked())
-				postFrom.add(TwitterEngine.getTwitterEngine(getActivity(), ttr.user_id));
+				postFrom.add(TwitterEngine.get(ttr.user_id));
 		return postFrom;
 	}
 
@@ -330,27 +329,21 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 			if (mViewAccount.getVisibility() != View.VISIBLE) {
 				mViewAccount.setVisibility(View.VISIBLE);
 				mViewAccount.clearAnimation();
-				mViewAccount.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.newtweet_show));
+				mViewAccount.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.show_upward));
 			} else
-				ResTools.hideWithAnimation(getActivity(), mViewAccount, R.anim.newtweet_hide, false);
+				ResTools.hideWithAnimation(getActivity(), mViewAccount, R.anim.hide_downward, false);
 			mViewUserSelectExpander.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewAccount.getVisibility() != View.VISIBLE ? R.attr.ic_navigation_expand_less : R.attr.ic_navigation_expand_more));
 		} else if (v.equals(mViewTypeSelectBtn)) {
-			ResTools.hideWithAnimation(getActivity(), mViewAccount, R.anim.newtweet_hide, false);
+			ResTools.hideWithAnimation(getActivity(), mViewAccount, R.anim.hide_downward, false);
 		}
 	}
 
 	private void applyUserText() {
-		final ArrayList<TwitterEngine> mEngines = TwitterEngine.getTwitterEngines(getActivity());
 		ArrayList<TwitterEngine> postFrom = getPostFromList();
-		Collections.sort(postFrom, new Comparator<TwitterEngine>() {
-			@Override
-			public int compare(TwitterEngine lhs, TwitterEngine rhs) {
-				return mEngines.indexOf(lhs) - mEngines.indexOf(rhs);
-			}
-		});
+		Collections.sort(postFrom);
 		mViewUserSelectedText.setVisibility(postFrom.size() <= 1 ? View.VISIBLE : View.GONE);
 		mViewUserSelectedText.setText(postFrom.size() == 0 ? getString(R.string.new_tweet_select_user) : postFrom.get(0).getScreenName());
-		mUserAdapter.updateList(postFrom, mEngines);
+		mUserAdapter.updateList(postFrom);
 	}
 
 	private void readFromNewTweet(TemplateTweet t) {
@@ -452,7 +445,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 			setHasStableIds(true);
 		}
 
-		public void updateList(final ArrayList<TwitterEngine> newList, final ArrayList<TwitterEngine> indexRef) {
+		public void updateList(final ArrayList<TwitterEngine> newList) {
 			ArrayList<TwitterEngine> mRemovingList = new ArrayList<>(newList);
 			for (int i = 0; i < mTweeters.size(); i++) {
 				boolean removed = true;
@@ -470,12 +463,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 				}
 			}
 			for (TwitterEngine e : mRemovingList) {
-				int i = Collections.binarySearch(mTweeters, e, new Comparator<TwitterEngine>() {
-					@Override
-					public int compare(TwitterEngine lhs, TwitterEngine rhs) {
-						return indexRef.indexOf(lhs) - indexRef.indexOf(rhs);
-					}
-				});
+				int i = Collections.binarySearch(mTweeters, e);
 				if (i < 0) {
 					i = -i - 1;
 					mTweeters.add(i, e);

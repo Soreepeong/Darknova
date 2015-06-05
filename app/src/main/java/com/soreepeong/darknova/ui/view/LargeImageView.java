@@ -522,7 +522,8 @@ public class LargeImageView extends View implements Runnable, Handler.Callback{
 					e.printStackTrace();
 				}
 			if (mGifDrawable == null) {
-				mDrawable = new BitmapDrawable(getResources(), ImageCache.decodeFile(mImgPath, 4096));
+				Canvas c = new Canvas();
+				mDrawable = new BitmapDrawable(getResources(), ImageCache.decodeFile(mImgPath, c.getMaximumBitmapWidth(), c.getMaximumBitmapHeight()));
 			}
 			mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_LOADED);
 		} catch (Error e) {

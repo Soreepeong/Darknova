@@ -19,14 +19,12 @@ import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
 import android.widget.Button;
 import android.widget.Toast;
 
 import com.melnykov.fab.FloatingActionButton;
 import com.soreepeong.darknova.R;
-import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.services.DarknovaService;
 import com.soreepeong.darknova.settings.Page;
 import com.soreepeong.darknova.tools.ResTools;
@@ -47,18 +45,16 @@ import java.util.ArrayList;
  *
  * @author Soreepeong
  */
-public class MainActivity extends AppCompatActivity implements ViewPager.OnPageChangeListener, NavigationDrawerFragment.NavigationDrawerCallbacks, View.OnClickListener, NewTemplateTweetFragment.OnNewTweetVisibilityChangedListener, ImageCache.OnImageCacheReadyListener, Page.OnPageListChangedListener {
+public class MainActivity extends AppCompatActivity implements ViewPager.OnPageChangeListener, NavigationDrawerFragment.NavigationDrawerCallbacks, View.OnClickListener, NewTemplateTweetFragment.OnNewTweetVisibilityChangedListener, Page.OnPageListChangedListener {
 
 
 	private ViewPager mPager;
 	private TimelineFragmentPagerAdapter mPagerAdapter;
-	private ImageCache mImageCache;
 	private NavigationDrawerFragment mNavigationDrawerFragment;
 	private NewTemplateTweetFragment mNewTemplateTweetFragment;
 	private SearchSuggestionFragment mSuggestionFragment;
 	private Toolbar mToolbar;
 	private ActionBar mActionBar;
-	private DrawerLayout mDrawer;
 	private FloatingActionButton mNewTweetOpener;
 	private int mLastViewPagerPage;
 	private Button mViewOpenDrawerDragTargetButton;
@@ -67,8 +63,6 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-
-		ArrayList<TwitterEngine> users = TwitterEngine.getTwitterEngines(this);
 		if (savedInstanceState != null) {
 			for (int i = 0, length = savedInstanceState.getInt("temppage.length"); i < length; i++) {
 				Page p = savedInstanceState.getParcelable("temppage." + i);
@@ -81,9 +75,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		super.onCreate(savedInstanceState);
 		startService(new Intent(this, DarknovaService.class));
 		setContentView(R.layout.activity_main);
-		mImageCache = ImageCache.getCache(this, this);
 
-		mDrawer = (DrawerLayout) findViewById(R.id.drawer_layout);
 		mNewTweetOpener = (FloatingActionButton) findViewById(R.id.new_tweet_opener);
 		mToolbar = (Toolbar) findViewById(R.id.toolbar_actionbar);
 		mViewOpenDrawerDragTargetButton = (Button) findViewById(R.id.drag_action_open_drawer);
@@ -99,7 +91,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		mNewTemplateTweetFragment = (NewTemplateTweetFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_new_tweet);
 		mSuggestionFragment = (SearchSuggestionFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_search_suggestions);
 
-		mNavigationDrawerFragment.setup(R.id.fragment_drawer, mDrawer, mToolbar);
+		mNavigationDrawerFragment.setup(R.id.fragment_drawer, (DrawerLayout) findViewById(R.id.drawer_layout), mToolbar);
 		mNewTemplateTweetFragment.setOnNewTweetVisibilityChangedListener(this);
 		if (mNewTemplateTweetFragment.isNewTweetVisible())
 			mNewTweetOpener.setVisibility(View.GONE);
@@ -120,7 +112,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 
 		handleIntent(getIntent());
 
-		if (users.isEmpty())
+		if (TwitterEngine.getAll().isEmpty())
 			AccountManager.get(this).addAccount(getString(R.string.account_type), "default", null, null, this, null, null);
 	}
 
@@ -131,10 +123,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	}
 
 	private void handleIntent(Intent intent) {
-		if (Intent.ACTION_SEARCH.equals(intent.getAction())) {
-			String query = intent.getStringExtra(SearchManager.QUERY);
-			// TODO Search
-		}
+		// TODO Handle Twitter links
 	}
 
 	@Override
@@ -206,14 +195,14 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		}
 		int currentItem = mPager.getCurrentItem();
 		boolean selected = false;
-		if (mPagerAdapter.mFragments.get(currentItem) != null)
-			selected = mPagerAdapter.mFragments.get(currentItem).isSomethingSelected();
+		if (getFragmentAt(currentItem) != null)
+			selected = getFragmentAt(currentItem).isSomethingSelected();
 		mMenuItems.get(R.id.action_clear_selection).setVisible(selected);
 		mMenuItems.get(R.id.action_close_page).setVisible(!selected && mPager.getCurrentItem() >= Page.mSavedPageLength);
 	}
 
 	public PageFragment getCurrentPage() {
-		return mPagerAdapter.mFragments.get(mPager.getCurrentItem());
+		return getFragmentAt(mPager.getCurrentItem());
 	}
 
 	@Override
@@ -224,12 +213,12 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 			}
 			case R.id.action_clean: {
 				if (Page.pages.size() > 0)
-					mPagerAdapter.mFragments.get(mPager.getCurrentItem()).onCompleteRefresh();
+					getFragmentAt(mPager.getCurrentItem()).onCompleteRefresh();
 				return true;
 			}
 			case R.id.action_clear_selection: {
 				if (Page.pages.size() > 0)
-					mPagerAdapter.mFragments.get(mPager.getCurrentItem()).clearSelection();
+					getFragmentAt(mPager.getCurrentItem()).clearSelection();
 				return true;
 			}
 			case R.id.action_search: {
@@ -266,28 +255,28 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		mToolbar.setVisibility(View.VISIBLE);
 		mActionBar.show();
 		mToolbar.clearAnimation();
-		mToolbar.startAnimation(AnimationUtils.loadAnimation(this, R.anim.actionbar_show));
+		mToolbar.startAnimation(AnimationUtils.loadAnimation(this, R.anim.show_downward));
 		for (Page p : Page.pages)
 			if (p.mConnectedFragment != null)
-				p.mConnectedFragment.onActionBarShown(mToolbar);
+				p.mConnectedFragment.onActionBarShown();
 	}
 
 	public void hideActionBar() {
 		if (mToolbar.getVisibility() != View.VISIBLE) return;
 		mNewTemplateTweetFragment.hideWithActionBar();
-		ResTools.hideWithAnimation(this, mToolbar, R.anim.actionbar_hide, true);
+		ResTools.hideWithAnimation(this, mToolbar, R.anim.hide_upward, true);
 		for (Page p : Page.pages)
 			if (p.mConnectedFragment != null)
-				p.mConnectedFragment.onActionBarHidden(mToolbar);
+				p.mConnectedFragment.onActionBarHidden();
 	}
 
 	@Override
 	public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-		if (mPagerAdapter.mFragments.get(position) != null)
-			mPagerAdapter.mFragments.get(position).loadBackground();
+		if (getFragmentAt(position) != null)
+			getFragmentAt(position).loadBackground();
 		if (positionOffset > 0)
-			if (mPagerAdapter.mFragments.get(position + 1) != null)
-				mPagerAdapter.mFragments.get(position + 1).loadBackground();
+			if (getFragmentAt(position + 1) != null)
+				getFragmentAt(position + 1).loadBackground();
 	}
 
 	public void selectPage(int index) {
@@ -297,16 +286,15 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	@Override
 	public void onPageSelected(int position) {
 		mSuggestionFragment.hideAndIconify();
-		if (mPagerAdapter.mFragments.get(mLastViewPagerPage) != null)
-			mPagerAdapter.mFragments.get(mLastViewPagerPage).onPageLeave();
+		if (getFragmentAt(mLastViewPagerPage) != null)
+			getFragmentAt(mLastViewPagerPage).onPageLeave();
 		mNavigationDrawerFragment.onPageSelected(position);
 		mLastViewPagerPage = position;
 		mActionBar.setTitle(mPagerAdapter.getPageTitle(position));
 		mActionBar.setSubtitle(mPagerAdapter.getPageSubtitle(position));
+		showActionBar();
 
-		mPagerAdapter.requireEnterPage = position;
-		if (mPagerAdapter.mFragments.get(position) != null)
-			mPagerAdapter.enterPage(position);
+		getFragmentAt(position).onPageEnter();
 
 		invalidateOptionsMenu();
 	}
@@ -335,58 +323,34 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		if (v.equals(mNewTweetOpener))
 			mNewTemplateTweetFragment.showNewTweet();
 		else if (v.equals(mToolbar) && Page.pages.size() > 0) {
-			if (mPagerAdapter.mFragments.get(mPager.getCurrentItem()) != null)
-				mPagerAdapter.mFragments.get(mPager.getCurrentItem()).scrollToTop();
+			if (getFragmentAt(mPager.getCurrentItem()) != null)
+				getFragmentAt(mPager.getCurrentItem()).scrollToTop();
 		} else if (v.equals(mViewOpenDrawerDragTargetButton))
 			mNavigationDrawerFragment.openDrawer();
+	}
+
+	public PageFragment getFragmentAt(int position) {
+		if (position >= Page.pages.size())
+			return null;
+		return (PageFragment) mPagerAdapter.instantiateItem(mPager, position);
 	}
 
 	@Override
 	public void onNewTweetVisibilityChanged(boolean visible) {
 		if (!visible) {
 			if (mNewTweetOpener.getVisibility() == View.VISIBLE) return;
-			mNewTweetOpener.startAnimation(AnimationUtils.loadAnimation(this, R.anim.newtweet_show));
+			mNewTweetOpener.startAnimation(AnimationUtils.loadAnimation(this, R.anim.show_upward));
 			mNewTweetOpener.setVisibility(View.VISIBLE);
 		} else {
 			if (mNewTweetOpener.getVisibility() != View.VISIBLE) return;
-			ResTools.hideWithAnimation(this, mNewTweetOpener, R.anim.newtweet_hide, true);
+			ResTools.hideWithAnimation(this, mNewTweetOpener, R.anim.hide_downward, true);
 		}
-	}
-
-	@Override
-	public void onImageCacheReady(ImageCache cache) {
-		mImageCache = cache;
 	}
 
 	public class TimelineFragmentPagerAdapter extends SortableFragmentStatePagerAdapter {
 
-		public final SparseArray<PageFragment> mFragments = new SparseArray<>();
-		int requireEnterPage = -1;
-
 		public TimelineFragmentPagerAdapter(FragmentManager fm) {
 			super(fm);
-		}
-
-		public void enterPage(int position) {
-			if (requireEnterPage != position)
-				return;
-			mFragments.get(position).onPageEnter();
-		}
-
-		@Override
-		public Object instantiateItem(ViewGroup container, int position) {
-			TimelineFragment fragment = (TimelineFragment) super.instantiateItem(container, position);
-			mFragments.put(position, fragment);
-			enterPage(position);
-			return fragment;
-		}
-
-		@Override
-		public void destroyItem(ViewGroup container, int position, Object object) {
-			super.destroyItem(container, position, object);
-			if (mFragments.get(position) != null)
-				mFragments.get(position).onPageLeave();
-			mFragments.remove(position);
 		}
 
 		@Override
@@ -398,13 +362,8 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		public int getItemPosition(Object object) {
 			PageFragment f = (PageFragment) object;
 			int pos = Page.pages.indexOf(f.getRepresentingPage());
-			int oldPos = mFragments.indexOfValue(f);
-			if (pos == oldPos)
-				return pos;
-			if (oldPos >= 0) mFragments.remove(oldPos);
 			if (pos == -1)
 				return PagerAdapter.POSITION_NONE;
-			mFragments.put(pos, f);
 			return pos;
 		}
 

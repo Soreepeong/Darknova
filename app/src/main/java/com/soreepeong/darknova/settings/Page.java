@@ -22,7 +22,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Created by Soreepeong on 2015-04-28.
+ * Page, rendered by PageFragment
+ *
+ * @author Soreepeong
  */
 public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 	public static final ArrayList<Page> pages = new ArrayList<>();
@@ -57,6 +59,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 	public TimelineFragment mConnectedFragment;
 	public boolean mIsListAtTop;
 	public int mPageLastItemPosition, mPageLastOffset;
+	public long mPageLastItemId;
 	private Thread mList_holdRemover;
 
 	protected Page(String name, int iconResId, List<Element> elements, Page parentPage) {
@@ -350,7 +353,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 
 		protected Element(Parcel in) {
 			twitterEngineId = in.readLong();
-			mTwitterEngine = TwitterEngine.getTwitterEngine(null, twitterEngineId);
+			mTwitterEngine = TwitterEngine.get(twitterEngineId);
 			function = in.readInt();
 			id = in.readLong();
 			name = in.readString();
@@ -434,7 +437,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback{
 
 		public TwitterEngine getTwitterEngine(Context context){
 			if(mTwitterEngine == null && twitterEngineId != 0)
-				mTwitterEngine = TwitterEngine.getTwitterEngine(context, twitterEngineId);
+				mTwitterEngine = TwitterEngine.get(twitterEngineId);
 			return mTwitterEngine;
 		}
 

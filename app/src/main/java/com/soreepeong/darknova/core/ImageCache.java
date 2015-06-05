@@ -15,6 +15,7 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.media.ExifInterface;
 import android.media.ThumbnailUtils;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -56,10 +57,8 @@ import java.util.regex.Pattern;
 public class ImageCache {
 	private static final int MAX_SIZE = 4 * 1048576;
 	private static final int DEFAULT_IMAGE_LOADERS = 4;
-	private static final int DISK_MAX_SIZE = 32 * 1048576;
 	private static final int REVEAL_ANIMATION_LENGTH = 300;
 	private static final String[] COLUMN_ID_ONLY = new String[]{"_id"};
-	private static final String[] COLUMN_ID_SIZE = new String[]{"_id", "size"};
 	private static final AccelerateDecelerateInterpolator REVEAL_ANIMATION_INTERPOLATOR = new AccelerateDecelerateInterpolator();
 	private static final Pattern LOCAL_FILE_MATCHER = Pattern.compile("^(?:file://)?(/.*)$", Pattern.CASE_INSENSITIVE);
 	private static final Handler mMainThreadHandler = new Handler(Looper.getMainLooper());
@@ -69,7 +68,6 @@ public class ImageCache {
 	private final ConcurrentHashMap<String, ImageLoader> mLoaderMap;
 	private final List<ImageLoader> mWorkingImageLoaders;
 	private final ImageLoaderScheduler mScheduler;
-	private final String mCachePath;
 	private final Resources mResources;
 	public final OnDrawablePreprocessListener CIRCULAR_IMAGE_PREPROCESSOR = new OnDrawablePreprocessListener() {
 		@Override
@@ -82,13 +80,10 @@ public class ImageCache {
 	private final WeakHashMap<AutoApplyingDrawable, String> mUsedDrawables;
 	private final ContentResolver mDb;
 	private final SparseArray<BitmapDrawable> mNullResourceBitmaps = new SparseArray<>();
+	private File mCacheFile;
 
-	private ImageCache(ContentResolver resolver, String cachePath, Resources res) throws IOException {
+	private ImageCache(ContentResolver resolver, Resources res) throws IOException {
 		mPendingImages = new LinkedList<>();
-		if (!cachePath.endsWith("/"))
-			mCachePath = cachePath + "/";
-		else
-			mCachePath = cachePath;
 		mDb = resolver;
 
 		mResources = res;
@@ -135,14 +130,14 @@ public class ImageCache {
 		}
 	}
 
-	public static Bitmap decodeFile(String sPath, int nSize) throws IOException {
+	public static Bitmap decodeFile(String sPath, float nMaxWidth, float nMaxHeight) throws IOException {
 		BitmapFactory.Options o = new BitmapFactory.Options();
 		ExifInterface exif = new ExifInterface(sPath);
 		o.inJustDecodeBounds = true;
 		o.inSampleSize = 1;
 		BitmapFactory.decodeFile(sPath, o);
-		o.inSampleSize = (int) Math.max(Math.ceil(o.outWidth / (float) nSize), o.inSampleSize);
-		o.inSampleSize = (int) Math.max(Math.ceil(o.outHeight / (float) nSize), o.inSampleSize);
+		o.inSampleSize = (int) Math.max(Math.ceil(o.outWidth / nMaxWidth), o.inSampleSize);
+		o.inSampleSize = (int) Math.max(Math.ceil(o.outHeight / nMaxHeight), o.inSampleSize);
 
 		while (o.inSampleSize < 256) {
 			o.inDither = true;
@@ -189,36 +184,14 @@ public class ImageCache {
 	}
 
 	/**
-	 * Truncate disk cache
-	 */
-	public void truncateDiskCache() {
-		ArrayList<String> removeList = new ArrayList<>();
-		Cursor cursor = mDb.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_SIZE, null, null, "created desc");
-		if (cursor.moveToFirst()) {
-			long sizeSum = 0;
-			do {
-				sizeSum += cursor.getLong(1);
-				if (sizeSum >= DISK_MAX_SIZE) {
-					File f = new File(mCachePath + cursor.getString(0));
-					if (!f.delete())
-						f.deleteOnExit();
-					removeList.add(cursor.getString(0));
-				}
-			} while (cursor.moveToNext());
-		}
-		cursor.close();
-		if (!removeList.isEmpty())
-			for (String id : removeList)
-				mDb.delete(ImageCacheProvider.PROVIDER_URI, "_id=?", new String[]{id});
-	}
-
-	/**
-	 * Get cache directory path
+	 * Get cache directory file
 	 *
-	 * @return Cache directory path in String
+	 * @return Cache directory file
 	 */
-	public String getCacheDir() {
-		return mCachePath;
+	public File getCacheFile() {
+		if (mCacheFile == null)
+			mCacheFile = new File(mDb.getType(ImageCacheProvider.PROVIDER_URI));
+		return mCacheFile;
 	}
 
 	/**
@@ -444,7 +417,7 @@ public class ImageCache {
 		Cursor cursor = mDb.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_ONLY, "url=?", new String[]{url}, null);
 		String res = null;
 		if (cursor.moveToFirst())
-			res = mCachePath + cursor.getLong(0);
+			res = new File(getCacheFile(), Long.toString(cursor.getLong(0))).getAbsolutePath();
 		cursor.close();
 		return res;
 	}
@@ -459,7 +432,7 @@ public class ImageCache {
 		ContentValues values = new ContentValues();
 		values.put("created", System.currentTimeMillis());
 		values.put("url", url);
-		return mCachePath + mDb.insert(ImageCacheProvider.PROVIDER_URI, values).getHost();
+		return mDb.insert(ImageCacheProvider.PROVIDER_URI, values).getPath();
 	}
 
 	/**
@@ -468,8 +441,6 @@ public class ImageCache {
 	 * @param file file patht from makeTempPath
 	 */
 	public void applySize(File file) {
-		if (!file.getAbsolutePath().startsWith(mCachePath))
-			return;
 		ContentValues values = new ContentValues();
 		values.put("size", file.length());
 		mDb.update(ImageCacheProvider.PROVIDER_URI, values, "_id=?", new String[]{file.getName()});
@@ -537,10 +508,7 @@ public class ImageCache {
 		@Override
 		public void run() {
 			try {
-				if (mContext.getExternalCacheDir() != null)
-					mCurrentCache = new ImageCache(mContext.getContentResolver(), mContext.getExternalCacheDir().getAbsolutePath(), mContext.getResources());
-				else
-					mCurrentCache = new ImageCache(mContext.getContentResolver(), mContext.getCacheDir().getAbsolutePath(), mContext.getResources());
+				mCurrentCache = new ImageCache(mContext.getContentResolver(), mContext.getResources());
 				mMainThreadHandler.post(new Runnable() {
 					@Override
 					public void run() {
@@ -555,6 +523,148 @@ public class ImageCache {
 			} finally {
 				mCacheLoader = null;
 			}
+		}
+	}
+
+	public static class AutoApplyingDrawable extends Drawable implements Runnable {
+		int mWidth, mHeight;
+		Drawable mDrawable;
+		String mUrl;
+		int mAlpha;
+		ColorFilter mCf;
+		boolean mFilterBitmap, mDither;
+		long mAnimationEndTime = 0;
+
+		protected AutoApplyingDrawable() {
+			mAlpha = 255;
+			mDither = true;
+			mFilterBitmap = true;
+		}
+
+		public boolean isPreparing() {
+			return mDrawable == null;
+		}
+
+		public String getUrl() {
+			return mUrl;
+		}
+
+		public void updateUrl(String newurl, ImageCache mCache) {
+			mUrl = newurl;
+			invalidateSelf();
+			if (mUrl == null)
+				return;
+			BitmapDrawable bd = mCache.getBitmapFromMemCache(mUrl);
+			mDrawable = bd == null ? null : bd.getConstantState().newDrawable().mutate();
+			mCache.mUsedDrawables.put(this, mUrl);
+			mCache.prepareBitmap(mUrl, null, null);
+		}
+
+		@Override
+		public int getIntrinsicHeight() {
+			return mHeight;
+		}
+
+		@Override
+		public int getIntrinsicWidth() {
+			return mWidth;
+		}
+
+		@Override
+		public void setDither(boolean dither) {
+			mDither = dither;
+			if (mDrawable != null)
+				mDrawable.setDither(dither);
+		}
+
+		@Override
+		public void setFilterBitmap(boolean filter) {
+			mFilterBitmap = filter;
+			if (mDrawable != null)
+				mDrawable.setFilterBitmap(filter);
+		}
+
+		public void refineRect(Rect rct, int bitmapWidth, int bitmapHeight) {
+			if (bitmapWidth / bitmapHeight < (rct.right - rct.left) / (rct.bottom - rct.top)) {
+				// height fit
+				int newHeight = rct.bottom - rct.top;
+				int newWidth = bitmapWidth * newHeight / bitmapHeight;
+				int newLeft = rct.left + (rct.right - rct.left - newWidth) / 2;
+				rct.left = newLeft;
+				rct.right = newLeft + newWidth;
+				rct.bottom = rct.top + newHeight;
+			} else {
+				// width fit
+				int newWidth = rct.right - rct.left;
+				int newHeight = bitmapHeight * newWidth / bitmapWidth;
+				int newTop = rct.top + (rct.bottom - rct.top - newHeight) / 2;
+				rct.right = rct.left + newWidth;
+				rct.top = newTop;
+				rct.bottom = newTop + newHeight;
+			}
+		}
+
+		public void setSize(int sz) {
+			mWidth = mHeight = sz;
+		}
+
+		@Override
+		public void draw(Canvas canvas) {
+			if (mDrawable != null) {
+				int prevAlpha = mDrawable.getOpacity();
+				Rect prevBounds = mDrawable.getBounds();
+
+				float state = mAnimationEndTime - System.currentTimeMillis();
+				state = 1 - (state / REVEAL_ANIMATION_LENGTH);
+				if (state < 0) state = 0;
+				if (state > 1) {
+					state = 1;
+				} else
+					mMainThreadHandler.post(this);
+				mDrawable.setAlpha((int) (mAlpha * REVEAL_ANIMATION_INTERPOLATOR.getInterpolation(state)));
+				Rect r = getBounds();
+				refineRect(r, mDrawable.getIntrinsicWidth(), mDrawable.getIntrinsicHeight());
+				mDrawable.setBounds(r);
+				mDrawable.draw(canvas);
+
+				mDrawable.setAlpha(prevAlpha);
+				mDrawable.setBounds(prevBounds);
+			}
+		}
+
+		@Override
+		public void setAlpha(int alpha) {
+			mAlpha = alpha;
+			if (mDrawable != null)
+				mDrawable.setAlpha(alpha);
+		}
+
+		@Override
+		public void setColorFilter(ColorFilter cf) {
+			mCf = cf;
+			if (mDrawable != null)
+				mDrawable.setColorFilter(cf);
+		}
+
+		@Override
+		public int getOpacity() {
+			return mAlpha;
+		}
+
+		protected void applyDrawable(Drawable bmp) {
+			mDrawable = bmp;
+			mDrawable.setAlpha(mAlpha);
+			mDrawable.setDither(mDither);
+			mDrawable.setFilterBitmap(mFilterBitmap);
+			if (mCf != null)
+				mDrawable.setColorFilter(mCf);
+			mAnimationEndTime = System.currentTimeMillis() + REVEAL_ANIMATION_LENGTH;
+			invalidateSelf();
+		}
+
+		@Override
+		public void run() {
+			invalidateSelf();
 		}
 	}
 
@@ -590,7 +700,7 @@ public class ImageCache {
 		final CopyOnWriteArrayList<ImageView> mTargetViews = new CopyOnWriteArrayList<>();
 		final CopyOnWriteArrayList<View> mTargetStatusIndicaters = new CopyOnWriteArrayList<>();
 		BitmapDrawable bmp;
-		long id = -1;
+		String id = null;
 		String filePath;
 
 		public ImageLoader(String url, OAuth auth) {
@@ -614,8 +724,6 @@ public class ImageCache {
 
 		private int download() {
 			int error;
-			int readBytes;
-			byte[] buffer;
 			FileOutputStream out = null;
 			InputStream in = null;
 			ContentValues values = new ContentValues();
@@ -634,13 +742,14 @@ public class ImageCache {
 					File f = null;
 					try {
 						in = request.getInputStream();
-						id = Long.parseLong(mDb.insert(ImageCacheProvider.PROVIDER_URI, values).getHost());
-						f = new File(mCachePath + id);
+						Uri inserted = mDb.insert(ImageCacheProvider.PROVIDER_URI, values);
+						id = inserted.getLastPathSegment();
+						f = new File(inserted.getPath());
 						out = new FileOutputStream(f);
-						buffer = new byte[8192];
-						while ((readBytes = in.read(buffer, 0, buffer.length)) > 0 && !Thread.interrupted())
-							out.write(buffer, 0, readBytes);
-						mDb.update(ImageCacheProvider.PROVIDER_URI, values, "_id=?", new String[]{Long.toString(id)});
+						StreamTools.passthroughStreams(in, out);
+						values.clear();
+						values.put("size", f.length());
+						mDb.update(ImageCacheProvider.PROVIDER_URI, values, "_id=?", new String[]{id});
 					} catch (Exception e) {
 						error = OnImageAvailableListener.UNAVAILABLE_NETWORK_ERROR;
 						if (f != null && !f.delete())
@@ -658,7 +767,7 @@ public class ImageCache {
 		int read() {
 			Bitmap b = null;
 			try {
-				b = decodeFile(filePath, 1280);
+				b = decodeFile(filePath, 1280, 1280);
 			} catch (IOException e) {
 				b = ThumbnailUtils.createVideoThumbnail(filePath, MediaStore.Video.Thumbnails.MINI_KIND);
 			} catch (OutOfMemoryError oom) {
@@ -679,8 +788,8 @@ public class ImageCache {
 					if (!cursor.moveToFirst()) // download
 						error = download();
 					else
-						id = cursor.getLong(0);
-					filePath = mCachePath + id;
+						id = Long.toString(cursor.getLong(0));
+					filePath = new File(getCacheFile(), id).getAbsolutePath();
 					cursor.close();
 				} else {
 					filePath = m.group(1);
@@ -747,103 +856,4 @@ public class ImageCache {
 			}
 		}
 	}
-
-	public class AutoApplyingDrawable extends Drawable implements Runnable {
-		int mWidth, mHeight;
-		Drawable mDrawable;
-		String mUrl;
-		int mAlpha;
-		ColorFilter mCf;
-		boolean mFilterBitmap, mDither;
-		long mAnimationEndTime = 0;
-
-		protected AutoApplyingDrawable() {
-			mAlpha = 255;
-			mDither = true;
-			mFilterBitmap = true;
-		}
-
-		@Override
-		public int getIntrinsicHeight() {
-			return mHeight;
-		}
-
-		@Override
-		public int getIntrinsicWidth() {
-			return mWidth;
-		}
-
-		@Override
-		public void setDither(boolean dither) {
-			mDither = dither;
-			if (mDrawable != null)
-				mDrawable.setDither(dither);
-		}
-
-		@Override
-		public void setFilterBitmap(boolean filter) {
-			mFilterBitmap = filter;
-			if (mDrawable != null)
-				mDrawable.setFilterBitmap(filter);
-		}
-
-		@Override
-		public void draw(Canvas canvas) {
-			if (mDrawable != null) {
-				int prevAlpha = mDrawable.getOpacity();
-				Rect prevBounds = mDrawable.getBounds();
-
-				float state = mAnimationEndTime - System.currentTimeMillis();
-				state = 1 - (state / REVEAL_ANIMATION_LENGTH);
-				if (state < 0) state = 0;
-				if (state > 1) {
-					state = 1;
-				} else
-					mMainThreadHandler.post(this);
-				mDrawable.setAlpha((int) (mAlpha * REVEAL_ANIMATION_INTERPOLATOR.getInterpolation(state)));
-				mDrawable.setBounds(getBounds());
-				mDrawable.draw(canvas);
-
-				mDrawable.setAlpha(prevAlpha);
-				mDrawable.setBounds(prevBounds);
-			}
-		}
-
-		@Override
-		public void setAlpha(int alpha) {
-			mAlpha = alpha;
-			if (mDrawable != null)
-				mDrawable.setAlpha(alpha);
-		}
-
-		@Override
-		public void setColorFilter(ColorFilter cf) {
-			mCf = cf;
-			if (mDrawable != null)
-				mDrawable.setColorFilter(cf);
-		}
-
-		@Override
-		public int getOpacity() {
-			return mAlpha;
-		}
-
-		protected void applyDrawable(Drawable bmp) {
-			mDrawable = bmp;
-			mDrawable.setAlpha(mAlpha);
-			mDrawable.setDither(mDither);
-			mDrawable.setFilterBitmap(mFilterBitmap);
-			if (mCf != null)
-				mDrawable.setColorFilter(mCf);
-			mAnimationEndTime = System.currentTimeMillis() + REVEAL_ANIMATION_LENGTH;
-			invalidateSelf();
-		}
-
-		@Override
-		public void run() {
-			invalidateSelf();
-		}
-	}
-
-
 }

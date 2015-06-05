@@ -26,6 +26,9 @@
 	<string name="drawer_manage_pages">Manage pages</string>
 	<string name="drawer_add_account">Add account</string>
 	<string name="drawer_manage_accounts">Manage accounts</string>
+	<string name="drawer_menu_account_settings">Profile setting</string>
+	<string name="drawer_menu_account_logout">Log out</string>
+	<string name="drawer_menu_account_logout_confirm">Log out user ${screen_name}?</string>
 
 	<string name="login_preparing">Preparing to sign in&#8230;</string>
 	<string name="login_signing">Signing in&#8230;</string>

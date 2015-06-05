@@ -212,14 +212,14 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 	public void show() {
 		if(mViewFragment.getVisibility() == View.VISIBLE)
 			return;
-		mViewFragment.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.actionbar_show));
+		mViewFragment.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.show_downward));
 		mViewFragment.setVisibility(View.VISIBLE);
 	}
 
 	public void hide() {
 		if (mViewFragment.getVisibility() != View.VISIBLE)
 			return;
-		ResTools.hideWithAnimation(getActivity(), mViewFragment, R.anim.newtweet_hide, true);
+		ResTools.hideWithAnimation(getActivity(), mViewFragment, R.anim.hide_downward, true);
 	}
 
 	private ArrayList<UserSuggestion> makeUserSuggestions(String user) {

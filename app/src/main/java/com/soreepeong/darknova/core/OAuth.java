@@ -49,6 +49,11 @@ public class OAuth implements Parcelable{
 		mOauthTokenSecret = in.readString();
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		return o != null && o instanceof OAuth && ((OAuth) o).mApiKey.equals(mApiKey) && ((OAuth) o).mSecretApiKey.equals(mSecretApiKey) && ((OAuth) o).mOauthToken.equals(mOauthToken) && ((OAuth) o).mOauthTokenSecret.equals(mOauthTokenSecret);
+	}
+
 	/**
 	 * Get oAuth Token
 	 * @return oAuth token

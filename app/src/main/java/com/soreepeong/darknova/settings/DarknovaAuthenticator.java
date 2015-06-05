@@ -8,6 +8,7 @@ import android.accounts.NetworkErrorException;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 
 import com.soreepeong.darknova.ui.LoginActivity;
 
@@ -64,6 +65,14 @@ public class DarknovaAuthenticator extends AbstractAccountAuthenticator {
 	public Bundle hasFeatures(AccountAuthenticatorResponse response, Account account, String[] features) throws NetworkErrorException {
 		final Bundle result = new Bundle();
 		result.putBoolean(AccountManager.KEY_BOOLEAN_RESULT, false);
+		return result;
+	}
+
+	@NonNull
+	@Override
+	public Bundle getAccountRemovalAllowed(AccountAuthenticatorResponse response, Account account) throws NetworkErrorException {
+		Bundle result = new Bundle();
+		result.putBoolean(AccountManager.KEY_BOOLEAN_RESULT, true);
 		return result;
 	}
 }

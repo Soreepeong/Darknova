@@ -3,9 +3,9 @@
 			 xmlns:app="http://schemas.android.com/apk/res-auto"
 			 android:layout_width="match_parent"
 			 android:layout_height="wrap_content"
+			 android:background="@drawable/recyclerview_item_bg"
 			 android:clickable="true"
-			 android:focusable="true"
-			 android:background="@drawable/recyclerview_item_bg">
+			 android:focusable="true">
 
 
 	<ImageView
@@ -34,9 +34,9 @@
 		android:layout_width="60sp"
 		android:layout_height="60sp"
 		android:layout_margin="6sp"
+		android:background="#80000000"
 		android:padding="12sp"
 		android:src="?attr/ic_navigation_check"
-		android:background="#80000000"
 		/>
 
 	<LinearLayout
@@ -101,7 +101,7 @@
 			android:textColor="?android:textColorPrimary"
 			android:textStyle="bold"/>
 
-		<TextView
+		<com.soreepeong.darknova.ui.view.ClickableSpanTextView
 			android:id="@+id/lblData"
 			style="@style/TextAppearance.AppCompat.Medium"
 			android:layout_width="match_parent"
@@ -216,71 +216,71 @@
 		android:id="@+id/dragActionHandle"
 		android:layout_width="72sp"
 		android:layout_height="match_parent"
+		android:layout_gravity="start|top"
 		android:layout_marginBottom="206sp"
 		android:background="?attr/selectableItemBackground"
-		android:layout_gravity="start|top"
 		app:action_type="@+id/drag_action_type_tweet" />
 
 	<com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectLinearLayout
 		android:id="@+id/drag_action_type_tweet"
-		android:orientation="horizontal"
-		android:weightSum="4"
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
 		android:layout_gravity="start|top"
+		android:layout_marginBottom="206sp"
 		android:layout_marginLeft="66dp"
 		android:layout_marginStart="66dp"
-		android:layout_marginBottom="206sp"
 		android:background="#C0000000"
-		android:clickable="true">
+		android:clickable="true"
+		android:orientation="horizontal"
+		android:weightSum="4">
 
 		<Button
 			android:id="@+id/tweetActionReply"
 			android:layout_width="0dp"
 			android:layout_height="80dp"
-			android:layout_weight="1"
 			android:layout_gravity="start|center_vertical"
+			android:layout_weight="1"
 			android:background="@drawable/ripple_bg"
-			android:paddingTop="8dp"
-			android:paddingBottom="8dp"
 			android:drawableTop="?attr/ic_content_reply"
 			android:gravity="top|center_horizontal"
+			android:paddingBottom="8dp"
+			android:paddingTop="8dp"
 			android:text="@string/tweet_action_reply" />
 		<Button
 			android:id="@+id/tweetActionRetweet"
 			android:layout_width="0dp"
 			android:layout_height="80dp"
-			android:layout_weight="1"
 			android:layout_gravity="start|center_vertical"
-			android:paddingTop="8dp"
-			android:paddingBottom="8dp"
+			android:layout_weight="1"
 			android:background="@drawable/ripple_bg"
 			android:drawableTop="?attr/ic_av_repeat"
 			android:gravity="top|center_horizontal"
+			android:paddingBottom="8dp"
+			android:paddingTop="8dp"
 			android:text="@string/tweet_action_retweet" />
 		<Button
 			android:id="@+id/tweetActionFavorite"
 			android:layout_width="0dp"
 			android:layout_height="80dp"
-			android:layout_weight="1"
 			android:layout_gravity="start|center_vertical"
-			android:paddingTop="8dp"
-			android:paddingBottom="8dp"
+			android:layout_weight="1"
 			android:background="@drawable/ripple_bg"
 			android:drawableTop="?attr/ic_action_star_rate"
 			android:gravity="top|center_horizontal"
+			android:paddingBottom="8dp"
+			android:paddingTop="8dp"
 			android:text="@string/tweet_action_favorite" />
 		<Button
 			android:id="@+id/tweetActionFavorite2"
 			android:layout_width="0dp"
 			android:layout_height="80dp"
-			android:layout_weight="1"
 			android:layout_gravity="start|center_vertical"
-			android:paddingTop="8dp"
-			android:paddingBottom="8dp"
+			android:layout_weight="1"
 			android:background="@drawable/ripple_bg"
 			android:drawableTop="?attr/ic_action_star_rate"
 			android:gravity="top|center_horizontal"
+			android:paddingBottom="8dp"
+			android:paddingTop="8dp"
 			android:text="@string/tweet_action_favorite" />
 	</com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectLinearLayout>
 </FrameLayout>

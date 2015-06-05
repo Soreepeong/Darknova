@@ -2,20 +2,22 @@ package com.soreepeong.darknova.twitter;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
+import android.accounts.OnAccountsUpdateListener;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.Message;
+import android.support.annotation.NonNull;
 import android.text.Html;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.soreepeong.darknova.DarknovaApplication;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.HTTPRequest;
 import com.soreepeong.darknova.core.OAuth;
-import com.soreepeong.darknova.services.DarknovaService;
 import com.soreepeong.darknova.tools.ArrayTools;
 import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.StringTools;
@@ -35,16 +37,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Twitter APIs
+ * Twitter APIs & account management
  *
  * @author Soreepeong
  */
-public class TwitterEngine {
+public class TwitterEngine implements Comparable<TwitterEngine> {
 	public static final int MAX_IMAGE_MEDIA_SIZE = 5 * 1048576;
 	public static final int MAX_VIDEO_MEDIA_SIZE = 15 * 1048576;
 	public static final byte[] CRLF = new byte[]{'\r', '\n'};
@@ -55,18 +56,7 @@ public class TwitterEngine {
 	protected static final SimpleDateFormat CREATED_AT_STRING = new SimpleDateFormat("EEE MMM dd HH:mm:ss ZZZZZ yyyy", Locale.ENGLISH);
 	protected static final Pattern TWITTER_PROFILE_IMAGE_MATCHER = Pattern.compile("^(.*?)(?:_normal|_bigger|_mini|)(\\.[A-Za-z_0-9]+|)?$");
 	protected static final ArrayList<OnUserlistChangedListener> mUserlistChangedListener = new ArrayList<>();
-	protected static final CopyOnWriteArrayList<StreamableTwitterEngine> mTwitter = new CopyOnWriteArrayList<>();
-	protected static final Runnable BROADCAST_USERLIST_CHANGE_RUNNABLE = new Runnable() {
-		@Override
-		public void run() {
-			synchronized (mUserlistChangedListener) {
-				List<StreamableTwitterEngine> mEngines = Collections.unmodifiableList(new ArrayList<>(mTwitter));
-				for (OnUserlistChangedListener l : mUserlistChangedListener)
-					l.onUserlistChanged(mEngines);
-				TwitterStreamServiceReceiver.sendServiceMessage(Message.obtain(null, DarknovaService.MESSAGE_USERLIST_CHANGED));
-			}
-		}
-	};
+	protected static final ArrayList<StreamableTwitterEngine> mTwitter = new ArrayList<>();
 	/**
 	 * Twitter API Base Paths
 	 */
@@ -79,9 +69,17 @@ public class TwitterEngine {
 	protected static SharedPreferences mTwitterConfiguration;
 	protected final OAuth auth;
 	protected final JsonFactory JSON;
+	protected int mEngineIndex;
+	protected Account mRespectiveAccount;
 	protected long mUserId;
 	protected String mScreenName;
 	protected Tweeter mTweeter;
+	private static OnAccountsUpdateListener mAccountUpdateListener = new OnAccountsUpdateListener() {
+		@Override
+		public void onAccountsUpdated(Account[] accounts) {
+			reloadTwitterEngines();
+		}
+	};
 
 	/**
 	 * Initialize with default API Key.
@@ -115,13 +113,8 @@ public class TwitterEngine {
 		}
 	}
 
-	public static void broadcastUserlistChange() {
-		new Handler(Looper.getMainLooper()).post(BROADCAST_USERLIST_CHANGE_RUNNABLE);
-	}
-
-	public static StreamableTwitterEngine getTwitterEngine(Context context, long user_id) {
+	public static StreamableTwitterEngine get(long user_id) {
 		synchronized (mTwitter) {
-			prepare(context, false);
 			for (StreamableTwitterEngine e : mTwitter)
 				if (e.mUserId == user_id)
 					return e;
@@ -129,16 +122,14 @@ public class TwitterEngine {
 		}
 	}
 
-	public static ArrayList<StreamableTwitterEngine> getStreamableTwitterEngines(Context context) {
+	public static ArrayList<StreamableTwitterEngine> getStreamables() {
 		synchronized (mTwitter) {
-			prepare(context, false);
 			return new ArrayList<>(mTwitter);
 		}
 	}
 
-	public static ArrayList<TwitterEngine> getTwitterEngines(Context context) {
+	public static ArrayList<TwitterEngine> getAll() {
 		synchronized (mTwitter) {
-			prepare(context, false);
 			ArrayList<TwitterEngine> engines = new ArrayList<>();
 			for (StreamableTwitterEngine e : mTwitter)
 				engines.add(e);
@@ -146,48 +137,112 @@ public class TwitterEngine {
 		}
 	}
 
-	public static void applyAccountInformationChanges(Context context) {
+	public static void applyAccountInformationChanges() {
 		synchronized (mTwitter) {
-			AccountManager accountManager = AccountManager.get(context);
-			for (Account acc : accountManager.getAccountsByType(context.getString(R.string.account_type))) {
-				long user_id = Long.parseLong(accountManager.getUserData(acc, "user_id"));
-				Tweeter tweeter = Tweeter.getTweeter(user_id, accountManager.getUserData(acc, "screen_name"));
-				if (!tweeter.info.stub && !tweeter.screen_name.equals(accountManager.getUserData(acc, "screen_name"))) {
-					accountManager.setUserData(acc, "screen_name", tweeter.screen_name);
+			AccountManager accountManager = AccountManager.get(DarknovaApplication.mContext);
+			for (TwitterEngine e : mTwitter) {
+				Tweeter tweeter = e.getTweeter();
+				if (!tweeter.info.stub && !tweeter.screen_name.equals(e.mRespectiveAccount.name)) {
+					if (Build.VERSION.SDK_INT >= 21) {
+						try {
+							// BOILERPLATE - it works but throws errors
+							accountManager.renameAccount(e.mRespectiveAccount, tweeter.screen_name, null, null);
+						} catch (Exception ee) {
+							ee.printStackTrace();
+						}
+					} else {
+						remove(tweeter.user_id);
+						e.mRespectiveAccount = new Account(tweeter.screen_name, DarknovaApplication.mContext.getString(R.string.account_type));
+						accountManager.addAccountExplicitly(e.mRespectiveAccount, null, null);
+						accountManager.setUserData(e.mRespectiveAccount, "oauth_token", e.auth.getToken());
+						accountManager.setUserData(e.mRespectiveAccount, "oauth_token_secret", e.auth.getSecretToken());
+						accountManager.setUserData(e.mRespectiveAccount, "user_id", Long.toString(e.mUserId));
+						accountManager.setUserData(e.mRespectiveAccount, "_index", Integer.toString(e.mEngineIndex));
+					}
 				}
 			}
 		}
 	}
 
-	public static void prepare(Context context, boolean invalidate) {
+	public static void reorder(Context context, int from, int to) {
 		synchronized (mTwitter) {
-			if (invalidate)
-				mTwitter.clear();
-			if (!mTwitter.isEmpty())
-				return;
-			mTwitterConfiguration = context.getSharedPreferences("TwitterEngine.configuration", Context.MODE_MULTI_PROCESS);
-			mTwitter.clear();
-			synchronized (mTwitter) {
-				AccountManager accountManager = AccountManager.get(context);
-				for (Account acc : accountManager.getAccountsByType(context.getString(R.string.account_type))) {
-					StreamableTwitterEngine engine = new StreamableTwitterEngine(accountManager.getUserData(acc, "consumer_key"), accountManager.getUserData(acc, "consumer_key_secret"));
-					engine.setOauthToken(accountManager.getUserData(acc, "oauth_token"), accountManager.getUserData(acc, "oauth_token_secret"));
-					engine.setUserInfo(Long.decode(accountManager.getUserData(acc, "user_id")), accountManager.getUserData(acc, "screen_name"));
-					mTwitter.add(engine);
+			AccountManager accountManager = AccountManager.get(context);
+			mTwitter.add(to, mTwitter.remove(from));
+			int i = 0;
+			for (TwitterEngine e : mTwitter) {
+				if (e.mEngineIndex != i)
+					accountManager.setUserData(e.mRespectiveAccount, "_index", Integer.toString(e.mEngineIndex = i));
+				i++;
+			}
+			broadcastUserlistChanged();
+		}
+	}
+
+	public static void remove(long who) {
+		synchronized (mTwitter) {
+			AccountManager accountManager = AccountManager.get(DarknovaApplication.mContext);
+			for (TwitterEngine e : mTwitter) {
+				if (e.getUserId() == who) {
+					if (Build.VERSION.SDK_INT >= 22)
+						accountManager.removeAccountExplicitly(e.mRespectiveAccount);
+					else
+						//noinspection deprecation
+						accountManager.removeAccount(e.mRespectiveAccount, null, null);
+					break;
 				}
 			}
-			if (System.currentTimeMillis() - mTwitterConfiguration.getLong("lastEditTime", 0) > 86400_000)
-				new Thread() {
-					@Override
-					public void run() {
-						try {
-							mTwitter.get(0).loadConfiguration();
-						} catch (Exception e) {
-							e.printStackTrace();
-						}
+		}
+	}
+
+	private static void reloadTwitterEngines() {
+		int maxIndex = 0;
+		synchronized (mTwitter) {
+			mTwitter.clear();
+			final AccountManager accountManager = AccountManager.get(DarknovaApplication.mContext);
+			for (Account acc : accountManager.getAccountsByType(DarknovaApplication.mContext.getString(R.string.account_type))) {
+				StreamableTwitterEngine engine = new StreamableTwitterEngine(accountManager.getUserData(acc, "consumer_key"), accountManager.getUserData(acc, "consumer_key_secret"));
+				engine.setOauthToken(accountManager.getUserData(acc, "oauth_token"), accountManager.getUserData(acc, "oauth_token_secret"));
+				engine.setUserInfo(Long.decode(accountManager.getUserData(acc, "user_id")), acc.name);
+				String eIndex = accountManager.getUserData(acc, "_index");
+				engine.mEngineIndex = eIndex == null ? -1 : Integer.parseInt(eIndex);
+				engine.mRespectiveAccount = acc;
+				maxIndex = Math.max(maxIndex, engine.mEngineIndex);
+				mTwitter.add(engine);
+			}
+			for (TwitterEngine e : mTwitter)
+				if (e.mEngineIndex == -1)
+					accountManager.setUserData(e.mRespectiveAccount, "_index", Integer.toString(e.mEngineIndex = maxIndex++));
+			Collections.sort(mTwitter);
+		}
+		broadcastUserlistChanged();
+
+		if (System.currentTimeMillis() - mTwitterConfiguration.getLong("lastEditTime", 0) > 86400_000 && mTwitter.size() > 0)
+			new Thread() {
+				@Override
+				public void run() {
+					try {
+						mTwitter.get(0).loadConfiguration();
+					} catch (Exception e) {
+						e.printStackTrace();
 					}
-				}.start();
-			broadcastUserlistChange();
+				}
+			}.start();
+	}
+
+	private static void broadcastUserlistChanged() {
+		synchronized (mUserlistChangedListener) {
+			List<StreamableTwitterEngine> mEngines = Collections.unmodifiableList(new ArrayList<>(mTwitter));
+			for (OnUserlistChangedListener l : mUserlistChangedListener)
+				l.onUserlistChanged(mEngines);
+		}
+	}
+
+	public static void prepare(Context context) {
+		synchronized (mTwitter) {
+			mTwitterConfiguration = context.getSharedPreferences("TwitterEngine.configuration", Context.MODE_MULTI_PROCESS);
+			final AccountManager accountManager = AccountManager.get(context);
+			accountManager.addOnAccountsUpdatedListener(mAccountUpdateListener, null, false);
+			reloadTwitterEngines();
 		}
 	}
 
@@ -207,8 +262,8 @@ public class TwitterEngine {
 				if (text.startsWith(rep[0], i)) {
 					sb.append(rep[1]);
 					for (Entities.Entity e : entity.entities) {
-						if (e.indice_left > i) e.indice_left -= rep[1].length() - 1;
-						if (e.indice_right > i) e.indice_right -= rep[1].length() - 1;
+						if (e.indice_left > i) e.indice_left -= rep[0].length() - 1;
+						if (e.indice_right > i) e.indice_right -= rep[0].length() - 1;
 					}
 					last = i += rep[0].length();
 					continue wholeLoop;
@@ -778,6 +833,19 @@ public class TwitterEngine {
 			StreamTools.close(in);
 			request.close();
 		}
+	}
+
+	@Override
+	public int compareTo(@NonNull TwitterEngine another) {
+		int eq = mEngineIndex - another.mEngineIndex;
+		if (eq == 0)
+			eq = mUserId > another.mUserId ? 1 : mUserId == another.mUserId ? 0 : -1;
+		return eq;
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		return o != null && o instanceof TwitterEngine && (((TwitterEngine) o).mUserId == mUserId) && ((TwitterEngine) o).auth.equals(auth);
 	}
 
 	public interface OnUserlistChangedListener {

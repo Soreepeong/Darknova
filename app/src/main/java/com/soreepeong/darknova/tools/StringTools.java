@@ -661,4 +661,15 @@ public class StringTools {
 		}
 		return Pattern.compile(b.toString(), Pattern.UNICODE_CASE | Pattern.CASE_INSENSITIVE);
 	}
+
+	public static int charIndexFromCodePointIndex(String s, int index) {
+		int i = 0, j = 0;
+		while (i < index && j < s.length()) {
+			while (j < s.length() && s.charAt(j) != s.codePointAt(j))
+				j++;
+			i++;
+			j++;
+		}
+		return Math.min(s.length(), j);
+	}
 }

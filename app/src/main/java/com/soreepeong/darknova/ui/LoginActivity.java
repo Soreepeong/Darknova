@@ -72,8 +72,6 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 		setAccountAuthenticatorResult(accData);
 		setResult(RESULT_OK, res);
 		finish();
-		TwitterEngine.prepare(this, true);
-		TwitterEngine.broadcastUserlistChange();
 	}
 
 	private class TwitterLoginTask extends AsyncTask<Object, Object, String> {

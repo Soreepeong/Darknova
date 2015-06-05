@@ -1,6 +1,7 @@
 package com.soreepeong.darknova;
 
 import android.app.Application;
+import android.content.Context;
 import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.NonNull;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 		resToastText = R.string.crash_toast_text)
 public class DarknovaApplication extends Application implements Handler.Callback {
 	private static final int MESSAGE_SHOW_TOAST = 1;
+	public static Context mContext;
 	private static volatile long mRuntimeUniqueIdCounter = 0;
 	private static Handler mHandler;
 
@@ -51,34 +53,36 @@ public class DarknovaApplication extends Application implements Handler.Callback
 	@Override
 	public void onCreate() {
 		super.onCreate();
-		mHandler = new Handler(this);
-
+		mContext = this;
 		ACRA.init(this);
-
+		mHandler = new Handler(this);
 		StringTools.ARRAY_RELATIVE_TIME_STRINGS = getString(R.string.times).split("/");
 		StringTools.ARRAY_RELATIVE_DURATION_STRINGS = getString(R.string.durations).split("/");
 		StringTools.ARRAY_FILE_SIZES = getString(R.string.filesizes).split("/");
 		StringTools.initHanjaArray(getResources());
-
 		ImageCache.getCache(this, null);
 		Tweeter.initAlwaysAvailableUsers(this);
-
-		ArrayList<TwitterEngine> users = TwitterEngine.getTwitterEngines(this);
-		if (!users.isEmpty()) {
-				// TODO Load saved pages
-				for (TwitterEngine user : users) {
-					Page.Builder p;
-					p = new Page.Builder("Home", R.drawable.ic_launcher);
-					p.e().add(new Page.Element(user, Page.Element.FUNCTION_HOME_TIMELINE, 0, null));
-					Page.addPage(p.build());
-					p = new Page.Builder("Mentions", R.drawable.ic_mention);
-					p.e().add(new Page.Element(user, Page.Element.FUNCTION_MENTIONS, 0, null));
-					Page.addPage(p.build());
-				}
-				Page.mSavedPageLength = Page.pages.size();
-		}
+		TwitterEngine.prepare(this);
 		TemplateTweet.initialize(this);
 		TemplateTweetAttachment.initialize(new File(getFilesDir(), "attachment"));
+
+		ArrayList<TwitterEngine> users = TwitterEngine.getAll();
+		if (!users.isEmpty()) {
+			Page.Builder p;
+			p = new Page.Builder("Search", R.drawable.ic_bigeyed);
+			p.e().add(new Page.Element(users.get(0), Page.Element.FUNCTION_USER_TIMELINE, 349540312, "omgthatspunny"));
+			Page.addPage(p.build());
+			// TODO Load saved pages
+			for (TwitterEngine user : users) {
+				p = new Page.Builder("Home", R.drawable.ic_launcher);
+				p.e().add(new Page.Element(user, Page.Element.FUNCTION_HOME_TIMELINE, 0, null));
+				Page.addPage(p.build());
+				p = new Page.Builder("Mentions", R.drawable.ic_mention);
+				p.e().add(new Page.Element(user, Page.Element.FUNCTION_MENTIONS, 0, null));
+				Page.addPage(p.build());
+			}
+			Page.mSavedPageLength = Page.pages.size();
+		}
 	}
 
 	@Override
