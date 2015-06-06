@@ -672,4 +672,13 @@ public class StringTools {
 		}
 		return Math.min(s.length(), j);
 	}
+
+	public static String cutString(String s, int length) {
+		int i = s.length();
+		if (i < length)
+			return s;
+		while (i > 0 && s.codePointCount(0, i) > length)
+			i--;
+		return s.substring(0, i) + "…";
+	}
 }

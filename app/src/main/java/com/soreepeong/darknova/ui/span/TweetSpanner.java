@@ -30,7 +30,11 @@ public class TweetSpanner {
 
 	public static SpannableStringBuilder make(SpannableStringBuilder sb, Entities ent, ImageCache cache, int lineHeight) {
 		String t = sb.toString();
+		int prevEntityIndiceStart = -1;
 		for (Entities.Entity e : ent.entities) {
+			if (prevEntityIndiceStart == e.indice_left)
+				continue;
+			prevEntityIndiceStart = e.indice_left;
 			Object span = null;
 			if (e instanceof Entities.MediaEntity) {
 				span = new MediaEntitySpan((Entities.MediaEntity) e);
@@ -51,20 +55,44 @@ public class TweetSpanner {
 			if (e instanceof Entities.UrlEntity)
 				mUrlEntities.add((Entities.UrlEntity) e);
 		Collections.sort(mUrlEntities, IndiceSorter);
-		for (Entities.UrlEntity e : mUrlEntities)
-			sb.replace(StringTools.charIndexFromCodePointIndex(t, e.indice_left), StringTools.charIndexFromCodePointIndex(t, e.indice_right), e._show_expanded ? e.expanded_url : e.display_url);
+		prevEntityIndiceStart = -1;
+		for (Entities.UrlEntity e : mUrlEntities) {
+			if (prevEntityIndiceStart == e.indice_left)
+				continue;
+			prevEntityIndiceStart = e.indice_left;
+			String urlDisplay = e._show_expanded ? (e._expanded_url != null ? e._expanded_url : e.expanded_url) : e.display_url;
+			String replacement = urlDisplay;
+			if (e._page_title != null) {
+				replacement += " (" + e._page_title + ")";
+			}
+			int left = StringTools.charIndexFromCodePointIndex(t, e.indice_left);
+			int right = StringTools.charIndexFromCodePointIndex(t, e.indice_right);
+			sb.replace(left, right, replacement);
+			right = left + replacement.length();
+			if (e._page_title != null)
+				sb.setSpan(new UrlEntitySpan.UrlTitleEntitySpan(), left + urlDisplay.length() + 1, right, Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+		}
 		return sb;
 	}
 
 	public static String includeUrlEntity(String s, Entities ent) {
+		int prevEntityIndiceStart = -1;
 		StringBuilder sb = new StringBuilder(s);
 		ArrayList<Entities.UrlEntity> mUrlEntities = new ArrayList<>();
 		for (Entities.Entity e : ent.entities)
 			if (e instanceof Entities.UrlEntity)
 				mUrlEntities.add((Entities.UrlEntity) e);
 		Collections.sort(mUrlEntities, IndiceSorter);
-		for (Entities.UrlEntity e : mUrlEntities)
-			sb.replace(StringTools.charIndexFromCodePointIndex(s, e.indice_left), StringTools.charIndexFromCodePointIndex(s, e.indice_right), e._show_expanded ? e.expanded_url : e.display_url);
+		prevEntityIndiceStart = -1;
+		for (Entities.UrlEntity e : mUrlEntities) {
+			if (prevEntityIndiceStart == e.indice_left)
+				continue;
+			prevEntityIndiceStart = e.indice_left;
+			String urlDisplay = e._show_expanded ? (e._expanded_url != null ? e._expanded_url : e.expanded_url) : e.display_url;
+			if (e._page_title != null)
+				urlDisplay += " (" + e._page_title + ")";
+			sb.replace(StringTools.charIndexFromCodePointIndex(s, e.indice_left), StringTools.charIndexFromCodePointIndex(s, e.indice_right), urlDisplay);
+		}
 		return sb.toString();
 	}
 

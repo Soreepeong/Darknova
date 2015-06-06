@@ -472,8 +472,10 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				options.inSampleSize <<= 1;
 			options.inJustDecodeBounds = false;
 			Bitmap bm = BitmapFactory.decodeResource(getResources(), resId, options);
-			mSizedBitmapResources.put(resId, new BitmapDrawable(getResources(), Bitmap.createScaledBitmap(bm, options.outWidth / options.inSampleSize, options.outHeight / options.inSampleSize, true)));
-			bm.recycle();
+			Bitmap scaled = Bitmap.createScaledBitmap(bm, options.outWidth / options.inSampleSize, options.outHeight / options.inSampleSize, true);
+			mSizedBitmapResources.put(resId, new BitmapDrawable(getResources(), scaled));
+			if (bm != scaled)
+				bm.recycle();
 			return getResourceDrawable(resId, targetWidth, targetHeight);
 		}
 

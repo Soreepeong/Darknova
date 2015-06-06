@@ -216,6 +216,9 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		mViewActionbarToolbar.setVisibility(View.VISIBLE);
 		mViewActionbarToolbar.clearAnimation();
 		mViewActionbarToolbar.startAnimation(AnimationUtils.loadAnimation(this, R.anim.show_downward));
+		for (Fragment f : getSupportFragmentManager().getFragments())
+			if (f instanceof MediaFragment)
+				((MediaFragment) f).onActionBarShown();
 		if (mImageList.size() < 2) return;
 		mViewImageList.clearAnimation();
 		mViewImageList.setVisibility(View.VISIBLE);
@@ -228,8 +231,15 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		mHandler.removeMessages(MESSAGE_HIDE_ACTIONBAR);
 		if (mViewActionbarToolbar.getVisibility() != View.VISIBLE) return;
 		ResTools.hideWithAnimation(this, mViewActionbarToolbar, R.anim.hide_upward, true);
+		for (Fragment f : getSupportFragmentManager().getFragments())
+			if (f instanceof MediaFragment)
+				((MediaFragment) f).onActionBarHidden();
 		if (mImageList.size() < 2) return;
 		ResTools.hideWithAnimation(this, mViewImageList, R.anim.hide_downward, true);
+	}
+
+	public boolean isActionBarVisible() {
+		return mViewActionbarToolbar.getVisibility() == View.VISIBLE;
 	}
 
 	public void hideActionBarDelayed(Image initiator) {

@@ -112,7 +112,7 @@ public abstract class PageFragment extends Fragment{
 	protected void performArguments(Bundle args){
 		mPage = args.getParcelable("page");
 		if(!Page.pages.contains(mPage))
-			Page.pages.add(mPage);
+			mPage = null;
 		else
 			mPage = Page.pages.get(Page.pages.indexOf(mPage));
 	}

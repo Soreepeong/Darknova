@@ -4,9 +4,9 @@
 			  android:layout_height="match_parent">
 
 	<SurfaceView
+		android:id="@+id/viewerVideo"
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
-		android:id="@+id/viewerVideo"
 		android:visibility="gone" />
 
 	<com.soreepeong.darknova.ui.view.LargeImageView
@@ -14,47 +14,78 @@
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"/>
 
-	<LinearLayout
+	<ProgressBar
+		android:id="@+id/pageProgressTop"
+		style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="-7dp"
+		android:max="100000"
+		android:visibility="gone"/>
+
+	<FrameLayout
 		android:id="@+id/divPageInfo"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent">
+
+		<TextView
+			android:id="@+id/zoom"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="@dimen/abc_action_bar_default_height_material"
+			android:padding="12dp"
+			android:shadowColor="#000000"
+			android:shadowDx="0"
+			android:shadowDy="0"
+			android:shadowRadius="0"
+			android:text="x1.00"
+			android:textAppearance="?android:textAppearanceSmall"
+			/>
+	</FrameLayout>
+
+	<LinearLayout
+		android:id="@+id/divLoadInfo"
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
 		android:layout_gravity="center"
 		android:background="#30000000"
 		android:gravity="center"
 		android:orientation="vertical"
-		android:padding="16dip">
-
-		<TextView
-			android:id="@+id/lblPageInfo"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:text="@string/mediapreview_ready"
-			android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-			android:gravity="center"
-			android:singleLine="true"
-			android:lines="1" />
+		android:padding="16dp">
 
 		<TextView
 			android:id="@+id/lblLoadInfo"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:text="@string/empty"
-			android:textAppearance="@style/TextAppearance.AppCompat.Medium"
 			android:gravity="center"
+			android:lines="1"
 			android:singleLine="true"
-			android:lines="1" />
+			android:text="@string/mediapreview_ready"
+			android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
+
+		<TextView
+			android:id="@+id/lblLoadProgress"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="6dp"
+			android:gravity="center"
+			android:lines="1"
+			android:singleLine="true"
+			android:text="@string/empty"
+			android:textAppearance="@style/TextAppearance.AppCompat.Medium"/>
 
 		<ProgressBar
 			android:id="@+id/pageProgress"
 			style="@style/Widget.AppCompat.ProgressBar.Horizontal"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_margin="8dip"/>
+			android:layout_marginTop="6dp"
+			android:max="100000"/>
 
 		<Button
 			android:id="@+id/cancel"
 			android:layout_width="wrap_content"
-			android:layout_height="48dip"
+			android:layout_height="48dp"
 			android:text="@string/mediapreview_cancel"/>
 	</LinearLayout>
 

@@ -69,9 +69,6 @@ public class DarknovaApplication extends Application implements Handler.Callback
 		ArrayList<TwitterEngine> users = TwitterEngine.getAll();
 		if (!users.isEmpty()) {
 			Page.Builder p;
-			p = new Page.Builder("Search", R.drawable.ic_bigeyed);
-			p.e().add(new Page.Element(users.get(0), Page.Element.FUNCTION_USER_TIMELINE, 349540312, "omgthatspunny"));
-			Page.addPage(p.build());
 			// TODO Load saved pages
 			for (TwitterEngine user : users) {
 				p = new Page.Builder("Home", R.drawable.ic_launcher);

@@ -22,6 +22,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AnimationUtils;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.widget.Button;
@@ -35,6 +36,7 @@ import com.soreepeong.darknova.core.HTTPRequest;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.extractors.ImageExtractor;
 import com.soreepeong.darknova.tools.FileTools;
+import com.soreepeong.darknova.tools.ResTools;
 import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.ui.MediaPreviewActivity;
@@ -71,9 +73,10 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	private SurfaceView mViewSurface;
 	private ImageCache mImageCache;
 	private LargeImageView mViewImageViewer;
-	private View mViewPageInfo;
-	private TextView mViewPageInfoText, mViewLoadInfoText;
+	private View mViewLoadInfo, mViewPageInfo;
+	private TextView mViewLoadInfoText, mViewLoadProgressText, mViewPageZoom;
 	private ProgressBar mViewProgress;
+	private ProgressBar mViewProgressTop;
 	private Button mViewCancelButton;
 	private SurfaceHolder mSurface;
 	private String mVideoLocation;
@@ -81,6 +84,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	private float mViewerZoom;
 	private MediaPlayer mMediaPlayer;
 	private ImageLoaderTask mImageLoader;
+	private boolean mLoadOriginalMedia;
+	private boolean mLoadInfoVisible;
 
 	/**
 	 * Make new instanceof this fragment using given parameter
@@ -106,24 +111,28 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 				mMediaPlayerStatus != STATE_PREPARING);
 	}
 
-	@Nullable @Override
+	@Nullable
+	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		if (container == null)
 			return null;
 		mViewFragmentRoot = inflater.inflate(R.layout.fragment_media, container, false);
 		mViewImageViewer = (LargeImageView) mViewFragmentRoot.findViewById(R.id.viewer);
 		mViewPageInfo = mViewFragmentRoot.findViewById(R.id.divPageInfo);
-		mViewPageInfoText = (TextView) mViewFragmentRoot.findViewById(R.id.lblPageInfo);
+		mViewPageZoom = (TextView) mViewFragmentRoot.findViewById(R.id.zoom);
+		mViewLoadInfo = mViewFragmentRoot.findViewById(R.id.divLoadInfo);
 		mViewLoadInfoText = (TextView) mViewFragmentRoot.findViewById(R.id.lblLoadInfo);
+		mViewLoadProgressText = (TextView) mViewFragmentRoot.findViewById(R.id.lblLoadProgress);
 		mViewProgress = (ProgressBar) mViewFragmentRoot.findViewById(R.id.pageProgress);
+		mViewProgressTop = (ProgressBar) mViewFragmentRoot.findViewById(R.id.pageProgressTop);
 		mViewCancelButton = (Button) mViewFragmentRoot.findViewById(R.id.cancel);
 		mViewSurface = (SurfaceView) mViewFragmentRoot.findViewById(R.id.viewerVideo);
+		applyInfoVisibility(true);
 		mViewImageViewer.setOnClickListener(this);
 		mViewImageViewer.setOnImageViewLoadFinsihedListener(this);
 		mViewImageViewer.setOnViewerParamChangedListener(this);
 		mViewCancelButton.setOnClickListener(this);
 		mViewSurface.getHolder().addCallback(this);
-		mViewSurface.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
 		mImageCache = ImageCache.getCache(getActivity(), this);
 		return mViewFragmentRoot;
 	}
@@ -169,10 +178,11 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		super.onDestroyView();
 		mViewFragmentRoot = null;
 		mViewImageViewer = null;
-		mViewPageInfo = null;
-		mViewPageInfoText = null;
+		mViewLoadInfo = null;
 		mViewLoadInfoText = null;
+		mViewLoadProgressText = null;
 		mViewProgress = null;
+		mViewProgressTop = null;
 		mViewCancelButton = null;
 		mViewSurface = null;
 	}
@@ -183,13 +193,16 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			if (mImageLoader == null) {
 				mImageLoader = new ImageLoaderTask();
 				mImageLoader.execute(mImage.mOriginalUrl);
-				mViewPageInfo.setVisibility(View.VISIBLE);
+				mLoadInfoVisible = true;
+				applyInfoVisibility(false);
 			} else {
 				mImageLoader.cancel(true);
-				if (mViewImageViewer.hasImage())
-					mViewPageInfo.setVisibility(View.GONE);
-				else
+				if (mViewImageViewer.isLoaded()) {
+					mLoadInfoVisible = false;
+					applyInfoVisibility(false);
+				} else
 					mViewCancelButton.setText(R.string.mediapreview_retry);
+				mImageLoader = null;
 			}
 		} else if (v.equals(mViewImageViewer)) {
 			((MediaPreviewActivity) getActivity()).toggleActionBarVisibility(mImage);
@@ -205,11 +218,53 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		}
 		if (getView() == null)
 			return;
-		mViewPageInfo.setVisibility(View.GONE);
+		mLoadInfoVisible = false;
+		applyInfoVisibility(false);
 		((MediaPreviewActivity) getActivity()).hideActionBarDelayed(mImage);
 		mViewImageViewer.loadEmptyArea(mp.getVideoWidth(), mp.getVideoHeight());
 		mp.start();
 		mMediaPlayerStatus = STATE_PLAYING;
+	}
+
+	private void applyInfoVisibility(boolean immediate) {
+		if (getView() == null)
+			return;
+		if (!(mLoadInfoVisible && ((MediaPreviewActivity) getActivity()).isActionBarVisible()) && mViewLoadInfo.getVisibility() == View.VISIBLE) {
+			if (immediate)
+				mViewLoadInfo.setVisibility(View.GONE);
+			else
+				ResTools.hideWithAnimation(getActivity(), mViewLoadInfo, android.R.anim.fade_out, true);
+		} else if (mLoadInfoVisible && ((MediaPreviewActivity) getActivity()).isActionBarVisible() && mViewLoadInfo.getVisibility() != View.VISIBLE) {
+			if (immediate)
+				mViewLoadInfo.setVisibility(View.VISIBLE);
+			else {
+				mViewLoadInfo.setVisibility(View.VISIBLE);
+				mViewLoadInfo.clearAnimation();
+				mViewLoadInfo.startAnimation(AnimationUtils.loadAnimation(getActivity(), android.R.anim.fade_in));
+			}
+		}
+		if (!(mViewImageViewer.isLoaded() && ((MediaPreviewActivity) getActivity()).isActionBarVisible()) && mViewPageInfo.getVisibility() == View.VISIBLE) {
+			if (immediate)
+				mViewPageInfo.setVisibility(View.GONE);
+			else
+				ResTools.hideWithAnimation(getActivity(), mViewPageInfo, android.R.anim.fade_out, true);
+		} else if (mViewImageViewer.isLoaded() && ((MediaPreviewActivity) getActivity()).isActionBarVisible() && mViewPageInfo.getVisibility() != View.VISIBLE) {
+			if (immediate)
+				mViewPageInfo.setVisibility(View.VISIBLE);
+			else {
+				mViewPageInfo.setVisibility(View.VISIBLE);
+				mViewPageInfo.clearAnimation();
+				mViewPageInfo.startAnimation(AnimationUtils.loadAnimation(getActivity(), android.R.anim.fade_in));
+			}
+		}
+	}
+
+	public void onActionBarShown() {
+		applyInfoVisibility(false);
+	}
+
+	public void onActionBarHidden() {
+		applyInfoVisibility(false);
 	}
 
 	@Override
@@ -258,14 +313,15 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		if (getView() == null)
 			return;
 		initMediaPlayer();
-		mViewImageViewer.setViewerParams(mViewerX, mViewerY, mViewerZoom);
+		if (mViewImageViewer.isLoaded())
+			mViewImageViewer.setViewerParams(mViewerX, mViewerY, mViewerZoom);
 		super.onResume();
 	}
 
 	public void onPageEnter() {
 		if (getView() == null)
 			return;
-		if (mViewImageViewer.hasImage()) {
+		if (mViewImageViewer.isLoaded()) {
 			((MediaPreviewActivity) getActivity()).hideActionBarDelayed(mImage);
 		}
 		mViewImageViewer.triggerOnImageParamChangedListener();
@@ -275,8 +331,9 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	public void resetPosition() {
 		if (getView() == null)
 			return;
-		if (mViewImageViewer.hasImage())
-			mViewImageViewer.resetPosition();
+		if (mViewImageViewer.isLoaded()) {
+			mViewImageViewer.resetPosition(true);
+		}
 	}
 
 	public void onPageLeave() {
@@ -285,14 +342,16 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 	public void onOptionsItemSelected(int id) {
 		switch (id) {
-			case R.id.rotate_left:
+			case R.id.rotate_left: {
 				mViewImageViewer.rotateLeft();
 				break;
-			case R.id.rotate_right:
+			}
+			case R.id.rotate_right: {
 				mViewImageViewer.rotateRight();
 				break;
+			}
 			case R.id.download: {
-				if (mImageFile != null && mImageFile.exists()) {
+				if (mImageFile != null && mImageFile.exists() && mLoadOriginalMedia) {
 					String downloadFileName = "";
 					String extension = "";
 					Matcher m = ImageExtractor.mFileNameGetter.matcher(mImage.mOriginalUrl);
@@ -334,16 +393,20 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 					}
 				}
 				mSaveCopy = true;
+				mLoadOriginalMedia = true;
 			}
-			case R.id.reload:
+			case R.id.reload: {
 				if (mImageLoader != null)
 					break;
 				mImageLoader = new ImageLoaderTask();
-				mImageLoader.execute(mImage.mOriginalUrl);
-				mViewPageInfo.setVisibility(View.VISIBLE);
+				mImageLoader.execute(mLoadOriginalMedia ? mImage.mOriginalUrl : mImage.mResizedUrl);
+				mLoadInfoVisible = true;
+				applyInfoVisibility(false);
 				break;
-			case R.id.share:
+			}
+			case R.id.share: {
 				break;
+			}
 			case R.id.copy: {
 				ClipboardManager clipboard = (ClipboardManager) getActivity().getSystemService(Context.CLIPBOARD_SERVICE);
 				clipboard.setPrimaryClip(ClipData.newPlainText(mImage.mSourceUrl, mImage.mSourceUrl));
@@ -386,16 +449,17 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		if (mImageLoader != null)
 			return;
 		if (getView() != null) {
-			mViewPageInfo.setVisibility(View.GONE);
+			mLoadInfoVisible = false;
+			applyInfoVisibility(false);
 			((MediaPreviewActivity) getActivity()).hideActionBarDelayed(mImage);
 		}
 	}
 
 	@Override
-	public void OnImageViewLoadFailed(LargeImageView v, Exception nError) {
+	public void OnImageViewLoadFailed(LargeImageView v, Throwable nError) {
 		if (getView() != null) {
-			mViewPageInfoText.setText(R.string.mediapreview_error);
-			mViewLoadInfoText.setText(nError == null ? "" : nError.toString());
+			mViewLoadInfoText.setText(R.string.mediapreview_error);
+			mViewLoadProgressText.setText(nError == null ? "" : nError.toString());
 			mViewCancelButton.setText(R.string.mediapreview_retry);
 		}
 	}
@@ -404,7 +468,6 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	public void onImageCacheReady(ImageCache cache) {
 		mImageCache = cache;
 		String path;
-		boolean downloadOriginal = true;
 		path = mImageCache.getCachedImagePath(mImage.mOriginalUrl);
 		if (path != null) {
 			mImageFile = new File(path);
@@ -416,21 +479,25 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 				} else {
 					mViewImageViewer.loadImage(mImageFile.getAbsolutePath());
 				}
-				downloadOriginal = false;
+				mLoadOriginalMedia = true;
 			}
 		}
-		if (downloadOriginal) {
-			mImageLoader = new ImageLoaderTask();
-			mImageLoader.execute(mImage.mOriginalUrl);
+		if (!mLoadOriginalMedia && mImage.mResizedUrl != null) {
 			path = mImageCache.getCachedImagePath(mImage.mResizedUrl);
+			boolean resizedExists = false;
 			if (path != null && getView() != null) {
 				File resizedFile = new File(path);
 				if (resizedFile.exists()) {
-					mViewPageInfoText.setText(R.string.mediapreview_reading);
-					mViewLoadInfoText.setText(StringTools.fileSize(resizedFile.length()));
+					mViewLoadInfoText.setText(R.string.mediapreview_reading);
+					mViewLoadProgressText.setText(StringTools.fileSize(resizedFile.length()));
 					mViewImageViewer.removeImage();
 					mViewImageViewer.loadImage(resizedFile.getAbsolutePath());
+					resizedExists = true;
 				}
+			}
+			if (!resizedExists) {
+				mImageLoader = new ImageLoaderTask();
+				mImageLoader.execute(mImage.mResizedUrl);
 			}
 		}
 	}
@@ -462,18 +529,23 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			else if (lp.topMargin > 0) lp.topMargin = 0;
 		}
 		mViewSurface.requestLayout();
+		mViewPageZoom.setText(String.format(getString(R.string.mediapreview_zoom_display), zoom));
+		if (zoom > 4 && !mLoadOriginalMedia && mImageLoader == null) {
+			mLoadOriginalMedia = true;
+			mImageLoader = new ImageLoaderTask();
+			mImageLoader.execute(mImage.mOriginalUrl);
+			mLoadInfoVisible = true;
+			applyInfoVisibility(false);
+		}
 	}
 
-	/**
-	 * Download mImage.mOriginalUrl
-	 */
 	private class ImageLoaderTask extends AsyncTask<String, Object, File> {
 		private HTTPRequest mDownloader;
 		private Exception mException;
 		private long mSize, mReceived;
 		private String url;
 		private boolean mConnected;
-		private ObjectAnimator mProgressAnimator;
+		private ObjectAnimator mProgressAnimator, mProgressAnimatorTop;
 		private File mDownloadedFile;
 
 		@Override
@@ -495,7 +567,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 					throw new RuntimeException(mDownloader.getWholeData(8192));
 				if (mDownloader.getInputLength() > 0)
 					mSize = mDownloader.getInputLength();
-				if (mDownloader.getContentType() != null)
+				if (mDownloader.getContentType() != null && mLoadOriginalMedia)
 					mImage.mOriginalContentType = mDownloader.getContentType();
 				mConnected = true;
 				publishProgress(0);
@@ -525,7 +597,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 					mTempFile = null;
 				}
 			}
-			if (mTempFile != null && mSaveCopy) {
+			if (mTempFile != null && mSaveCopy && mLoadOriginalMedia) {
 				String downloadFileName = "";
 				String extension = "";
 				Matcher m = ImageExtractor.mFileNameGetter.matcher(url);
@@ -558,25 +630,31 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			if (getView() == null)
 				return;
 			if (!mConnected) {
-				mViewPageInfoText.setText(R.string.mediapreview_connecting);
-				mViewLoadInfoText.setText("");
+				mViewLoadInfoText.setText(R.string.mediapreview_connecting);
+				mViewLoadProgressText.setText("");
 			} else {
 				if (values.length == 1) {
-					mViewPageInfoText.setText(R.string.mediapreview_downloading);
-					mViewProgress.setMax(100000);
+					mViewLoadInfoText.setText(R.string.mediapreview_downloading);
 					mViewProgress.setIndeterminate(mSize == 0);
 				}
 				if (mSize == 0)
-					mViewLoadInfoText.setText(StringTools.fileSize(mReceived));
+					mViewLoadProgressText.setText(StringTools.fileSize(mReceived));
 				else {
 					mViewProgress.setIndeterminate(false);
-					mViewLoadInfoText.setText(StringTools.fileSize(mReceived) + " / " + StringTools.fileSize(mSize));
+					mViewProgressTop.setIndeterminate(false);
+					mViewLoadProgressText.setText(StringTools.fileSize(mReceived) + " / " + StringTools.fileSize(mSize));
 					if (mProgressAnimator != null)
 						mProgressAnimator.cancel();
 					mProgressAnimator = ObjectAnimator.ofInt(mViewProgress, "progress", (int) (100000 * (double) mReceived / mSize));
 					mProgressAnimator.setDuration(300);
 					mProgressAnimator.setInterpolator(mProgressInterpolator);
 					mProgressAnimator.start();
+					if (mProgressAnimatorTop != null)
+						mProgressAnimatorTop.cancel();
+					mProgressAnimatorTop = ObjectAnimator.ofInt(mViewProgressTop, "progress", (int) (100000 * (double) mReceived / mSize));
+					mProgressAnimatorTop.setDuration(300);
+					mProgressAnimatorTop.setInterpolator(mProgressInterpolator);
+					mProgressAnimatorTop.start();
 				}
 			}
 		}
@@ -585,13 +663,17 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		protected void onPreExecute() {
 			if (getView() == null)
 				return;
-			mViewPageInfo.setVisibility(View.VISIBLE);
+			mLoadInfoVisible = true;
+			applyInfoVisibility(false);
+			mViewProgressTop.setVisibility(View.VISIBLE);
+			mViewProgressTop.setIndeterminate(true);
 			mViewProgress.setIndeterminate(true);
 			mViewCancelButton.setText(R.string.mediapreview_cancel);
 		}
 
 		@Override
 		protected void onPostExecute(File file) {
+			mImageLoader = null;
 			if (getView() == null)
 				return;
 			mViewCancelButton.setText(R.string.mediapreview_retry);
@@ -617,14 +699,16 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 							.show();
 				}
 			}
+			mViewProgressTop.setVisibility(View.GONE);
 			if (isCancelled()) {
-				mViewPageInfoText.setText(R.string.mediapreview_cancelled);
-				mViewLoadInfoText.setText("");
+				mViewLoadInfoText.setText(R.string.mediapreview_cancelled);
+				mViewLoadProgressText.setText("");
 			} else if (file == null) {
-				mViewPageInfoText.setText(R.string.mediapreview_error);
-				mViewLoadInfoText.setText(mException == null ? "" : mException.toString());
+				mViewLoadInfoText.setText(R.string.mediapreview_error);
+				mViewLoadProgressText.setText(mException == null ? "" : mException.toString());
 			} else {
-				mViewPageInfo.setVisibility(View.GONE);
+				mLoadInfoVisible = false;
+				applyInfoVisibility(false);
 				String path = mImageCache.getCachedImagePath(url);
 				if (path == null)
 					path = mImageCache.makeTempPath(url);
@@ -634,12 +718,12 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 				if (!file.renameTo(mImageFile))
 					mImageFile = file;
 				mImageCache.applySize(mImageFile);
-				mViewPageInfoText.setText(R.string.mediapreview_reading);
-				mViewLoadInfoText.setText(StringTools.fileSize(mImageFile.length()));
-				mViewImageViewer.removeImage();
-				if (mImage.mOriginalContentType.toLowerCase().startsWith("video/")) {
+				mViewLoadInfoText.setText(R.string.mediapreview_reading);
+				mViewLoadProgressText.setText(StringTools.fileSize(mImageFile.length()));
+				if (mLoadOriginalMedia && mImage.mOriginalContentType.toLowerCase().startsWith("video/")) {
 					mVideoLocation = mImageFile.getAbsolutePath();
 					initMediaPlayer();
+					mViewImageViewer.triggerOnImageParamChangedListener();
 				} else {
 					mViewImageViewer.loadImage(mImageFile.getAbsolutePath());
 				}

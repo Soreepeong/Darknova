@@ -131,6 +131,8 @@ public class Entities implements Parcelable {
 		};
 
 		public boolean _show_expanded;
+		public String _expanded_url;
+		public String _page_title;
 
 		public String url;
 		public String display_url;
@@ -145,6 +147,16 @@ public class Entities implements Parcelable {
 			url = in.readString();
 			display_url = in.readString();
 			expanded_url = in.readString();
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			return o instanceof UrlEntity && (url.equals(((UrlEntity) o).url));
+		}
+
+		@Override
+		public int hashCode() {
+			return url.hashCode();
 		}
 
 		protected boolean newValue(String key, JsonParser parser) throws IOException {

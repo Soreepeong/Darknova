@@ -30,6 +30,7 @@ import android.view.animation.AlphaAnimation;
 import android.widget.ImageView;
 
 import com.soreepeong.darknova.R;
+import com.soreepeong.darknova.drawable.WaveProgressDrawable;
 import com.soreepeong.darknova.services.ImageCacheProvider;
 import com.soreepeong.darknova.tools.StreamTools;
 
@@ -71,8 +72,10 @@ public class ImageCache {
 	private final Resources mResources;
 	public final OnDrawablePreprocessListener CIRCULAR_IMAGE_PREPROCESSOR = new OnDrawablePreprocessListener() {
 		@Override
-		public Drawable onDrawablePreprocess(BitmapDrawable bitmapDrawable) {
-			return new RoundBitmapDrawable(mResources, bitmapDrawable);
+		public Drawable onDrawablePreprocess(Drawable drawable) {
+			if (drawable instanceof BitmapDrawable)
+				return new RoundBitmapDrawable(mResources, (BitmapDrawable) drawable);
+			return drawable;
 		}
 	};
 	private final LruCache<String, WeakReference<BitmapDrawable>> mMemoryCache;
@@ -181,6 +184,26 @@ public class ImageCache {
 			}
 		}
 		throw new OutOfMemoryError();
+	}
+
+	public static void refineRect(Rect rct, int bitmapWidth, int bitmapHeight) {
+		if (bitmapWidth / bitmapHeight < (rct.right - rct.left) / (rct.bottom - rct.top)) {
+			// height fit
+			int newHeight = rct.bottom - rct.top;
+			int newWidth = bitmapWidth * newHeight / bitmapHeight;
+			int newLeft = rct.left + (rct.right - rct.left - newWidth) / 2;
+			rct.left = newLeft;
+			rct.right = newLeft + newWidth;
+			rct.bottom = rct.top + newHeight;
+		} else {
+			// width fit
+			int newWidth = rct.right - rct.left;
+			int newHeight = bitmapHeight * newWidth / bitmapWidth;
+			int newTop = rct.top + (rct.bottom - rct.top - newHeight) / 2;
+			rct.right = rct.left + newWidth;
+			rct.top = newTop;
+			rct.bottom = newTop + newHeight;
+		}
 	}
 
 	/**
@@ -330,9 +353,9 @@ public class ImageCache {
 		BitmapDrawable drawable = getBitmapFromMemCache(url);
 		view.clearAnimation();
 		if (drawable == null) {
-			if (nullDrawable == null)
+			if (nullDrawable == null) {
 				view.setImageDrawable(null);
-			else if (nullDrawable instanceof Drawable)
+			} else if (nullDrawable instanceof Drawable)
 				view.setImageDrawable((Drawable) nullDrawable);
 			else
 				view.setImageDrawable(getResourceDrawable((int) nullDrawable));
@@ -350,6 +373,8 @@ public class ImageCache {
 				} else if (mPendingImages.remove(loader)) // move to first, if exists
 					mPendingImages.addFirst(loader);
 				loader.mTargetViews.add(view);
+				if (nullDrawable == null)
+					view.setImageDrawable(preprocessor == null ? new ImageLoadDrawable(loader) : preprocessor.onDrawablePreprocess(new ImageLoadDrawable(loader)));
 				mScheduler.notify();
 			}
 		}
@@ -372,8 +397,8 @@ public class ImageCache {
 			synchronized (mScheduler) {
 				for (ImageLoader loader : mWorkingImageLoaders)
 					if (loader.mUrl.equals(prevUrl)) {
-						synchronized (loader.mTargetViews) {
-							loader.mTargetViews.remove(view);
+						synchronized (loader.mTargetStatusIndicaters) {
+							loader.mTargetStatusIndicaters.remove(view);
 						}
 					}
 			}
@@ -498,7 +523,7 @@ public class ImageCache {
 	}
 
 	public interface OnDrawablePreprocessListener {
-		Drawable onDrawablePreprocess(BitmapDrawable bitmapDrawable);
+		Drawable onDrawablePreprocess(Drawable drawable);
 	}
 
 	private static class CacheLoader extends Thread {
@@ -584,26 +609,6 @@ public class ImageCache {
 				mDrawable.setFilterBitmap(filter);
 		}
 
-		public void refineRect(Rect rct, int bitmapWidth, int bitmapHeight) {
-			if (bitmapWidth / bitmapHeight < (rct.right - rct.left) / (rct.bottom - rct.top)) {
-				// height fit
-				int newHeight = rct.bottom - rct.top;
-				int newWidth = bitmapWidth * newHeight / bitmapHeight;
-				int newLeft = rct.left + (rct.right - rct.left - newWidth) / 2;
-				rct.left = newLeft;
-				rct.right = newLeft + newWidth;
-				rct.bottom = rct.top + newHeight;
-			} else {
-				// width fit
-				int newWidth = rct.right - rct.left;
-				int newHeight = bitmapHeight * newWidth / bitmapWidth;
-				int newTop = rct.top + (rct.bottom - rct.top - newHeight) / 2;
-				rct.right = rct.left + newWidth;
-				rct.top = newTop;
-				rct.bottom = newTop + newHeight;
-			}
-		}
-
 		public void setSize(int sz) {
 			mWidth = mHeight = sz;
 		}
@@ -668,6 +673,75 @@ public class ImageCache {
 		}
 	}
 
+	private static class ImageLoadDrawable extends WaveProgressDrawable {
+		final ImageLoader mLoader;
+		boolean replacing;
+		Drawable replacement, replacingDrawable;
+		ImageView replaceTarget;
+		long mReplaceEndTime;
+
+		ImageLoadDrawable(ImageLoader loader) {
+			mLoader = loader;
+			setAlpha(50);
+		}
+
+		@Override
+		public int getPercentage() {
+			int p = mLoader.mLoadProgress * MAX_PERCENTAGE / 100;
+			if (mTargetProgress != p) {
+				long now = System.currentTimeMillis();
+				if (now < mProgressChangeTimeTarget)
+					mProgress += (int) ((mTargetProgress - mProgress) * mInterpolator.getInterpolation(1 - (float) (mProgressChangeTimeTarget - now) / CHANGE_TIME));
+				mTargetProgress = p;
+				mProgressChangeTimeTarget = now + CHANGE_TIME;
+			}
+			return p;
+		}
+
+		public void replace(ImageView v, Drawable result) {
+			if (replacing)
+				return;
+			replacing = true;
+			replacement = result;
+			replacingDrawable = result.getConstantState().newDrawable().mutate();
+			replaceTarget = v;
+			mReplaceEndTime = System.currentTimeMillis() + REVEAL_ANIMATION_LENGTH;
+			v.setImageDrawable(null);
+			v.setImageDrawable(this);
+		}
+
+		@Override
+		public int getIntrinsicHeight() {
+			return replacement == null ? -1 : replacement.getIntrinsicHeight();
+		}
+
+		@Override
+		public int getIntrinsicWidth() {
+			return replacement == null ? -1 : replacement.getIntrinsicWidth();
+		}
+
+		@Override
+		public void draw(Canvas canvas) {
+			super.draw(canvas);
+			if (replacing && replaceTarget != null && replaceTarget.getDrawable() == this) {
+				long now = System.currentTimeMillis();
+				if (now > mReplaceEndTime) {
+					replacingDrawable.setAlpha(255);
+					replacingDrawable.setBounds(getBounds());
+					replacingDrawable.draw(canvas);
+					replaceTarget.setImageDrawable(replacement);
+				} else {
+					float interpolation = 1f - (float) (mReplaceEndTime - now) / REVEAL_ANIMATION_LENGTH;
+					interpolation = mInterpolator.getInterpolation(interpolation);
+					replacingDrawable.setAlpha((int) (255 * interpolation));
+					replacingDrawable.setBounds(getBounds());
+					replacingDrawable.draw(canvas);
+					invalidateSelf();
+				}
+			}
+		}
+	}
+
 	private class ImageLoaderScheduler extends Thread {
 		@Override
 		public void interrupt() {
@@ -702,6 +776,7 @@ public class ImageCache {
 		BitmapDrawable bmp;
 		String id = null;
 		String filePath;
+		int mLoadProgress;
 
 		public ImageLoader(String url, OAuth auth) {
 			mUrl = url;
@@ -741,14 +816,22 @@ public class ImageCache {
 					error = 0;
 					File f = null;
 					try {
+						long size = request.getInputLength(), current = 0;
 						in = request.getInputStream();
 						Uri inserted = mDb.insert(ImageCacheProvider.PROVIDER_URI, values);
 						id = inserted.getLastPathSegment();
 						f = new File(inserted.getPath());
 						out = new FileOutputStream(f);
-						StreamTools.passthroughStreams(in, out);
+						int bytesRead;
+						byte buffer[] = new byte[8192];
+						while (!Thread.interrupted() && (bytesRead = in.read(buffer)) > 0) {
+							out.write(buffer, 0, bytesRead);
+							current += bytesRead;
+							mLoadProgress = size == 0 ? 30 : (int) (100 * current / size);
+						}
+						mLoadProgress = 100;
 						values.clear();
-						values.put("size", f.length());
+						values.put("size", size);
 						mDb.update(ImageCacheProvider.PROVIDER_URI, values, "_id=?", new String[]{id});
 					} catch (Exception e) {
 						error = OnImageAvailableListener.UNAVAILABLE_NETWORK_ERROR;
@@ -817,17 +900,25 @@ public class ImageCache {
 						for (ImageView view : mTargetViews) {
 							if (mUrl.equals(view.getTag(R.id.IMAGEVIEW_URL))) {
 								if (finalError == 0) {
+									Drawable newDrawable;
 									if (view.getTag(R.id.IMAGEVIEW_PREPROCESSOR) instanceof OnDrawablePreprocessListener)
-										view.setImageDrawable(((OnDrawablePreprocessListener) view.getTag(R.id.IMAGEVIEW_PREPROCESSOR)).onDrawablePreprocess(bmp));
+										newDrawable = ((OnDrawablePreprocessListener) view.getTag(R.id.IMAGEVIEW_PREPROCESSOR)).onDrawablePreprocess(bmp);
 									else
+										newDrawable = bmp;
+									if (view.getDrawable() instanceof ImageLoadDrawable)
+										((ImageLoadDrawable) view.getDrawable()).replace(view, newDrawable);
+									else {
 										view.setImageDrawable(bmp);
-									if (view.getVisibility() == View.VISIBLE) {
-										AlphaAnimation anim = new AlphaAnimation(0, 1);
-										anim.setInterpolator(view.getContext(), android.R.anim.accelerate_decelerate_interpolator);
-										anim.setDuration(REVEAL_ANIMATION_LENGTH);
-										view.clearAnimation();
-										view.startAnimation(anim);
+										if (view.getVisibility() == View.VISIBLE) {
+											AlphaAnimation anim = new AlphaAnimation(0, 1);
+											anim.setInterpolator(view.getContext(), android.R.anim.accelerate_decelerate_interpolator);
+											anim.setDuration(REVEAL_ANIMATION_LENGTH);
+											view.clearAnimation();
+											view.startAnimation(anim);
+										}
 									}
+								} else {
+									view.setImageDrawable(null);
 								}
 							}
 						}

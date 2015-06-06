@@ -129,7 +129,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		b.putParcelable("page", p);
 		b.putString("cache-dir", cacheDir);
 		fragment.setArguments(b);
-		fragment.setRetainInstance(true);
 		return fragment;
 	}
 
@@ -369,6 +368,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	@Override
 	public void onPause() {
 		super.onPause();
+		calculateListPositions();
 		SharedPreferences.Editor edit = mPagePositionPreferences.edit();
 		edit.putInt("position", mPage.mPageLastItemPosition);
 		edit.putInt("lastoffset", mPage.mPageLastOffset);
@@ -473,11 +473,11 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		if (mPage.mPageLastItemId != -1) {
 			int lastIndex = mList.indexOf(Tweet.getTweet(mPage.mPageLastItemId));
 			if (lastIndex < 0) lastIndex = -1 - lastIndex;
-			mListLayout.scrollToPositionWithOffset(lastIndex, mPage.mPageLastOffset);
+			mListLayout.scrollToPositionWithOffset(lastIndex, mPage.mPageLastOffset + mAdapter.mNonElementHeaders.size());
 		} else if (object != null) {
 			int lastIndex = mAdapter.getItemPosition(object);
 			if (lastIndex < 0) lastIndex = -1 - lastIndex;
-			mListLayout.scrollToPositionWithOffset(lastIndex, mPage.mPageLastOffset);
+			mListLayout.scrollToPositionWithOffset(lastIndex, mPage.mPageLastOffset + mAdapter.mNonElementHeaders.size());
 		} else
 			mListLayout.scrollToPositionWithOffset(mPage.mPageLastItemPosition, mPage.mPageLastOffset);
 
