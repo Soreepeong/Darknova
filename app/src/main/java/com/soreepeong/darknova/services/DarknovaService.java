@@ -93,7 +93,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 			e.addStreamCallback(this);
 			builder.e().add(new Page.Element(e, Page.Element.FUNCTION_MENTIONS, 0, null));
 		}
-		mNotifyChecker = builder.build();
+		mNotifyChecker = builder.e().isEmpty() ? null : builder.build();
 		TwitterEngine.addOnUserlistChangedListener(this);
 		mImageCache = ImageCache.getCache(this, this);
 
@@ -102,7 +102,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	}
 
 	@Override
-	public void onUserlistChanged(List<StreamableTwitterEngine> engines) {
+	public void onUserlistChanged(List<StreamableTwitterEngine> engines, List<StreamableTwitterEngine> oldEngines) {
 		Page.Builder builder = new Page.Builder();
 		synchronized (mRemovalPendingStreamingUsers) {
 			for (StreamableTwitterEngine e : engines) {
@@ -118,7 +118,10 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				}
 			}
 		}
-		mNotifyChecker = builder.build();
+		if (builder.e().isEmpty())
+			mNotifyChecker = null;
+		else
+			mNotifyChecker = builder.build();
 	}
 
 	private void loadActivityNotifications() {
@@ -562,7 +565,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 
 	@Override
 	public void onNewTweetReceived(Tweet tweet) {
-		if (mNotifyChecker.canHave(tweet)) {
+		if (mNotifyChecker != null && mNotifyChecker.canHave(tweet)) {
 			addMentionNotification(tweet);
 		}
 		Bundle b = new Bundle();

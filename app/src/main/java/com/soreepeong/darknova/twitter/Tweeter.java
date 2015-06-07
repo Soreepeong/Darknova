@@ -164,7 +164,7 @@ public class Tweeter implements Parcelable {
 		}
 	}
 
-	public static void initAlwaysAvailableUsers(Context context) {
+	public static void initializeAlwaysAvailableUsers(Context context) {
 		mAlwaysAvailableUsers = new AlwaysAvailableUsers(context);
 	}
 
@@ -434,7 +434,7 @@ public class Tweeter implements Parcelable {
 		}
 
 		@Override
-		public void onUserlistChanged(List<TwitterEngine.StreamableTwitterEngine> engines) {
+		public void onUserlistChanged(List<TwitterEngine.StreamableTwitterEngine> engines, List<TwitterEngine.StreamableTwitterEngine> oldEngines) {
 			Iterator<Tweeter> i = mTweeterList.iterator();
 			a:
 			while (i.hasNext()) {

@@ -72,11 +72,13 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		context.startActivity(intent);
 	}
 
-	public static void previewTweetImages(Context context, OAuth auth, Tweet t, int selectedIndex) {
-		ArrayList<Image> images = new ArrayList<>();
-		for (Entities.Entity e : t.entities.entities) {
-			if (e instanceof Entities.MediaEntity)
-				images.add(new Image(t, auth, (Entities.MediaEntity) e));
+	public static void previewTweetImages(final Context context, Tweet t, final int selectedIndex) {
+		final ArrayList<Image> images = new ArrayList<>();
+		for (Entities.Entity e : t.entities.list) {
+			if (e instanceof Entities.MediaEntity) {
+				// TODO DM Auth
+				images.add(new Image(t, null, (Entities.MediaEntity) e));
+			}
 		}
 		if (images.size() > 0) {
 			Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(images.get(0).mSourceUrl), context, MediaPreviewActivity.class);
@@ -139,7 +141,7 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 					if (t.info.stub)
 						mImageList.add(new Image(null, null, null, null, mInitiatorUrl, null, t, true));
 					else
-						for (Entities.Entity e : t.entities.entities) {
+						for (Entities.Entity e : t.entities.list) {
 							if (e instanceof Entities.MediaEntity)
 								mImageList.add(new Image(t, null, (Entities.MediaEntity) e));
 						}
@@ -335,6 +337,12 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		public OAuth mAuthInfo;
 		public Tweet mRelatedTweet;
 		public boolean mRequireExpansion;
+
+		public int mViewerX, mViewerY;
+		public float mViewerZoom;
+		public int mViewerWidth, mViewerHeight;
+		public boolean mIsViewerPreviouslySet;
+		public int mViewerDirection;
 
 		public Image(Tweet tweet, OAuth auth, Entities.MediaEntity entity) {
 			if (entity.variants == null) {

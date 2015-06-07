@@ -54,6 +54,15 @@ public abstract class PageFragment extends Fragment{
 			mRefresherExecutor.start();
 	}
 
+	public static PageFragment getInstance(String cacheDir, Page p) {
+		TimelineFragment fragment = new TimelineFragment();
+		Bundle b = new Bundle();
+		b.putParcelable("page", p);
+		b.putString("cache-dir", cacheDir);
+		fragment.setArguments(b);
+		return fragment;
+	}
+
 	public static View obtainPageView(int layoutId, LayoutInflater inflater, ViewGroup container) {
 		View res = null;
 		if (mCachedPageViews.get(layoutId) != null)
@@ -110,11 +119,7 @@ public abstract class PageFragment extends Fragment{
 	}
 
 	protected void performArguments(Bundle args){
-		mPage = args.getParcelable("page");
-		if(!Page.pages.contains(mPage))
-			mPage = null;
-		else
-			mPage = Page.pages.get(Page.pages.indexOf(mPage));
+		mPage = Page.getLoaded((Page) args.getParcelable("page"));
 	}
 
 	public Page getRepresentingPage(){

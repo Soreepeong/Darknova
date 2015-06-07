@@ -10,13 +10,19 @@ import com.soreepeong.darknova.twitter.Tweeter;
 /**
  * @author Soreepeong
  */
-public class TweeterImageSpan extends ReplacementSpan {
+public class UserImageSpan extends ReplacementSpan {
 	private final TweeterDrawable mDrawable;
+	private final Tweeter mTweeter;
 	private int mLineHeight, mActualLineHeight;
 
-	public TweeterImageSpan(Tweeter tweeter, ImageCache imageCache, int lineHeight) {
-		mDrawable = new TweeterDrawable(tweeter, imageCache);
+	public UserImageSpan(Tweeter tweeter, ImageCache imageCache, int lineHeight) {
+		mTweeter = tweeter;
 		mLineHeight = lineHeight;
+		mDrawable = new TweeterDrawable(imageCache);
+	}
+
+	public Tweeter getTweeter() {
+		return mTweeter;
 	}
 
 	public void setLineHeight(int h) {
@@ -45,13 +51,13 @@ public class TweeterImageSpan extends ReplacementSpan {
 		canvas.restore();
 	}
 
-	private static class TweeterDrawable extends ImageCache.AutoApplyingDrawable implements Tweeter.OnUserInformationChangedListener {
+	private class TweeterDrawable extends ImageCache.AutoApplyingDrawable implements Tweeter.OnUserInformationChangedListener {
 		public ImageCache mCache;
 
-		public TweeterDrawable(Tweeter t, ImageCache cache) {
+		public TweeterDrawable(ImageCache cache) {
 			mCache = cache;
-			t.addOnChangeListener(this);
-			updateUrl(t.getProfileImageUrl(), mCache);
+			mTweeter.addOnChangeListener(this);
+			updateUrl(mTweeter.getProfileImageUrl(), mCache);
 		}
 
 		@Override

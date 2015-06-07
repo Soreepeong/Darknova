@@ -12,7 +12,7 @@ import android.view.MotionEvent;
 import android.widget.TextView;
 
 import com.soreepeong.darknova.ui.span.TouchableSpan;
-import com.soreepeong.darknova.ui.span.TweeterImageSpan;
+import com.soreepeong.darknova.ui.span.UserImageSpan;
 
 /**
  * http://stackoverflow.com/questions/8558732/listview-textview-with-linkmovementmethod-makes-list-item-unclickable
@@ -57,7 +57,7 @@ public class ClickableSpanTextView extends TextView {
 	protected void onDraw(@NonNull Canvas canvas) {
 		if (getText() instanceof Spannable) {
 			Spannable sp = (Spannable) getText();
-			for (TweeterImageSpan t : sp.getSpans(0, sp.length(), TweeterImageSpan.class))
+			for (UserImageSpan t : sp.getSpans(0, sp.length(), UserImageSpan.class))
 				if (t.isPreparing())
 					postInvalidateDelayed(500);
 		}

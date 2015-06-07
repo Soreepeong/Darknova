@@ -75,6 +75,9 @@ public class ImageCache {
 		public Drawable onDrawablePreprocess(Drawable drawable) {
 			if (drawable instanceof BitmapDrawable)
 				return new RoundBitmapDrawable(mResources, (BitmapDrawable) drawable);
+			else if (drawable instanceof WaveProgressDrawable) {
+				((WaveProgressDrawable) drawable).setOval(true);
+			}
 			return drawable;
 		}
 	};
@@ -441,8 +444,15 @@ public class ImageCache {
 			return null;
 		Cursor cursor = mDb.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_ONLY, "url=?", new String[]{url}, null);
 		String res = null;
-		if (cursor.moveToFirst())
-			res = new File(getCacheFile(), Long.toString(cursor.getLong(0))).getAbsolutePath();
+		if (cursor.moveToFirst()) {
+			do {
+				File f = new File(getCacheFile(), cursor.getString(0));
+				if (f.exists())
+					res = f.getAbsolutePath();
+				else
+					mDb.delete(ImageCacheProvider.PROVIDER_URI, "_id=?", new String[]{cursor.getString(0)});
+			} while (res == null && cursor.moveToNext());
+		}
 		cursor.close();
 		return res;
 	}
@@ -575,6 +585,8 @@ public class ImageCache {
 		}
 
 		public void updateUrl(String newurl, ImageCache mCache) {
+			if (mUrl == null ? newurl == null : mUrl.equals(newurl))
+				return;
 			mUrl = newurl;
 			invalidateSelf();
 			if (mUrl == null)
@@ -701,6 +713,7 @@ public class ImageCache {
 		public void replace(ImageView v, Drawable result) {
 			if (replacing)
 				return;
+			v.setImageDrawable(result);
 			replacing = true;
 			replacement = result;
 			replacingDrawable = result.getConstantState().newDrawable().mutate();
@@ -722,8 +735,7 @@ public class ImageCache {
 
 		@Override
 		public void draw(Canvas canvas) {
-			super.draw(canvas);
-			if (replacing && replaceTarget != null && replaceTarget.getDrawable() == this) {
+			if (replacing && replaceTarget != null) {
 				long now = System.currentTimeMillis();
 				if (now > mReplaceEndTime) {
 					replacingDrawable.setAlpha(255);
@@ -735,9 +747,15 @@ public class ImageCache {
 					interpolation = mInterpolator.getInterpolation(interpolation);
 					replacingDrawable.setAlpha((int) (255 * interpolation));
 					replacingDrawable.setBounds(getBounds());
+					int oldAlpha = super.getOpacity();
+					super.setAlpha((int) (255 * (1 - interpolation)));
+					super.draw(canvas);
+					super.setAlpha(oldAlpha);
 					replacingDrawable.draw(canvas);
 					invalidateSelf();
 				}
+			} else {
+				super.draw(canvas);
 			}
 		}
 	}
@@ -821,6 +839,7 @@ public class ImageCache {
 						Uri inserted = mDb.insert(ImageCacheProvider.PROVIDER_URI, values);
 						id = inserted.getLastPathSegment();
 						f = new File(inserted.getPath());
+						filePath = f.getAbsolutePath();
 						out = new FileOutputStream(f);
 						int bytesRead;
 						byte buffer[] = new byte[8192];
@@ -850,6 +869,8 @@ public class ImageCache {
 		int read() {
 			Bitmap b = null;
 			try {
+				if (!new File(filePath).exists())
+					return OnImageAvailableListener.UNAVAILABLE_FILESYSTEM_ERROR;
 				b = decodeFile(filePath, 1280, 1280);
 			} catch (IOException e) {
 				b = ThumbnailUtils.createVideoThumbnail(filePath, MediaStore.Video.Thumbnails.MINI_KIND);
@@ -864,21 +885,36 @@ public class ImageCache {
 		@Override
 		public void run() {
 			try {
+				boolean downloaded = false;
 				int error = 0;
 				Matcher m = LOCAL_FILE_MATCHER.matcher(mUrl);
 				if (!m.matches()) {
 					Cursor cursor = mDb.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_ONLY, "url=?", new String[]{mUrl}, null);
-					if (!cursor.moveToFirst()) // download
+					id = null;
+					if (cursor.moveToFirst())
+						do {
+							File f = new File(getCacheFile(), cursor.getString(0));
+							if (f.exists()) {
+								id = cursor.getString(0);
+								filePath = f.getAbsolutePath();
+							} else {
+								mDb.delete(ImageCacheProvider.PROVIDER_URI, "_id=?", new String[]{cursor.getString(0)});
+							}
+						} while (id == null && cursor.moveToNext());
+					if (id == null) { // download
+						downloaded = true;
 						error = download();
-					else
-						id = Long.toString(cursor.getLong(0));
-					filePath = new File(getCacheFile(), id).getAbsolutePath();
+					}
 					cursor.close();
 				} else {
 					filePath = m.group(1);
 				}
 				if (error == 0)
 					error = read();
+				if (error != 0 && !downloaded && (error = download()) == 0) {
+					filePath = new File(getCacheFile(), id).getAbsolutePath();
+					error = read();
+				}
 				if (error == 0)
 					addBitmapToMemoryCache(mUrl, bmp);
 				synchronized (mScheduler) {

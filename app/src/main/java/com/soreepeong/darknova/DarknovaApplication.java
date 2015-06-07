@@ -21,7 +21,6 @@ import org.acra.ReportingInteractionMode;
 import org.acra.annotation.ReportsCrashes;
 
 import java.io.File;
-import java.util.ArrayList;
 
 /**
  * Global constant variables initialization
@@ -59,27 +58,25 @@ public class DarknovaApplication extends Application implements Handler.Callback
 		StringTools.ARRAY_RELATIVE_TIME_STRINGS = getString(R.string.times).split("/");
 		StringTools.ARRAY_RELATIVE_DURATION_STRINGS = getString(R.string.durations).split("/");
 		StringTools.ARRAY_FILE_SIZES = getString(R.string.filesizes).split("/");
-		StringTools.initHanjaArray(getResources());
+		StringTools.loadHanjaArray(getResources());
+
+		// For preparing image cache earlier
 		ImageCache.getCache(this, null);
-		Tweeter.initAlwaysAvailableUsers(this);
-		TwitterEngine.prepare(this);
-		TemplateTweet.initialize(this);
+
+		// BEFORE TwitterEngine: addOnUserlistChangedListener from AlwaysAvailableUsers on preparation
+		Tweeter.initializeAlwaysAvailableUsers(this);
+
+		// No dependency
+		TwitterEngine.prepare(this, "TwitterEngine");
+
+		// No dependency
+		TemplateTweet.initialize(this, "TemplateTweet");
+
+		// AFTER TemplateTweet
 		TemplateTweetAttachment.initialize(new File(getFilesDir(), "attachment"));
 
-		ArrayList<TwitterEngine> users = TwitterEngine.getAll();
-		if (!users.isEmpty()) {
-			Page.Builder p;
-			// TODO Load saved pages
-			for (TwitterEngine user : users) {
-				p = new Page.Builder("Home", R.drawable.ic_launcher);
-				p.e().add(new Page.Element(user, Page.Element.FUNCTION_HOME_TIMELINE, 0, null));
-				Page.addPage(p.build());
-				p = new Page.Builder("Mentions", R.drawable.ic_mention);
-				p.e().add(new Page.Element(user, Page.Element.FUNCTION_MENTIONS, 0, null));
-				Page.addPage(p.build());
-			}
-			Page.mSavedPageLength = Page.pages.size();
-		}
+		// AFTER TwitterEngine
+		Page.initialize(this, "Page");
 	}
 
 	@Override

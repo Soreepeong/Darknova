@@ -44,7 +44,7 @@ public class StringTools {
 	 *
 	 * @param res Resource
 	 */
-	public static void initHanjaArray(final Resources res) {
+	public static void loadHanjaArray(final Resources res) {
 		if (HANGUL_TO_HANJA_MAP[65536] == 1)
 			return;
 		new Thread() {

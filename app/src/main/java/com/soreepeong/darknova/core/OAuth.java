@@ -164,7 +164,6 @@ public class OAuth implements Parcelable{
 	 * @return value of Authorization header
 	 */
 	public String getHeader(boolean isPostRequest, String url, String[] oAuthParameters, String[] parameters){
-		ArrayList<String> arrBaseItems = new ArrayList<>();
 		String sTimestamp = Long.toString(System.currentTimeMillis() / 1000);
 		String sOauthNonce = StringTools.getSafeRandomString(32);
 		StringBuilder sAuthorization = new StringBuilder("OAuth realm=\"API\", oauth_version=\"1.0\", oauth_signature_method=\"HMAC-SHA1\"");

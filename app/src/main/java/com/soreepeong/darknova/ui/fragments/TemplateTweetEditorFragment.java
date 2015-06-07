@@ -19,6 +19,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
+import android.view.animation.RotateAnimation;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.CompoundButton;
@@ -52,7 +53,7 @@ import java.util.List;
  *
  * @author Soreepeong
  */
-public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUserInformationChangedListener, ImageCache.OnImageCacheReadyListener, CompoundButton.OnCheckedChangeListener, View.OnClickListener, TwitterEngine.OnUserlistChangedListener, TextWatcher {
+public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnUserInformationChangedListener, ImageCache.OnImageCacheReadyListener, CompoundButton.OnCheckedChangeListener, View.OnClickListener, TwitterEngine.OnUserlistChangedListener, TextWatcher {
 
 	private static final int PICK_MEDIA = 1;
 
@@ -123,6 +124,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 		readFromNewTweet(TemplateTweet.getEditorTweet());
 		if (savedInstanceState != null && savedInstanceState.getBoolean("open"))
 			showNewTweet();
+
 		return mViewNewTweet;
 	}
 
@@ -333,6 +335,10 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 			} else
 				ResTools.hideWithAnimation(getActivity(), mViewAccount, R.anim.hide_downward, false);
 			mViewUserSelectExpander.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewAccount.getVisibility() != View.VISIBLE ? R.attr.ic_navigation_expand_less : R.attr.ic_navigation_expand_more));
+			RotateAnimation ani = new RotateAnimation(-180, 0, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
+			ani.setDuration(300);
+			ani.setInterpolator(getActivity(), android.R.anim.accelerate_decelerate_interpolator);
+			mViewUserSelectExpander.startAnimation(ani);
 		} else if (v.equals(mViewTypeSelectBtn)) {
 			ResTools.hideWithAnimation(getActivity(), mViewAccount, R.anim.hide_downward, false);
 		}
@@ -399,7 +405,7 @@ public class NewTemplateTweetFragment extends Fragment implements Tweeter.OnUser
 	}
 
 	@Override
-	public void onUserlistChanged(List<TwitterEngine.StreamableTwitterEngine> engines) {
+	public void onUserlistChanged(List<TwitterEngine.StreamableTwitterEngine> engines, List<TwitterEngine.StreamableTwitterEngine> oldEngines) {
 		ArrayList<TwitterEngine> newEngines = new ArrayList<>();
 		newEngines.addAll(engines);
 		refillUserMaps(newEngines);

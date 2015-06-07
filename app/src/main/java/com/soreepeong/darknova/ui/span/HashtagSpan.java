@@ -11,12 +11,17 @@ import com.soreepeong.darknova.ui.MainActivity;
 /**
  * @author Soreepeong
  */
-public class HashtagSpan extends TouchableSpan {
+public class HashtagSpan extends TouchableSpan implements EntitySpan {
 	private final Entities.HashtagEntity mEntity;
 
 	public HashtagSpan(Entities.HashtagEntity me) {
 		super(0xFF909dff, 0, false, true, 0xFF909dff, 0x40FFFFFF, false, true);
 		mEntity = me;
+	}
+
+	@Override
+	public Entities.Entity getEntity() {
+		return mEntity;
 	}
 
 	@Override
@@ -33,13 +38,6 @@ public class HashtagSpan extends TouchableSpan {
 		TwitterEngine currentUser = a.getDrawerFragment().getCurrentUser();
 		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_SEARCH, 0, search));
 		builder.setParentPage(a.getCurrentPage().getRepresentingPage());
-		Page p = builder.build();
-		int index = Page.pages.indexOf(p);
-		if (index == -1) {
-			index = Page.pages.size();
-			Page.addPage(p);
-			Page.broadcastPageChange();
-		}
-		a.selectPage(index);
+		a.selectPage(Page.addIfNoExist(builder.build()));
 	}
 }

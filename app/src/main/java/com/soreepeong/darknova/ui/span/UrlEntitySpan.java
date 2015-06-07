@@ -14,6 +14,7 @@ import android.view.animation.Interpolator;
 import com.soreepeong.darknova.core.HTTPRequest;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Entities;
+import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.ui.MediaPreviewActivity;
 
 import java.util.ArrayList;
@@ -24,13 +25,20 @@ import java.util.regex.Pattern;
 /**
  * @author Soreepeong
  */
-public class UrlEntitySpan extends TouchableSpan {
+public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 	private final Entities.UrlEntity mEntity;
+	private final Tweet mTweet;
 	private long mExpandStartTime;
 
-	public UrlEntitySpan(Entities.UrlEntity me) {
+	public UrlEntitySpan(Entities.UrlEntity me, Tweet tweet) {
 		super(0xFF909dff, 0, false, true, 0xFF909dff, 0x40FFFFFF, false, true);
 		mEntity = me;
+		mTweet = tweet;
+	}
+
+	@Override
+	public Entities.Entity getEntity() {
+		return mEntity;
 	}
 
 	@Override

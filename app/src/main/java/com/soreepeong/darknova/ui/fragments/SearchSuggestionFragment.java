@@ -330,14 +330,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_SINGLE, user_id, screen_name));
 		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_TIMELINE, user_id, screen_name));
 		builder.setParentPage(((MainActivity) getActivity()).getCurrentPage().getRepresentingPage());
-		Page p = builder.build();
-		int index = Page.pages.indexOf(p);
-		if(index == -1){
-			index = Page.pages.size();
-			Page.addPage(p);
-			Page.broadcastPageChange();
-		}
-		((MainActivity) getActivity()).selectPage(index);
+		((MainActivity) getActivity()).selectPage(Page.addIfNoExist(builder.build()));
 		mSearchView.setIconified(true);
 		MenuItemCompat.collapseActionView(mMenuItem);
 		hide();
@@ -363,14 +356,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
 			builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_SEARCH, 0, s.text));
 			builder.setParentPage(((MainActivity) getActivity()).getCurrentPage().getRepresentingPage());
-			Page p = builder.build();
-			int index = Page.pages.indexOf(p);
-			if(index == -1){
-				index = Page.pages.size();
-				Page.addPage(p);
-				Page.broadcastPageChange();
-			}
-			((MainActivity) getActivity()).selectPage(index);
+			((MainActivity) getActivity()).selectPage(Page.addIfNoExist(builder.build()));
 			mSearchView.setIconified(true);
 			MenuItemCompat.collapseActionView(mMenuItem);
 			hide();

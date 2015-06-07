@@ -18,7 +18,7 @@ public class ComponentTestActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_component_test);
+		setContentView(R.layout.debug);
 		((ImageView) findViewById(R.id.viewer)).setImageDrawable(d);
 		((SeekBar) findViewById(R.id.seekbar)).setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
 			@Override

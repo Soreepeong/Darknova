@@ -36,7 +36,7 @@
 
 			<fragment
 				android:id="@+id/fragment_new_tweet"
-				android:name="com.soreepeong.darknova.ui.fragments.NewTemplateTweetFragment"
+				android:name="com.soreepeong.darknova.ui.fragments.TemplateTweetEditorFragment"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
 				android:layout_gravity="bottom"/>

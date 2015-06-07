@@ -67,6 +67,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	protected static String AUTH_ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token";
 	protected static String AUTH_AUTHORIZE_URL = "https://api.twitter.com/oauth/authorize";
 	protected static SharedPreferences mTwitterConfiguration;
+	protected static List<StreamableTwitterEngine> mOldEngines;
 	protected final OAuth auth;
 	protected final JsonFactory JSON;
 	protected int mEngineIndex;
@@ -188,6 +189,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					else
 						//noinspection deprecation
 						accountManager.removeAccount(e.mRespectiveAccount, null, null);
+					broadcastUserlistChanged();
 					break;
 				}
 			}
@@ -232,14 +234,17 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	private static void broadcastUserlistChanged() {
 		synchronized (mUserlistChangedListener) {
 			List<StreamableTwitterEngine> mEngines = Collections.unmodifiableList(new ArrayList<>(mTwitter));
+			if (mOldEngines != null && mOldEngines.equals(mEngines))
+				return;
 			for (OnUserlistChangedListener l : mUserlistChangedListener)
-				l.onUserlistChanged(mEngines);
+				l.onUserlistChanged(mEngines, mOldEngines);
+			mOldEngines = mEngines;
 		}
 	}
 
-	public static void prepare(Context context) {
+	public static void prepare(Context context, String prefName) {
 		synchronized (mTwitter) {
-			mTwitterConfiguration = context.getSharedPreferences("TwitterEngine.configuration", Context.MODE_MULTI_PROCESS);
+			mTwitterConfiguration = context.getSharedPreferences(prefName, Context.MODE_MULTI_PROCESS);
 			final AccountManager accountManager = AccountManager.get(context);
 			accountManager.addOnAccountsUpdatedListener(mAccountUpdateListener, null, false);
 			reloadTwitterEngines();
@@ -261,7 +266,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			for (String[] rep : replacements)
 				if (text.startsWith(rep[0], i)) {
 					sb.append(rep[1]);
-					for (Entities.Entity e : entity.entities) {
+					for (Entities.Entity e : entity.list) {
 						if (e.indice_left > i) e.indice_left -= rep[0].length() - 1;
 						if (e.indice_right > i) e.indice_right -= rep[0].length() - 1;
 					}
@@ -576,11 +581,12 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			res.in_reply_to_user = Tweeter.getTweeter(in_reply_to_user_id, in_reply_to_screen_name);
 		res.info.lastUpdated = System.currentTimeMillis();
 		res.info.stub = false;
+		res.accessedBy.add(mUserId);
 		if (e1 == null) e1 = e2;
 		else if (e2 != null) {
-			for (Entities.Entity e : e2.entities)
-				e1.entities.remove(e);
-			e1.entities.addAll(e2.entities);
+			for (Entities.Entity e : e2.list)
+				e1.list.remove(e);
+			e1.list.addAll(e2.list);
 		}
 		res.entities = e1;
 		if (e1 != null)
@@ -669,7 +675,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			StringBuilder query = new StringBuilder("user_id=");
 			query.append(ids[0]);
 			for (int i = ids.length - 1; i >= 1; i--) {
-				query.append(",").append(ids[i]);
+				query.append("%2C").append(ids[i]);
 			}
 			return getTweeterArrayRequest("users/lookup.json", query.toString());
 		} else {
@@ -699,7 +705,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			StringBuilder query = new StringBuilder("screen_name=");
 			query.append(screen_names[0]);
 			for (int i = screen_names.length - 1; i >= 1; i--) {
-				query.append(",").append(screen_names[i]);
+				query.append("%2C").append(screen_names[i]);
 			}
 			return getTweeterArrayRequest("users/lookup.json", query.toString());
 		} else {
@@ -752,7 +758,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		if (media_ids != null && !media_ids.isEmpty()) {
 			post += "&media_ids=" + media_ids.remove(0);
 			while (!media_ids.isEmpty())
-				post += "," + media_ids.remove(0);
+				post += "%2C" + media_ids.remove(0);
 		}
 		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "statuses/update.json", auth, true, post, false);
 		if (request == null) return null;
@@ -849,26 +855,26 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	}
 
 	public interface OnUserlistChangedListener {
-		public void onUserlistChanged(List<StreamableTwitterEngine> engines);
+		void onUserlistChanged(List<StreamableTwitterEngine> engines, List<StreamableTwitterEngine> oldEngines);
 	}
 
 	public interface TweetCallback {
-		public void onNewTweetReceived(Tweet tweet);
+		void onNewTweetReceived(Tweet tweet);
 	}
 
 	public interface TwitterStreamCallback extends TweetCallback {
-		public void onStreamStart(StreamableTwitterEngine engine);
+		void onStreamStart(StreamableTwitterEngine engine);
 
-		public void onStreamConnected(StreamableTwitterEngine engine);
+		void onStreamConnected(StreamableTwitterEngine engine);
 
-		public void onStreamError(StreamableTwitterEngine engine, Exception e);
+		void onStreamError(StreamableTwitterEngine engine, Exception e);
 
-		public void onStreamTweetEvent(StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, Tweet tweet, long created_at);
+		void onStreamTweetEvent(StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, Tweet tweet, long created_at);
 
-		// public void onListStreamEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, List list, long created_at);
-		public void onStreamUserEvent(StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target);
+		// void onListStreamEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, List list, long created_at);
+		void onStreamUserEvent(StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target);
 
-		public void onStreamStop(StreamableTwitterEngine engine);
+		void onStreamStop(StreamableTwitterEngine engine);
 	}
 
 	public static class StreamableTwitterEngine extends TwitterEngine {

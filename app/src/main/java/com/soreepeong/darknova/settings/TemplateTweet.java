@@ -153,8 +153,8 @@ public class TemplateTweet implements Parcelable {
 		}
 	}
 
-	public static void initialize(Context context) {
-		mNewTweetPreference = context.getSharedPreferences("NEW_TWEETS", Context.MODE_MULTI_PROCESS);
+	public static void initialize(Context context, String prefName) {
+		mNewTweetPreference = context.getSharedPreferences(prefName, Context.MODE_MULTI_PROCESS);
 		mNewTweetPreference.registerOnSharedPreferenceChangeListener(new SharedPreferences.OnSharedPreferenceChangeListener() {
 			@Override
 			public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {

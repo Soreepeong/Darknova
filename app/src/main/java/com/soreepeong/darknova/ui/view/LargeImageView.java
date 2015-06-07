@@ -7,6 +7,7 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Message;
+import android.support.annotation.NonNull;
 import android.support.v4.widget.EdgeEffectCompat;
 import android.util.AttributeSet;
 import android.view.GestureDetector;
@@ -68,7 +69,7 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 	private float mTouchAvgX, mTouchAvgY, nAutoZoomOldZoom;
 	private long nAutoZoomStartTime;
 	private int touchPointerCount;
-	private float nZoomBaseY, nZoomBaseX, nDragZoomBegin;
+	private float mZoomBaseY, mZoomBaseX, nDragZoomBegin;
 	private boolean bZoomDragging, bIsDoubleTap;
 
 	private OnViewerParamChangedListener mOnViewerParamChangedListener;
@@ -113,6 +114,14 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 		mEdgeGlowLeft = new EdgeEffectCompat(context);
 		mAnimateDuration = getResources().getInteger(android.R.integer.config_shortAnimTime);
 		setWillNotDraw(false);
+	}
+
+	public int getImageWidth() {
+		return mRotatedVertically ? mHeight : mWidth;
+	}
+
+	public int getImageHeight() {
+		return mRotatedVertically ? mWidth : mHeight;
 	}
 
 	/**
@@ -172,11 +181,18 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 	public void loadEmptyArea(int width, int height) {
 		mWidth = width;
 		mHeight = height;
-		mProportion = (float) mHeight / (float) mWidth;
-		if (!mPrepared && mLoadListener != null)
-			mLoadListener.OnImageViewLoadFinished(LargeImageView.this);
-		mPrepared = true;
-		applyLayout(true);
+		mProportion = (float) getImageHeight() / (float) getImageWidth();
+		mDirection = mAnimateSourceDirection = mAnimateTargetDirection = 0;
+		if (mGifDrawable != null)
+			mGifDrawable.stop();
+		mGifDrawable = null;
+		mDrawable = null;
+		mImgPath = null;
+		mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REZOOM);
+		mHandler.removeMessages(MESSAGE_IMAGE_VIEW_LOADED);
+		// mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_LOADED);
+		prepareLayout();
+		invalidate();
 	}
 
 	/**
@@ -191,9 +207,6 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 		mAnimateSourceDirection = mDirection;
 		mAnimateTargetDirection = (((int) (mAnimateTargetDirection / 90) * 90)) - 90;
 		mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_ROTATE, System.currentTimeMillis() + mAnimateDuration));
-		int a = mWidth;
-		mWidth = mHeight;
-		mHeight = a;
 		mRotatedVertically = !mRotatedVertically;
 		applyLayout(true);
 		boolean b = mScrollerHorizontal.springBack(mMidX, 0, mMinX, mMaxX, 0, 0);
@@ -202,6 +215,23 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 			mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REPOSITION);
 			mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_REPOSITION);
 		}
+	}
+
+	public int getDirection() {
+		return (int) (mAnimateTargetDirection + 360) % 360;
+	}
+
+	public void setDirection(int direction) {
+		mHandler.removeMessages(MESSAGE_IMAGE_VIEW_ROTATE);
+		int prevDir = (int) mAnimateTargetDirection;
+		mAnimateSourceDirection = mAnimateTargetDirection = mDirection = direction;
+		if (prevDir % 180 != getDirection() % 180)
+			mRotatedVertically = !mRotatedVertically;
+		applyLayout(true);
+	}
+
+	public boolean isRotatedVertically() {
+		return mRotatedVertically;
 	}
 
 	/**
@@ -216,9 +246,6 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 		mAnimateSourceDirection = mDirection;
 		mAnimateTargetDirection = (((int) (mAnimateTargetDirection / 90) * 90)) + 90;
 		mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_ROTATE, Long.valueOf(System.currentTimeMillis() + mAnimateDuration)));
-		int a = mWidth;
-		mWidth = mHeight;
-		mHeight = a;
 		mRotatedVertically = !mRotatedVertically;
 		applyLayout(true);
 		boolean b = mScrollerHorizontal.springBack(mMidX, 0, mMinX, mMaxX, 0, 0);
@@ -236,26 +263,26 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 		if (!mPrepared)
 			return;
 		if (justFitBounds) {
-			mZoom = Math.min(Math.min(getWidth() / (float) mWidth, getHeight() / (float) mHeight), mZoom);
+			mZoom = Math.min(Math.min(getWidth() / (float) getImageWidth(), getHeight() / (float) getImageHeight()), mZoom);
 		} else {
-			if (mWidth == 0 || mHeight == 0 || mProportion == 0) { // Not loaded
+			if (getImageWidth() == 0 || getImageHeight() == 0 || mProportion == 0) { // Not loaded
 			} else if (getWidth() == 0 || getHeight() == 0)
 				mZoom = 0;
-			else if (getWidth() >= mWidth && getHeight() >= mHeight)
+			else if (getWidth() >= getImageWidth() && getHeight() >= getImageHeight())
 				mZoom = mZoomMin = 1;
 			else if (getHeight() / getWidth() > mProportion)
-				mZoomMin = mZoom = (float) getWidth() / mWidth;
+				mZoomMin = mZoom = (float) getWidth() / getImageWidth();
 			else
-				mZoomMin = mZoom = (float) getHeight() / mHeight;
+				mZoomMin = mZoom = (float) getHeight() / getImageHeight();
 			if (mZoomMin > 0.25f)
 				mZoomMin = 0.25f;
 		}
 		mMidX = getWidth() / 2;
 		mMidY = getHeight() / 2;
-		mMinX = (int) (getWidth() - (mWidth * mZoom / 2));
-		mMaxX = (int) (mWidth * mZoom / 2);
-		mMinY = (int) (getHeight() - (mHeight * mZoom / 2));
-		mMaxY = (int) (mHeight * mZoom / 2);
+		mMinX = (int) (getWidth() - (getImageWidth() * mZoom / 2));
+		mMaxX = (int) (getImageWidth() * mZoom / 2);
+		mMinY = (int) (getHeight() - (getImageHeight() * mZoom / 2));
+		mMaxY = (int) (getImageHeight() * mZoom / 2);
 		if (mMinX > mMaxX) mMinX = mMaxX = getWidth() / 2;
 		if (mMinY > mMaxY) mMinY = mMaxY = getHeight() / 2;
 		mScrollerHorizontal.forceFinished(true);
@@ -274,24 +301,24 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 		mPrepared = true;
 		float oldX = mMaxX != mMinX ? (mMidX - mMinX) / (float) (mMaxX - mMinX) : 0.5f;
 		float oldY = mMaxY != mMinY ? (mMidY - mMinY) / (float) (mMaxY - mMinY) : 0.5f;
-		if (mWidth == 0 || mHeight == 0 || mProportion == 0) { // Not loaded
+		if (getImageWidth() == 0 || getImageHeight() == 0 || mProportion == 0) { // Not loaded
 			mZoomMin = 0;
 		} else if (getWidth() == 0 || getHeight() == 0)
 			mZoomMin = 0;
-		else if (getWidth() >= mWidth && getHeight() >= mHeight)
+		else if (getWidth() >= getImageWidth() && getHeight() >= getImageHeight())
 			mZoomMin = 1;
 		else if (getHeight() / getWidth() > mProportion)
-			mZoomMin = (float) getWidth() / mWidth;
+			mZoomMin = (float) getWidth() / getImageWidth();
 		else
-			mZoomMin = (float) getHeight() / mHeight;
+			mZoomMin = (float) getHeight() / getImageHeight();
 		if (mZoom == 0)
 			mZoom = mZoomMin;
 		if (mZoomMin > 0.25f)
 			mZoomMin = 0.25f;
-		mMinX = (int) (getWidth() - (mWidth * mZoom / 2));
-		mMaxX = (int) (mWidth * mZoom / 2);
-		mMinY = (int) (getHeight() - (mHeight * mZoom / 2));
-		mMaxY = (int) (mHeight * mZoom / 2);
+		mMinX = (int) (getWidth() - (getImageWidth() * mZoom / 2));
+		mMaxX = (int) (getImageWidth() * mZoom / 2);
+		mMinY = (int) (getHeight() - (getImageHeight() * mZoom / 2));
+		mMaxY = (int) (getImageHeight() * mZoom / 2);
 		if (mMinX > mMaxX) mMinX = mMaxX = getWidth() / 2;
 		if (mMinY > mMaxY) mMinY = mMaxY = getHeight() / 2;
 		mMidX = (int) (mMinX + (mMaxX - mMinX) * oldX);
@@ -303,7 +330,7 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 		mEdgeGlowTop.finish();
 		mEdgeGlowBottom.finish();
 		triggerOnImageParamChangedListener();
-		invalidate();
+		postInvalidate();
 	}
 
 	private void applyLayout(boolean trap) {
@@ -312,32 +339,32 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 		if (mZoom == 0) { // not yet prepared
 			mMidX = getWidth() / 2;
 			mMidY = getHeight() / 2;
-			if (mWidth == 0 || mHeight == 0 || mProportion == 0) { // Not loaded
+			if (getImageWidth() == 0 || getImageHeight() == 0 || mProportion == 0) { // Not loaded
 			} else if (getWidth() == 0 || getHeight() == 0)
 				mZoom = 0;
 			else if (mZoomMin != 0) {
 				mZoom = mZoomMin;
-				mZoomMin = (float) getWidth() / mWidth;
-			} else if (getWidth() >= mWidth && getHeight() >= mHeight)
+				mZoomMin = (float) getWidth() / getImageWidth();
+			} else if (getWidth() >= getImageWidth() && getHeight() >= getImageHeight())
 				mZoom = mZoomMin = 1;
 			else if (getHeight() / getWidth() > mProportion)
-				mZoomMin = mZoom = (float) getWidth() / mWidth;
+				mZoomMin = mZoom = (float) getWidth() / getImageWidth();
 			else
-				mZoomMin = mZoom = (float) getHeight() / mHeight;
+				mZoomMin = mZoom = (float) getHeight() / getImageHeight();
 			if (mZoomMin > 0.25f)
 				mZoomMin = 0.25f;
 		}
-		mMinX = (int) (getWidth() - (mWidth * mZoom / 2));
-		mMaxX = (int) (mWidth * mZoom / 2);
-		mMinY = (int) (getHeight() - (mHeight * mZoom / 2));
-		mMaxY = (int) (mHeight * mZoom / 2);
-		if (getWidth() >= (int) (mWidth * mZoom)) {
+		mMinX = (int) (getWidth() - (getImageWidth() * mZoom / 2));
+		mMaxX = (int) (getImageWidth() * mZoom / 2);
+		mMinY = (int) (getHeight() - (getImageHeight() * mZoom / 2));
+		mMaxY = (int) (getImageHeight() * mZoom / 2);
+		if (getWidth() >= (int) (getImageWidth() * mZoom)) {
 			mMidX = mMinX = mMaxX = getWidth() / 2;
 			mScrollerHorizontal.forceFinished(true);
 			mEdgeGlowLeft.finish();
 			mEdgeGlowRight.finish();
 		}
-		if (getHeight() >= (int) (mHeight * mZoom)) {
+		if (getHeight() >= (int) (getImageHeight() * mZoom)) {
 			mMidY = mMinY = mMaxY = getHeight() / 2;
 			mScrollerVertical.forceFinished(true);
 			mEdgeGlowTop.finish();
@@ -375,8 +402,8 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 	}
 
 	public void triggerOnImageParamChangedListener() {
-		if (mOnViewerParamChangedListener != null)
-			mOnViewerParamChangedListener.onImageParamChanged(mMidX, mMinX, mMaxX, mMidY, mMinY, mMaxY, mWidth, mHeight, mZoom);
+		if (mOnViewerParamChangedListener != null && mPrepared)
+			mOnViewerParamChangedListener.onImageParamChanged(mMidX, mMinX, mMaxX, mMidY, mMinY, mMaxY, getImageWidth(), getImageHeight(), mZoom);
 	}
 
 	@Override
@@ -392,7 +419,9 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 	}
 
 	private void smoothZoomTo(float newZoom) {
-		newZoom = Math.max(0.25f, newZoom);
+		if (mWidth == 0)
+			return;
+		newZoom = Math.min(Math.max(Math.max(getWidth() / (float) getImageWidth(), getHeight() / (float) getImageHeight()) * 4, 16), Math.max(0.25f, newZoom));
 		if (mZoom != newZoom) {
 			nAutoZoomOldZoom = mZoom;
 			nAutoZoomStartTime = System.currentTimeMillis() + mAnimateDuration;
@@ -402,7 +431,7 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 	}
 
 	@Override
-	public boolean onTouchEvent(MotionEvent event) {
+	public boolean onTouchEvent(@NonNull MotionEvent event) {
 		switch (event.getActionMasked()) {
 			case MotionEvent.ACTION_DOWN:
 				// Begin transformation
@@ -415,8 +444,8 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 				bIsDoubleTap = false;
 				mTouchAvgX = event.getX();
 				mTouchAvgY = event.getY();
-				nZoomBaseX = event.getX();
-				nZoomBaseY = event.getY();
+				mZoomBaseX = event.getX();
+				mZoomBaseY = event.getY();
 				touchPointerCount = 1;
 				mScrollerHorizontal.forceFinished(true);
 				mScrollerVertical.forceFinished(true);
@@ -460,7 +489,7 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 				mEdgeGlowLeft.onRelease();
 				if (!bZoomDragging && bIsDoubleTap) {
 					// double-tap zoom preset
-					float[] arrZooms = new float[]{1, 4, (float) getWidth() / mWidth, (float) getHeight() / mHeight};
+					float[] arrZooms = new float[]{1, 4, (float) getWidth() / getImageWidth(), (float) getHeight() / getImageHeight()};
 					int i;
 					Arrays.sort(arrZooms);
 					for (i = 0; i < arrZooms.length; i++)
@@ -492,8 +521,8 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 						mTouchAvgX = event.getX(i);
 						mTouchAvgY = event.getY(i);
 					}
-					nZoomBaseX = mTouchAvgX;
-					nZoomBaseY = mTouchAvgY;
+					mZoomBaseX = mTouchAvgX;
+					mZoomBaseY = mTouchAvgY;
 					smoothZoomTo(mZoom);
 				} else if (touchPointerCount > 1) {
 					mTouchAvgX = mTouchAvgY = 0;
@@ -513,14 +542,14 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 				break;
 			case MotionEvent.ACTION_MOVE:
 				if (bIsDoubleTap) {
-					if (Math.abs(event.getY() - nZoomBaseY) >= mConf.getScaledTouchSlop())
+					if (Math.abs(event.getY() - mZoomBaseY) >= mConf.getScaledTouchSlop())
 						bZoomDragging = true;
 					if (bZoomDragging) {
-						float newZoom = (float) (nDragZoomBegin * Math.pow(1 + (event.getY() - nZoomBaseY) / mHeight, 2));
+						float newZoom = (float) (nDragZoomBegin * Math.pow(1 + (event.getY() - mZoomBaseY) / getImageHeight(), 2));
 						if (newZoom < 0.01f)
 							newZoom = 0.01f;
-						mMidX = (int) (nZoomBaseX - ((nZoomBaseX - mMidX) / mZoom * newZoom));
-						mMidY = (int) (nZoomBaseY - ((nZoomBaseY - mMidY) / mZoom * newZoom));
+						mMidX = (int) (mZoomBaseX - ((mZoomBaseX - mMidX) / mZoom * newZoom));
+						mMidY = (int) (mZoomBaseY - ((mZoomBaseY - mMidY) / mZoom * newZoom));
 						mZoom = newZoom;
 						triggerOnImageParamChangedListener();
 					}
@@ -552,9 +581,9 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 				}
 				applyLayout(false);
 
-				// width:  / (mRotatedVertically?mHeight:mWidth)
-				int nDrawWidth = (int) Math.min(getWidth(), mWidth * mZoom);
-				int nDrawHeight = (int) Math.min(getHeight(), mHeight * mZoom);
+				// width:  / (mRotatedVertically?getImageHeight():getImageWidth())
+				int nDrawWidth = (int) Math.min(getWidth(), getImageWidth() * mZoom);
+				int nDrawHeight = (int) Math.min(getHeight(), getImageHeight() * mZoom);
 
 
 				if (mMidX > mMaxX)
@@ -602,11 +631,13 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 				Canvas c = new Canvas();
 				mDrawable = new BitmapDrawable(getResources(), ImageCache.decodeFile(mImgPath, c.getMaximumBitmapWidth(), c.getMaximumBitmapHeight()));
 			}
-			int oldWidth = mWidth;
+			int oldWidth = getImageWidth();
 			mWidth = o.outWidth;
 			mHeight = o.outHeight;
-			mZoom = mWidth == 0 ? 1 : mZoom * oldWidth / mWidth;
-			mProportion = (float) mHeight / (float) mWidth;
+			mZoom = getImageWidth() == 0 ? 1 : mZoom * oldWidth / getImageWidth();
+			mProportion = (float) getImageHeight() / (float) getImageWidth();
+			mPrepared = false;
+			mHandler.removeMessages(MESSAGE_IMAGE_VIEW_LOADED);
 			mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REZOOM);
 			mHandler.sendEmptyMessage(MESSAGE_IMAGE_VIEW_LOADED);
 		} catch (Error e) {
@@ -628,18 +659,18 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 			canvas.rotate(mDirection);
 			canvas.scale(mZoom, mZoom);
 			if (!mRotatedVertically) {
-				canvas.translate(-mWidth / 2, -mHeight / 2);
-				mDrawable.setBounds(0, 0, mWidth, mHeight);
+				canvas.translate(-getImageWidth() / 2, -getImageHeight() / 2);
+				mDrawable.setBounds(0, 0, getImageWidth(), getImageHeight());
 			} else {
-				canvas.translate(-mHeight / 2, -mWidth / 2);
-				mDrawable.setBounds(0, 0, mHeight, mWidth);
+				canvas.translate(-getImageHeight() / 2, -getImageWidth() / 2);
+				mDrawable.setBounds(0, 0, getImageHeight(), getImageWidth());
 			}
 			mDrawable.draw(canvas);
 			canvas.restore();
 		}
 
-		int nDrawWidth = (int) Math.min(getWidth(), mWidth * mZoom);
-		int nDrawHeight = (int) Math.min(getHeight(), mHeight * mZoom);
+		int nDrawWidth = (int) Math.min(getWidth(), getImageWidth() * mZoom);
+		int nDrawHeight = (int) Math.min(getHeight(), getImageHeight() * mZoom);
 
 		if (!mEdgeGlowTop.isFinished()) {
 			canvas.translate((getWidth() - nDrawWidth) / 2, 0);
@@ -685,16 +716,17 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 					dist = 0;
 				mDirection = mAnimateTargetDirection + (mAnimateSourceDirection - mAnimateTargetDirection) * mInterpolator.getInterpolation(dist);
 				invalidate();
+				return true;
 			}
 			case MESSAGE_IMAGE_VIEW_ERROR: {
 				if (mLoadListener != null)
-					mLoadListener.OnImageViewLoadFailed(LargeImageView.this, (Throwable) msg.obj);
+					mLoadListener.onImageViewLoadFailed(LargeImageView.this, (Throwable) msg.obj);
 				return true;
 			}
 			case MESSAGE_IMAGE_VIEW_LOADED: {
 				prepareLayout();
 				if (mLoadListener != null)
-					mLoadListener.OnImageViewLoadFinished(LargeImageView.this);
+					mLoadListener.onImageViewLoadFinished(LargeImageView.this);
 				return true;
 			}
 			case MESSAGE_IMAGE_VIEW_REPOSITION: {
@@ -728,6 +760,7 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 			case MESSAGE_IMAGE_VIEW_REZOOM: {
 				if (mIsZooming)
 					return true;
+				mHandler.removeMessages(MESSAGE_IMAGE_VIEW_REPOSITION);
 				float dist = (nAutoZoomStartTime - System.currentTimeMillis()) / (float) mAnimateDuration;
 				float destZoom = (Float) msg.obj;
 				float newZoom = destZoom;
@@ -735,10 +768,11 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 					newZoom += (nAutoZoomOldZoom - destZoom) * mInterpolator.getInterpolation(dist);
 					mHandler.sendMessage(Message.obtain(mHandler, MESSAGE_IMAGE_VIEW_REZOOM, destZoom));
 				}
-				mMidX = (int) (nZoomBaseX - ((nZoomBaseX - mMidX) / mZoom * newZoom));
-				mMidY = (int) (nZoomBaseY - ((nZoomBaseY - mMidY) / mZoom * newZoom));
+				mMidX = (int) (mZoomBaseX - ((mZoomBaseX - mMidX) / mZoom * newZoom));
+				mMidY = (int) (mZoomBaseY - ((mZoomBaseY - mMidY) / mZoom * newZoom));
 				mZoom = newZoom;
 				applyLayout(true);
+				postInvalidate();
 				return true;
 			}
 		}
@@ -750,9 +784,9 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 	}
 
 	public interface OnImageViewLoadFinishedListener {
-		void OnImageViewLoadFinished(LargeImageView v);
+		void onImageViewLoadFinished(LargeImageView v);
 
-		void OnImageViewLoadFailed(LargeImageView v, Throwable exception);
+		void onImageViewLoadFailed(LargeImageView v, Throwable exception);
 	}
 
 	public interface OnViewerParamChangedListener {

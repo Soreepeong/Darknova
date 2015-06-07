@@ -82,11 +82,27 @@
 			android:layout_marginTop="6dp"
 			android:max="100000"/>
 
-		<Button
-			android:id="@+id/cancel"
-			android:layout_width="wrap_content"
-			android:layout_height="48dp"
-			android:text="@string/mediapreview_cancel"/>
+		<LinearLayout
+			style="?buttonBarStyle"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:gravity="right"
+			android:orientation="horizontal">
+
+			<Button
+				android:id="@+id/open_another_app"
+				style="?buttonBarButtonStyle"
+				android:layout_width="wrap_content"
+				android:layout_height="48dp"
+				android:text="@string/mediapreview_another_app"/>
+
+			<Button
+				android:id="@+id/cancel"
+				style="?buttonBarButtonStyle"
+				android:layout_width="wrap_content"
+				android:layout_height="48dp"
+				android:text="@string/mediapreview_cancel"/>
+		</LinearLayout>
 	</LinearLayout>
 
 </FrameLayout>

@@ -425,10 +425,10 @@ public class HTTPRequest {
 			int position = 0;
 			while (!Thread.interrupted() && -1 != (read = in.read(buffer, position, buffer.length - position))) {
 				position += read;
-				if (position >= buffer.length)
-					throw new IOException("Header not received");
 				if (0 <= (search = ArrayTools.indexOf(buffer, search, position, HTTP_HEADER_SEPARATOR, HTTP_HEADER_SEPARATOR_FAILURE)))
 					break;
+				if (position >= buffer.length)
+					throw new IOException("Header not received");
 				search = Math.max(0, position - HTTP_HEADER_SEPARATOR.length + 1);
 			}
 			in.unread(buffer, search + HTTP_HEADER_SEPARATOR.length, position - search - HTTP_HEADER_SEPARATOR.length);

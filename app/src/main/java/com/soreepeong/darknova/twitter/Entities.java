@@ -28,7 +28,7 @@ public class Entities implements Parcelable {
 			return new Entities[size];
 		}
 	};
-	public final ArrayList<Entity> entities = new ArrayList<>();
+	public final ArrayList<Entity> list = new ArrayList<>();
 
 	public Entities(JsonParser parser) throws IOException {
 		String key;
@@ -37,18 +37,28 @@ public class Entities implements Parcelable {
 			parser.nextToken();
 			while (!Thread.currentThread().isInterrupted() && parser.nextToken() != JsonToken.END_ARRAY) {
 				switch (key) {
-					case "media": entities.add(new MediaEntity(parser)); break;
-					case "urls": entities.add(new UrlEntity(parser)); break;
-					case "user_mentions": entities.add(new MentionsEntity(parser)); break;
-					case "hashtags": entities.add(new HashtagEntity(parser)); break;
-					case "symbols": entities.add(new SymbolEntity(parser)); break;
+					case "media":
+						list.add(new MediaEntity(parser));
+						break;
+					case "urls":
+						list.add(new UrlEntity(parser));
+						break;
+					case "user_mentions":
+						list.add(new MentionsEntity(parser));
+						break;
+					case "hashtags":
+						list.add(new HashtagEntity(parser));
+						break;
+					case "symbols":
+						list.add(new SymbolEntity(parser));
+						break;
 				}
 			}
 		}
 	}
 
 	protected Entities(Parcel in) {
-		in.readList(entities, Entity.class.getClassLoader());
+		in.readList(list, Entity.class.getClassLoader());
 	}
 
 	@Override
@@ -58,7 +68,7 @@ public class Entities implements Parcelable {
 
 	@Override
 	public void writeToParcel(Parcel dest, int flags) {
-		dest.writeList(entities);
+		dest.writeList(list);
 	}
 
 	public static class Entity implements Parcelable {

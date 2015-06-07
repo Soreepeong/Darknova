@@ -6,6 +6,7 @@ import android.support.annotation.NonNull;
 
 import com.soreepeong.darknova.tools.WeakValueHashMap;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
@@ -16,7 +17,8 @@ import java.util.HashMap;
 public class Tweet implements Parcelable, Comparable<Tweet>{
 
 	private static WeakValueHashMap<Long, Tweet> mTweets = new WeakValueHashMap<>();
-
+	public final ArrayList<Long> accessedBy = new ArrayList<>();
+	public final HashMap<Long, ForUserInfo> perUserInfo = new HashMap<>();
 	public InternalInformation info = new InternalInformation();
 	public long id;
 	public long created_at;
@@ -31,7 +33,6 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 	public Entities entities;
 	public Tweet in_reply_to_status;
 	public Tweeter in_reply_to_user;
-	public HashMap<Long, ForUserInfo> perUserInfo;
 	@SuppressWarnings("unused")
 	public static final Parcelable.Creator<Tweet> CREATOR = new Parcelable.Creator<Tweet>() {
 		@Override
@@ -46,7 +47,6 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 	};
 
 	private Tweet() {
-		perUserInfo = new HashMap<>();
 	}
 
 	protected Tweet(Parcel in) {
@@ -64,7 +64,8 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 		entities = (Entities) in.readValue(Entities.class.getClassLoader());
 		in_reply_to_status = (Tweet) in.readValue(Tweet.class.getClassLoader());
 		in_reply_to_user = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
-		in.readMap(perUserInfo = new HashMap<>(), ForUserInfo.class.getClassLoader());
+		in.readMap(perUserInfo, ForUserInfo.class.getClassLoader());
+		in.readList(accessedBy, Long.class.getClassLoader());
 	}
 
 	public static Tweet getExistingTweet(long id){
@@ -88,22 +89,28 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 			t = tweet;
 			mTweets.put(tweet.id, t);
 		}else{
-			if (!tweet.info.stub && tweet.info.lastUpdated > t.info.lastUpdated) {
-				t.info = tweet.info;
-				t.id = tweet.id;
-				t.created_at = tweet.created_at;
-				t.text = tweet.text;
-				t.retweet_count = tweet.retweet_count;
-				t.favourites_count = tweet.favourites_count;
-				t.source = tweet.source;
-				t.possibly_sensitive = tweet.possibly_sensitive;
-				t.removed = tweet.removed;
-				t.user = tweet.user;
-				t.retweeted_status = tweet.retweeted_status;
-				t.entities = tweet.entities;
-				t.in_reply_to_status = tweet.in_reply_to_status;
-				t.in_reply_to_user = tweet.in_reply_to_user;
-				t.perUserInfo = tweet.perUserInfo;
+			synchronized (t) {
+				if (!tweet.info.stub && tweet.info.lastUpdated > t.info.lastUpdated) {
+					t.info = tweet.info;
+					t.id = tweet.id;
+					t.created_at = tweet.created_at;
+					t.text = tweet.text;
+					t.retweet_count = tweet.retweet_count;
+					t.favourites_count = tweet.favourites_count;
+					t.source = tweet.source;
+					t.possibly_sensitive = tweet.possibly_sensitive;
+					t.removed = tweet.removed;
+					t.user = tweet.user;
+					t.retweeted_status = tweet.retweeted_status;
+					t.entities = tweet.entities;
+					t.in_reply_to_status = tweet.in_reply_to_status;
+					t.in_reply_to_user = tweet.in_reply_to_user;
+					// <duplication removals>
+					t.perUserInfo.putAll(tweet.perUserInfo);
+					t.accessedBy.removeAll(tweet.accessedBy);
+					t.accessedBy.addAll(tweet.accessedBy);
+					// </duplication removals>
+				}
 			}
 		}
 		return t;
@@ -169,6 +176,7 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 		dest.writeValue(in_reply_to_status);
 		dest.writeValue(in_reply_to_user);
 		dest.writeMap(perUserInfo);
+		dest.writeList(accessedBy);
 	}
 
 	public static class InternalInformation implements Parcelable {

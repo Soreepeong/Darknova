@@ -15,7 +15,7 @@ import android.os.RemoteException;
 import com.soreepeong.darknova.services.DarknovaService;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
 
 /**
  * Twitter Stream Service Receiver
@@ -23,7 +23,7 @@ import java.util.HashMap;
  * @author Soreepeong
  */
 public class TwitterStreamServiceReceiver {
-	private static final HashMap<TwitterEngine.TwitterStreamCallback, TwitterEngine.StreamableTwitterEngine> mStreamCallbacks = new HashMap<>();
+	private static final HashSet<TwitterEngine.TwitterStreamCallback> mStreamCallbacks = new HashSet<>();
 	private static final Handler mHandler = new Handler(Looper.getMainLooper());
 
 	private static final ArrayList<TwitterEngine.StreamableTwitterEngine> mStreamOnUsers = new ArrayList<>();
@@ -37,9 +37,8 @@ public class TwitterStreamServiceReceiver {
 				@Override
 				public void run() {
 					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamConnected(engine);
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks)
+							c.onStreamConnected(engine);
 					}
 				}
 			});
@@ -51,9 +50,8 @@ public class TwitterStreamServiceReceiver {
 				@Override
 				public void run() {
 					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamStart(engine);
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks)
+							c.onStreamStart(engine);
 					}
 				}
 			});
@@ -65,9 +63,8 @@ public class TwitterStreamServiceReceiver {
 				@Override
 				public void run() {
 					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamError(engine, e);
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks)
+							c.onStreamError(engine, e);
 					}
 				}
 			});
@@ -79,9 +76,8 @@ public class TwitterStreamServiceReceiver {
 				@Override
 				public void run() {
 					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamTweetEvent(engine, event, source, target, tweet, created_at);
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks)
+							c.onStreamTweetEvent(engine, event, source, target, tweet, created_at);
 					}
 				}
 			});
@@ -93,9 +89,8 @@ public class TwitterStreamServiceReceiver {
 				@Override
 				public void run() {
 					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamUserEvent(engine, event, source, target);
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks)
+							c.onStreamUserEvent(engine, event, source, target);
 					}
 				}
 			});
@@ -107,9 +102,8 @@ public class TwitterStreamServiceReceiver {
 				@Override
 				public void run() {
 					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
-							if (engine == null || mStreamCallbacks.get(c) == null || mStreamCallbacks.get(c).equals(engine))
-								c.onStreamStop(engine);
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks)
+							c.onStreamStop(engine);
 					}
 				}
 			});
@@ -118,7 +112,7 @@ public class TwitterStreamServiceReceiver {
 		@Override
 		public void onNewTweetReceived(Tweet tweet) {
 			synchronized (mStreamCallbacks) {
-				for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks.keySet())
+				for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks)
 					c.onNewTweetReceived(tweet);
 			}
 		}
@@ -138,7 +132,7 @@ public class TwitterStreamServiceReceiver {
 					b.setClassLoader(mContext.getClassLoader());
 					TwitterEngine.StreamableTwitterEngine e = TwitterEngine.get(b.getLong("user_id"));
 					switch (msg.what) {
-						case DarknovaService.MESSAGE_STREAM_CALLBACK_PREPARED:{
+						case DarknovaService.MESSAGE_STREAM_CALLBACK_PREPARED: {
 							synchronized (mServiceReadyListeners) {
 								mServiceReadyListeners.notifyAll();
 								for (OnServiceInterfaceReadyListener l : mServiceReadyListeners)
@@ -231,10 +225,10 @@ public class TwitterStreamServiceReceiver {
 		}
 	}
 
-	public static void forceSetStatus(TwitterEngine.StreamableTwitterEngine e, boolean b){
-		if(b && !mStreamOnUsers.contains(e))
+	public static void forceSetStatus(TwitterEngine.StreamableTwitterEngine e, boolean b) {
+		if (b && !mStreamOnUsers.contains(e))
 			mStreamOnUsers.add(e);
-		else if(!b && mStreamOnUsers.contains(e))
+		else if (!b && mStreamOnUsers.contains(e))
 			mStreamOnUsers.remove(e);
 	}
 
@@ -260,10 +254,10 @@ public class TwitterStreamServiceReceiver {
 		}
 	}
 
-	public static void addStreamCallback(TwitterEngine.StreamableTwitterEngine engine, TwitterEngine.TwitterStreamCallback callback) {
+	public static void addStreamCallback(TwitterEngine.TwitterStreamCallback callback) {
 		synchronized (mStreamCallbacks) {
-			if (!mStreamCallbacks.containsKey(callback))
-				mStreamCallbacks.put(callback, engine);
+			if (!mStreamCallbacks.contains(callback))
+				mStreamCallbacks.add(callback);
 		}
 	}
 
@@ -283,12 +277,12 @@ public class TwitterStreamServiceReceiver {
 	}
 
 	public interface OnStreamTurnedListener {
-		public void onStreamTurnedOn(TwitterEngine e);
+		void onStreamTurnedOn(TwitterEngine e);
 
-		public void onStreamTurnedOff(TwitterEngine e);
+		void onStreamTurnedOff(TwitterEngine e);
 	}
 
 	public interface OnServiceInterfaceReadyListener {
-		public void onServiceInterfaceReady();
+		void onServiceInterfaceReady();
 	}
 }
