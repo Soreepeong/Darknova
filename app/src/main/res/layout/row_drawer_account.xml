@@ -7,7 +7,7 @@
 
 	<Switch
 		android:id="@+id/use_stream"
-		android:layout_width="70dp"
+		android:layout_width="wrap_content"
 		android:layout_height="48dp"
 		android:layout_gravity="end"
 		android:checked="true"

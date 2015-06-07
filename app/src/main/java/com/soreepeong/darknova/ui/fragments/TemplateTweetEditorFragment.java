@@ -225,6 +225,13 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		InputMethodManager mgr = (InputMethodManager) getActivity().getSystemService(Context.INPUT_METHOD_SERVICE);
 		mgr.showSoftInput(mViewEditor, InputMethodManager.SHOW_IMPLICIT);
 		((InputMethodManager) getActivity().getSystemService(Context.INPUT_METHOD_SERVICE)).showSoftInput(mViewEditor, 0);
+
+		mViewSelectedUserList.post(new Runnable() {
+			@Override
+			public void run() {
+				mUserAdapter.invalidate();
+			}
+		});
 	}
 
 	public void hideNewTweet() {
@@ -480,8 +487,9 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		}
 
 		public void invalidate() {
-			scale = Math.max(1, mViewSelectedUserList.getHeight() == 0 ? mViewSelectedUserList.getLayoutParams().width / mViewSelectedUserList.getLayoutParams().height : mViewSelectedUserList.getWidth() / mViewSelectedUserList.getHeight());
-			int lastScale = itemSizeScale;
+			if (mViewSelectedUserList.getHeight() == 0)
+				return;
+			scale = Math.max(1, mViewSelectedUserList.getWidth() / mViewSelectedUserList.getHeight());
 			if (mTweeters.size() <= scale) {
 				mUserListLayoutManager.setSpanCount(scale);
 				itemSizeScale = 1;
@@ -494,8 +502,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 				itemSizeScale = i;
 				mUserListLayoutManager.setSpanCount(scale * i); //(mTweeters.size()+i-1)/i);
 			}
-			if (itemSizeScale != lastScale)
-				notifyDataSetChanged();
+			notifyDataSetChanged();
 		}
 
 		@Override

@@ -6,6 +6,7 @@ import android.accounts.OnAccountsUpdateListener;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -193,6 +194,28 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					break;
 				}
 			}
+		}
+	}
+
+	public static Account addAccount(TwitterEngine newEngine) {
+		synchronized (mTwitter) {
+			final Account account = new Account(newEngine.getScreenName(), DarknovaApplication.mContext.getString(R.string.account_type));
+			final AccountManager am = AccountManager.get(DarknovaApplication.mContext);
+			final Bundle info = new Bundle();
+			info.putLong("user_id", newEngine.getUserId());
+			info.putString("screen_name", newEngine.getScreenName());
+			info.putString("oauth_token", newEngine.getAuth().getToken());
+			info.putString("oauth_token_secret", newEngine.getAuth().getSecretToken());
+			info.putString("consumer_key", newEngine.getAuth().getApiKey());
+			info.putString("consumer_key_secret", newEngine.getAuth().getSecretApiKey());
+			am.addAccountExplicitly(account, null, info);
+			am.setUserData(account, "user_id", Long.toString(newEngine.getUserId()));
+			am.setUserData(account, "screen_name", newEngine.getScreenName());
+			am.setUserData(account, "oauth_token", newEngine.getAuth().getToken());
+			am.setUserData(account, "oauth_token_secret", newEngine.getAuth().getSecretToken());
+			am.setUserData(account, "consumer_key", newEngine.getAuth().getApiKey());
+			am.setUserData(account, "consumer_key_secret", newEngine.getAuth().getSecretApiKey());
+			return account;
 		}
 	}
 

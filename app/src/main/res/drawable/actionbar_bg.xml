@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-	<item android:state_pressed="true" android:drawable="@drawable/pressed_gray"/>
-	<item android:drawable="?attr/colorPrimary"/>
-</selector>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+	<item>
+		<color android:color="@drawable/colorPrimary"/>
+	</item>
+	<item>
+		<selector>
+			<item
+				android:drawable="@drawable/pressed_gray"
+				android:state_pressed="true"/>
+		</selector>
+	</item>
+</layer-list>

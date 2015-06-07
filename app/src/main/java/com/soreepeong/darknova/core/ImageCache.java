@@ -699,7 +699,7 @@ public class ImageCache {
 
 		@Override
 		public int getPercentage() {
-			int p = mLoader.mLoadProgress * MAX_PERCENTAGE / 100;
+			int p = mLoader.mLoadProgress * MAX_PERCENTAGE / MAX_IN_PERCENTAGE;
 			if (mTargetProgress != p) {
 				long now = System.currentTimeMillis();
 				if (now < mProgressChangeTimeTarget)
@@ -846,9 +846,9 @@ public class ImageCache {
 						while (!Thread.interrupted() && (bytesRead = in.read(buffer)) > 0) {
 							out.write(buffer, 0, bytesRead);
 							current += bytesRead;
-							mLoadProgress = size == 0 ? 30 : (int) (100 * current / size);
+							mLoadProgress = size == 0 ? 30 : (int) (1000 * current / size);
 						}
-						mLoadProgress = 100;
+						mLoadProgress = 1000;
 						values.clear();
 						values.put("size", size);
 						mDb.update(ImageCacheProvider.PROVIDER_URI, values, "_id=?", new String[]{id});

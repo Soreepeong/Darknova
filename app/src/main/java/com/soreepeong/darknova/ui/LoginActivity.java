@@ -1,6 +1,5 @@
 package com.soreepeong.darknova.ui;
 
-import android.accounts.Account;
 import android.accounts.AccountAuthenticatorActivity;
 import android.accounts.AccountManager;
 import android.content.Intent;
@@ -47,8 +46,6 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 	}
 
 	private void addAccount() {
-		final Account account = new Account(mTwitter.getScreenName(), getString(R.string.account_type));
-		final AccountManager am = AccountManager.get(this);
 		final Bundle info = new Bundle();
 		final Bundle accData = new Bundle();
 		final Intent res = new Intent();
@@ -61,13 +58,7 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 		accData.putString(AccountManager.KEY_ACCOUNT_NAME, mTwitter.getScreenName());
 		accData.putString(AccountManager.KEY_ACCOUNT_TYPE, getString(R.string.account_type));
 		accData.putBundle(AccountManager.KEY_USERDATA, info);
-		am.addAccountExplicitly(account, null, info);
-		am.setUserData(account, "user_id", Long.toString(mTwitter.getUserId()));
-		am.setUserData(account, "screen_name", mTwitter.getScreenName());
-		am.setUserData(account, "oauth_token", mTwitter.getAuth().getToken());
-		am.setUserData(account, "oauth_token_secret", mTwitter.getAuth().getSecretToken());
-		am.setUserData(account, "consumer_key", mTwitter.getAuth().getApiKey());
-		am.setUserData(account, "consumer_key_secret", mTwitter.getAuth().getSecretApiKey());
+		TwitterEngine.addAccount(mTwitter);
 		res.putExtras(accData);
 		setAccountAuthenticatorResult(accData);
 		setResult(RESULT_OK, res);

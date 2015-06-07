@@ -315,6 +315,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 					savePages();
 				}
 				broadcastPageChange();
+				return p;
 			}
 			return null;
 		}

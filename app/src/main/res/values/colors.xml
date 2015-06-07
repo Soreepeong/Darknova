@@ -9,6 +9,8 @@
 		http://www.google.com/design/spec/style/color.html#color-ui-color-palette
 	-->
 
-	<drawable name="pressed_gray">#0c000000</drawable>
-	<drawable name="selected_gray">#80000000</drawable>
+	<drawable name="pressed_gray">#50000000</drawable>
+	<drawable name="selected_gray">#A0000000</drawable>
+	<drawable name="colorPrimary">#673AB7</drawable>
+	<!-- 500 -->
 </resources>

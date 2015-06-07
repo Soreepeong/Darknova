@@ -5,6 +5,8 @@ import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
@@ -17,14 +19,15 @@ import android.view.animation.Interpolator;
  */
 public class WaveProgressDrawable extends Drawable {
 	protected static final int MAX_PERCENTAGE = 10000;
+	protected static final int MAX_IN_PERCENTAGE = 1000;
 	protected static final int CHANGE_TIME = 300;
 	protected static final Interpolator mInterpolator = new DecelerateInterpolator();
-	final Path mClippedPath = new Path();
 	final Rect mBounds = new Rect();
 	final RectF mBoundF = new RectF();
 	final Rect mBitmapBounds = new Rect();
 	final Paint mFillPaint = new Paint();
 	final Paint mBackgroundPaint = new Paint();
+	final Paint mClipMaskPaint = new Paint();
 	protected int mProgress;
 	protected long mProgressChangeTimeTarget;
 	protected int mTargetProgress;
@@ -43,6 +46,8 @@ public class WaveProgressDrawable extends Drawable {
 		mFillPaint.setARGB(255, 255, 255, 255);
 		mFillPaint.setDither(true);
 		mFillPaint.setFilterBitmap(true);
+		mFillPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OVER));
+		mClipMaskPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 		mBackgroundPaint.setARGB(255, 0, 0, 0);
 		mLoopWidth = 0.5f;
 		mPower = 2.1f;
@@ -66,7 +71,7 @@ public class WaveProgressDrawable extends Drawable {
 		long now = System.currentTimeMillis();
 		if (now < mProgressChangeTimeTarget)
 			mProgress += (int) ((getPercentage() - mProgress) * mInterpolator.getInterpolation(1 - (float) (mProgressChangeTimeTarget - now) / CHANGE_TIME));
-		mTargetProgress = percentage * MAX_PERCENTAGE / 100;
+		mTargetProgress = percentage * MAX_PERCENTAGE / MAX_IN_PERCENTAGE;
 		mProgressChangeTimeTarget = now + CHANGE_TIME;
 		invalidateSelf();
 	}
@@ -76,7 +81,7 @@ public class WaveProgressDrawable extends Drawable {
 		int waveHeight = (int) (mBounds.height() * mWaveHeight);
 		if (mWaveBitmap != null && mWaveBitmap.getWidth() == mBounds.width() + waveLoopWidth && mWaveBitmap.getHeight() == waveHeight)
 			return;
-		mWaveBitmap = Bitmap.createBitmap(mBounds.width() + waveLoopWidth, waveHeight, Bitmap.Config.ALPHA_8);
+		mWaveBitmap = Bitmap.createBitmap(mBounds.width() + waveLoopWidth, waveHeight, Bitmap.Config.ARGB_8888);
 		Path p = new Path();
 		p.moveTo(0, waveHeight);
 		p.lineTo(mWaveBitmap.getWidth(), waveHeight);
@@ -105,18 +110,19 @@ public class WaveProgressDrawable extends Drawable {
 			canvas.drawRect(mBounds, mBackgroundPaint);
 		if (mProgress == MAX_PERCENTAGE && targetProgress == MAX_PERCENTAGE) {
 			mFillPaint.setAlpha((int) (255 * (1 - Math.pow(1 - mAlpha / 255., 2))));
-			if (mClipOval)
-				canvas.drawOval(mBoundF, mFillPaint);
-			else
-				canvas.drawRect(mBounds, mFillPaint);
+			if (mClipOval) {
+				canvas.drawOval(mBoundF, mClipMaskPaint);
+			} else
+				canvas.drawRect(mBounds, mClipMaskPaint);
+			canvas.drawRect(mBounds, mFillPaint);
 		} else {
 			long now = System.currentTimeMillis();
 			canvas.save();
 			canvas.clipRect(mBounds.left, mBounds.top, mBounds.right, mBounds.bottom);
 			if (mClipOval) {
-				mClippedPath.rewind();
-				mClippedPath.addOval(mBoundF, Path.Direction.CCW);
-			}
+				canvas.drawOval(mBoundF, mClipMaskPaint);
+			} else
+				canvas.drawRect(mBounds, mClipMaskPaint);
 
 			int renderProgress;
 			if (now > mProgressChangeTimeTarget)
@@ -137,36 +143,14 @@ public class WaveProgressDrawable extends Drawable {
 			prepareBitmap();
 			mBitmapBounds.bottom = (mBitmapBounds.top = mBounds.bottom - wavePosition - waveHeight / 2 + dsin) + waveHeight;
 			mBitmapBounds.right = (mBitmapBounds.left = mBounds.left - waveDx) + mWaveBitmap.getWidth();
-			if (mClipOval) {
-				canvas.save();
-				canvas.clipPath(mClippedPath);
-				canvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
-				canvas.restore();
-				canvas.save();
-				canvas.clipRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom);
-				canvas.drawOval(mBoundF, mFillPaint);
-				canvas.restore();
-			} else {
-				canvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
-				canvas.drawRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom, mFillPaint);
-			}
+			canvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
+			canvas.drawRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom, mFillPaint);
 
 			mBitmapBounds.bottom = (mBitmapBounds.top = mBounds.bottom - wavePosition - waveHeight / 2 + dcos) + waveHeight;
 			mBitmapBounds.left = (mBitmapBounds.right = mBounds.right + (waveDx * 2) % (waveLoopWidth * 2)) - mWaveBitmap.getWidth();
-			if (mClipOval) {
-				canvas.save();
-				canvas.clipPath(mClippedPath);
-				canvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
-				canvas.restore();
-				canvas.save();
-				canvas.clipRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom);
-				canvas.drawOval(mBoundF, mFillPaint);
-				canvas.restore();
-			} else {
-				canvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
-				canvas.drawRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom, mFillPaint);
-			}
-			canvas.restore();
+			canvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
+			canvas.drawRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom, mFillPaint);
+
 			if (getCallback() instanceof View)
 				((View) getCallback()).postInvalidateDelayed(30);
 		}
