@@ -11,70 +11,64 @@
 		android:layout_height="match_parent"
 		android:fitsSystemWindows="true">
 
-		<FrameLayout
+		<com.soreepeong.darknova.ui.dragaction.DragInitiatorToolbar
+			android:id="@+id/toolbar"
+			style="@style/ToolBarStyle"
 			android:layout_width="match_parent"
-			android:layout_height="match_parent">
+			android:layout_height="?attr/actionBarSize"
+			android:background="@drawable/actionbar_bg"
+			android:elevation="@dimen/fab_elevation"
+			app:action_on_leave="true"
+			app:action_type="@+id/drag_action_type_actionbar"
+			app:layout_scrollFlags="scroll|enterAlways"/>
 
-			<android.support.v4.view.ViewPager
-				android:id="@+id/pager"
-				android:layout_width="match_parent"
-				android:layout_height="match_parent"/>
+		<android.support.v4.view.ViewPager
+			android:id="@+id/pager"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
 
-			<com.melnykov.fab.FloatingActionButton
-				android:id="@+id/new_tweet_opener"
-				android:layout_width="wrap_content"
-				android:layout_height="wrap_content"
-				android:layout_gravity="end|bottom"
-				android:layout_margin="16dp"
-				android:elevation="@dimen/fab_elevation_lollipop"
-				android:src="?attr/ic_content_create"
-				app:fab_colorNormal="?attr/fab_colorNormal"
-				app:fab_colorPressed="?attr/fab_colorPressed"
-				app:fab_colorRipple="?attr/fab_colorRipple"
-				app:fab_type="normal"
-				/>
+		<android.support.design.widget.FloatingActionButton
+			android:id="@+id/new_tweet_opener"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="end|bottom"
+			android:layout_margin="16dp"
+			android:elevation="@dimen/fab_elevation"
+			android:src="?attr/ic_content_create"
+			/>
 
-			<fragment
-				android:id="@+id/fragment_new_tweet"
-				android:name="com.soreepeong.darknova.ui.fragments.TemplateTweetEditorFragment"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:layout_gravity="bottom"/>
-
-		</FrameLayout>
+		<fragment
+			android:id="@+id/fragment_new_tweet"
+			android:name="com.soreepeong.darknova.ui.fragments.TemplateTweetEditorFragment"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_gravity="bottom"/>
 
 		<fragment
 			android:id="@+id/fragment_search_suggestions"
 			android:name="com.soreepeong.darknova.ui.fragments.SearchSuggestionFragment"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:layout_marginTop="@dimen/abc_action_bar_default_height_material"
-			android:elevation="@dimen/fab_elevation_lollipop"/>
+			android:layout_marginTop="?actionBarSize"
+			android:elevation="@dimen/fab_elevation"/>
 
-		<com.soreepeong.darknova.ui.dragaction.DragInitiatorToolbar
-				android:id="@+id/toolbar_actionbar"
-				style="@style/ToolBarStyle"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:background="@drawable/actionbar_bg"
-				android:elevation="@dimen/fab_elevation_lollipop"
-				android:minHeight="@dimen/abc_action_bar_default_height_material"
-				app:action_on_leave="true"
-				app:action_type="@+id/drag_action_type_actionbar"/>
 		<com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectFrameLayout
 			android:id="@+id/drag_action_type_actionbar"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:layout_marginTop="@dimen/abc_action_bar_default_height_material"
+			android:layout_marginTop="?actionBarSize"
 			android:background="#C0000000"
 			android:clickable="true"
 			android:elevation="9dp">
-			<Button android:id="@+id/drag_action_open_drawer"
-					android:layout_width="fill_parent"
-					android:layout_height="192dp"
-					android:background="?selectableItemBackground"
-					android:text="@string/drawer_open"
-					/>
+
+			<Button
+				android:id="@+id/drag_action_open_drawer"
+				android:layout_width="fill_parent"
+				android:layout_height="192dp"
+				android:background="?selectableItemBackground"
+				android:text="@string/drawer_open"
+				/>
 		</com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectFrameLayout>
 	</com.soreepeong.darknova.ui.dragaction.DragParentFrameLayout>
 	<!-- The navigation drawer -->
@@ -86,7 +80,7 @@
 		android:background="?android:attr/windowBackground"
 		android:elevation="10dp"
 		android:fitsSystemWindows="true"
-		app:insetForeground="#4000">
+		app:scrimInsetForeground="#4000">
 
 		<fragment
 			android:id="@+id/fragment_drawer"

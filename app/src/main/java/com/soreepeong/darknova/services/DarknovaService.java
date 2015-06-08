@@ -39,6 +39,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Created by Soreepeong on 2015-04-28.
@@ -592,6 +593,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				return new ActivityNotification[size];
 			}
 		};
+		private static final Pattern SPACE_UNDUPLICATOR = Pattern.compile("\\s+");
 		private static final int NEW_TWEET = 0;
 		private static final int NEW_MENTION = 1;
 		private static final int NEW_DM = 2;
@@ -631,7 +633,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 		public String toString(Context context) {
 			switch (mNotificationType) {
 				case NEW_MENTION:
-					return StringTools.fillStringResFormat(context, R.string.notification_new_mention_description, "user", "@" + mSourceUser.screen_name, "text", mTarget.text);
+					return StringTools.fillStringResFormat(context, R.string.notification_new_mention_description, "user", "@" + mSourceUser.screen_name, "text", SPACE_UNDUPLICATOR.matcher(mTarget.text).replaceAll(" "));
 			}
 			return "unknown notification";
 		}
@@ -666,7 +668,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 			switch (mNotificationType) {
 				case NEW_MENTION: {
 					NotificationCompat.BigTextStyle bigStyle = new NotificationCompat.BigTextStyle(builder);
-					bigStyle.bigText(mTarget.text);
+					bigStyle.bigText(SPACE_UNDUPLICATOR.matcher(mTarget.text).replaceAll(" "));
 					bigStyle.setSummaryText(StringTools.fillStringResFormat(context, R.string.notification_new_mention_big_summary, "user_id", mSourceUser.screen_name, "user_name", mSourceUser.name));
 					bigStyle.setBigContentTitle(context.getString(R.string.notification_new_mention));
 					return bigStyle;

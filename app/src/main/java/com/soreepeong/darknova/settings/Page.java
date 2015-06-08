@@ -63,7 +63,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	public TimelineFragment mConnectedFragment;
 	public boolean mIsListAtTop;
 	public int mPageLastItemPosition, mPageLastOffset;
-	public long mPageLastItemId;
+	public long mPageLastItemId, mPageNewestSeenItemId;
 	private Thread mList_holdRemover;
 
 	protected Page(String name, int iconResId, List<Element> elements, Page parentPage) {

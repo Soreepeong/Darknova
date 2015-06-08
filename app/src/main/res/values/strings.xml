@@ -80,6 +80,7 @@
 	<string name="page_empty_refresh">Swipe or click to refresh</string>
 	<string name="page_filter_none">No matching item</string>
 	<string name="page_filter_none_clear">Click to clear filter</string>
+	<string name="page_unread">% unread</string>
 
 	<string name="mediapreview_name">Darknova Previewer</string>
 	<string name="mediapreview_cancel">Stop</string>

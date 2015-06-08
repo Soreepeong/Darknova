@@ -23,7 +23,6 @@ import android.view.animation.AnimationUtils;
 import android.widget.Button;
 import android.widget.Toast;
 
-import com.melnykov.fab.FloatingActionButton;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.services.DarknovaService;
 import com.soreepeong.darknova.settings.Page;
@@ -55,7 +54,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	private SearchSuggestionFragment mSuggestionFragment;
 	private Toolbar mToolbar;
 	private ActionBar mActionBar;
-	private FloatingActionButton mNewTweetOpener;
+	private View mNewTweetOpener;
 	private int mLastViewPagerPage;
 	private Button mViewOpenDrawerDragTargetButton;
 
@@ -72,8 +71,8 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		startService(new Intent(this, DarknovaService.class));
 		setContentView(R.layout.activity_main);
 
-		mNewTweetOpener = (FloatingActionButton) findViewById(R.id.new_tweet_opener);
-		mToolbar = (Toolbar) findViewById(R.id.toolbar_actionbar);
+		mNewTweetOpener = findViewById(R.id.new_tweet_opener);
+		mToolbar = (Toolbar) findViewById(R.id.toolbar);
 		mViewOpenDrawerDragTargetButton = (Button) findViewById(R.id.drag_action_open_drawer);
 
 		setSupportActionBar(mToolbar);
@@ -86,7 +85,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		mPagerAdapter = new TimelineFragmentPagerAdapter(getSupportFragmentManager());
 		mPager = (ViewPager) findViewById(R.id.pager);
 		mPager.setAdapter(mPagerAdapter);
-		mPager.setOnPageChangeListener(this);
+		mPager.addOnPageChangeListener(this);
 		mPager.setOffscreenPageLimit(6);
 
 		mNavigationDrawerFragment = (NavigationDrawerFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_drawer);
@@ -103,14 +102,14 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		else
 			TwitterStreamServiceReceiver.init(this);
 
-
 		Page.addOnPageChangedListener(this);
-		Page.broadcastPageChange();
 
 		handleIntent(getIntent());
 
 		if (TwitterEngine.getAll().isEmpty())
 			AccountManager.get(this).addAccount(getString(R.string.account_type), "default", null, null, this, null, null);
+
+
 	}
 
 	@Override
@@ -249,6 +248,19 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 			super.onBackPressed();
 	}
 
+	@Override
+	public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+		if (getFragmentAt(position) != null)
+			getFragmentAt(position).loadBackground();
+		if (positionOffset > 0)
+			if (getFragmentAt(position + 1) != null)
+				getFragmentAt(position + 1).loadBackground();
+	}
+
+	public void selectPage(int index) {
+		onPageSelected(index);
+	}
+
 	public void showActionBar() {
 		if (mToolbar.getVisibility() == View.VISIBLE) return;
 		mTemplateTweetEditorFragment.showWithActionBar();
@@ -268,19 +280,6 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		for (Page p : Page.getList())
 			if (p.mConnectedFragment != null)
 				p.mConnectedFragment.onActionBarHidden();
-	}
-
-	@Override
-	public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-		if (getFragmentAt(position) != null)
-			getFragmentAt(position).loadBackground();
-		if (positionOffset > 0)
-			if (getFragmentAt(position + 1) != null)
-				getFragmentAt(position + 1).loadBackground();
-	}
-
-	public void selectPage(int index) {
-		onPageSelected(index);
 	}
 
 	@Override
@@ -307,7 +306,6 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	public void onPageScrollStateChanged(int state) {
 		if (state == ViewPager.SCROLL_STATE_DRAGGING) {
 			showActionBar();
-
 		}
 	}
 

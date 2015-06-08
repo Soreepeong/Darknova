@@ -107,8 +107,6 @@ public class DragInitiatorToolbar extends Toolbar{
 
 	@Override
 	public boolean dispatchTouchEvent(MotionEvent event) {
-		if(!isEnabled() || getVisibility() != View.VISIBLE)
-			return false;
 		if(event.getActionMasked() == MotionEvent.ACTION_DOWN){
 			boolean mIsTitleBar = true; // Hack Warning
 			for(int i = getChildCount() - 1; mIsTitleBar && i >=0; i--){

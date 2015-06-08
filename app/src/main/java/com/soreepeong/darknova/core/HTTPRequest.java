@@ -420,7 +420,7 @@ public class HTTPRequest {
 
 		public HeaderInspectResult(PushbackInputStream in) throws IOException {
 			final byte buffer[] = new byte[MAX_HEADER_SIZE];
-			int read;
+			int read = 0;
 			int search = 0;
 			int position = 0;
 			while (!Thread.interrupted() && -1 != (read = in.read(buffer, position, buffer.length - position))) {
@@ -431,6 +431,8 @@ public class HTTPRequest {
 					throw new IOException("Header not received");
 				search = Math.max(0, position - HTTP_HEADER_SEPARATOR.length + 1);
 			}
+			if (read == 0 || Thread.interrupted())
+				throw new IOException("Operation cancelled");
 			in.unread(buffer, search + HTTP_HEADER_SEPARATOR.length, position - search - HTTP_HEADER_SEPARATOR.length);
 			mRawHeader = new String(buffer, 0, search);
 			for (String s : mRawHeader.split("\r\n")) {

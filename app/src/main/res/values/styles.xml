@@ -4,10 +4,9 @@
     <style name="AppBaseTheme" parent="WithIcon.NoActionBar">
 		<item name="colorPrimary">#673AB7</item> <!-- 500 -->
 		<item name="colorPrimaryDark">#512DA8</item> <!-- 700 -->
+		<item name="colorPrimaryTransparent">#C0673AB7</item>
+		<!-- 700 -->
 		<item name="colorAccent">#69F0AE</item> <!-- A200 -->
-		<item name="fab_colorRipple">#b388ff</item> <!-- A100 -->
-		<item name="fab_colorPressed">#7c4dff</item> <!-- A200 -->
-		<item name="fab_colorNormal">#651fff</item> <!-- A400 -->
 		<item name="drawerArrowStyle">@style/DrawerArrowStyle</item>
 		<item name="new_tweet_bg">#A0000000</item>
     </style>

@@ -2,6 +2,7 @@ package com.soreepeong.darknova.drawable;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -10,7 +11,6 @@ import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
-import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 
@@ -28,6 +28,7 @@ public class WaveProgressDrawable extends Drawable {
 	final Paint mFillPaint = new Paint();
 	final Paint mBackgroundPaint = new Paint();
 	final Paint mClipMaskPaint = new Paint();
+	final Paint mFinalPaint = new Paint();
 	protected int mProgress;
 	protected long mProgressChangeTimeTarget;
 	protected int mTargetProgress;
@@ -40,15 +41,18 @@ public class WaveProgressDrawable extends Drawable {
 	int mDuplicateDeltaPeriod;
 	boolean mClipOval;
 	Bitmap mWaveBitmap;
+	Bitmap mBackBufferBitmap;
+	Canvas mBackBufferCanvas;
 
 	public WaveProgressDrawable() {
 		mFillPaint.setAntiAlias(true);
-		mFillPaint.setARGB(255, 255, 255, 255);
+		mFillPaint.setColor(-1);
 		mFillPaint.setDither(true);
 		mFillPaint.setFilterBitmap(true);
 		mFillPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OVER));
 		mClipMaskPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 		mBackgroundPaint.setARGB(255, 0, 0, 0);
+		mBackgroundPaint.setAntiAlias(true);
 		mLoopWidth = 0.5f;
 		mPower = 2.1f;
 		mWaveHeightPeriod = 1200;
@@ -98,39 +102,42 @@ public class WaveProgressDrawable extends Drawable {
 		c.drawPath(p, mPathDrawer);
 	}
 
+	private void prepareBufferBitmap() {
+		if (mBackBufferBitmap != null && mBackBufferBitmap.getHeight() == mBounds.height() && mBackBufferBitmap.getWidth() == mBounds.width())
+			return;
+		mBackBufferBitmap = Bitmap.createBitmap(mBounds.width(), mBounds.height(), Bitmap.Config.ARGB_8888);
+		mBackBufferCanvas = new Canvas(mBackBufferBitmap);
+	}
+
 	@Override
 	public void draw(Canvas canvas) {
-		if (mBounds == null)
+		if (mBounds == null || mBounds.width() == 0 || mBounds.height() == 0)
 			return;
 		int targetProgress = getPercentage();
-		mBackgroundPaint.setAlpha(mAlpha);
-		if (mClipOval)
-			canvas.drawOval(mBoundF, mBackgroundPaint);
-		else
-			canvas.drawRect(mBounds, mBackgroundPaint);
-		if (mProgress == MAX_PERCENTAGE && targetProgress == MAX_PERCENTAGE) {
-			mFillPaint.setAlpha((int) (255 * (1 - Math.pow(1 - mAlpha / 255., 2))));
-			if (mClipOval) {
-				canvas.drawOval(mBoundF, mClipMaskPaint);
-			} else
-				canvas.drawRect(mBounds, mClipMaskPaint);
-			canvas.drawRect(mBounds, mFillPaint);
+		long now = System.currentTimeMillis();
+		prepareBitmap();
+		prepareBufferBitmap();
+		mBackBufferCanvas.save();
+		mBackBufferCanvas.translate(-mBounds.left, -mBounds.top);
+		if (mClipOval) {
+			mBackBufferBitmap.eraseColor(Color.TRANSPARENT);
+			mBackBufferCanvas.drawOval(mBoundF, mBackgroundPaint);
+			mBackBufferCanvas.drawOval(mBoundF, mClipMaskPaint);
 		} else {
-			long now = System.currentTimeMillis();
-			canvas.save();
-			canvas.clipRect(mBounds.left, mBounds.top, mBounds.right, mBounds.bottom);
-			if (mClipOval) {
-				canvas.drawOval(mBoundF, mClipMaskPaint);
-			} else
-				canvas.drawRect(mBounds, mClipMaskPaint);
-
+			mBackBufferCanvas.drawRect(mBounds, mBackgroundPaint);
+			mBackBufferCanvas.drawRect(mBounds, mClipMaskPaint);
+		}
+		if (mProgress == MAX_PERCENTAGE && targetProgress == MAX_PERCENTAGE) {
+			mFillPaint.setAlpha(255);
+			mBackBufferCanvas.drawRect(mBounds, mFillPaint);
+		} else {
 			int renderProgress;
 			if (now > mProgressChangeTimeTarget)
 				renderProgress = mProgress = targetProgress;
 			else
 				renderProgress = mProgress + (int) ((targetProgress - mProgress) * mInterpolator.getInterpolation(1 - (float) (mProgressChangeTimeTarget - now) / CHANGE_TIME));
 
-			mFillPaint.setAlpha((int) (mAlpha * (0.2f + 0.8f * renderProgress / MAX_PERCENTAGE)));
+			mFillPaint.setAlpha((int) (255 * (0.2f + 0.8f * renderProgress / MAX_PERCENTAGE)));
 			float maxWaveHeight = renderProgress > MAX_PERCENTAGE - mWaveHeight * MAX_PERCENTAGE ? (MAX_PERCENTAGE - renderProgress) / (float) MAX_PERCENTAGE : mWaveHeight;
 			int wavePosition = (int) (mBounds.height() * maxWaveHeight / 2) + renderProgress * mBounds.height() / MAX_PERCENTAGE;
 			int waveHeight = (int) (mBounds.height() * maxWaveHeight * (0.4 + 0.6 * (1 - Math.pow(Math.abs(mWaveHeightPeriod / 2 - now % mWaveHeightPeriod) * 2. / mWaveHeightPeriod, mPower))));
@@ -140,20 +147,21 @@ public class WaveProgressDrawable extends Drawable {
 			int dsin = (int) (waveHeight / 2. * Math.sin(delta));
 			int dcos = (int) (waveHeight / 2. * Math.cos(delta));
 
-			prepareBitmap();
 			mBitmapBounds.bottom = (mBitmapBounds.top = mBounds.bottom - wavePosition - waveHeight / 2 + dsin) + waveHeight;
 			mBitmapBounds.right = (mBitmapBounds.left = mBounds.left - waveDx) + mWaveBitmap.getWidth();
-			canvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
-			canvas.drawRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom, mFillPaint);
+			mBackBufferCanvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
+			mBackBufferCanvas.drawRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom, mFillPaint);
 
 			mBitmapBounds.bottom = (mBitmapBounds.top = mBounds.bottom - wavePosition - waveHeight / 2 + dcos) + waveHeight;
 			mBitmapBounds.left = (mBitmapBounds.right = mBounds.right + (waveDx * 2) % (waveLoopWidth * 2)) - mWaveBitmap.getWidth();
-			canvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
-			canvas.drawRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom, mFillPaint);
+			mBackBufferCanvas.drawBitmap(mWaveBitmap, null, mBitmapBounds, mFillPaint);
+			mBackBufferCanvas.drawRect(mBounds.left, mBitmapBounds.bottom, mBounds.right, mBounds.bottom, mFillPaint);
 
-			if (getCallback() instanceof View)
-				((View) getCallback()).postInvalidateDelayed(30);
+			invalidateSelf();
 		}
+		mBackBufferCanvas.restore();
+		mFinalPaint.setAlpha(mAlpha);
+		canvas.drawBitmap(mBackBufferBitmap, mBounds.left, mBounds.top, mFinalPaint);
 	}
 
 	@Override
