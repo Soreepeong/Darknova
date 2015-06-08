@@ -30,6 +30,7 @@ import android.view.animation.AlphaAnimation;
 import android.widget.ImageView;
 
 import com.soreepeong.darknova.R;
+import com.soreepeong.darknova.drawable.ClippedBitmapDrawable;
 import com.soreepeong.darknova.drawable.WaveProgressDrawable;
 import com.soreepeong.darknova.services.ImageCacheProvider;
 import com.soreepeong.darknova.tools.StreamTools;
@@ -73,11 +74,11 @@ public class ImageCache {
 	public final OnDrawablePreprocessListener CIRCULAR_IMAGE_PREPROCESSOR = new OnDrawablePreprocessListener() {
 		@Override
 		public Drawable onDrawablePreprocess(Drawable drawable) {
-			if (drawable instanceof BitmapDrawable)
-				return new RoundBitmapDrawable(mResources, (BitmapDrawable) drawable);
-			else if (drawable instanceof WaveProgressDrawable) {
-				((WaveProgressDrawable) drawable).setOval(true);
-			}
+			if (drawable instanceof BitmapDrawable) {
+				drawable = new ClippedBitmapDrawable(mResources, (BitmapDrawable) drawable);
+				((ClippedBitmapDrawable) drawable).clip(ClippedBitmapDrawable.CLIP_TYPE_OVAL, 0, null);
+			} else if (drawable instanceof WaveProgressDrawable)
+				((WaveProgressDrawable) drawable).clip(WaveProgressDrawable.CLIP_TYPE_OVAL, 0, null);
 			return drawable;
 		}
 	};
@@ -561,17 +562,16 @@ public class ImageCache {
 		}
 	}
 
-	public static class AutoApplyingDrawable extends Drawable implements Runnable {
+	public static class AutoApplyingDrawable extends WaveProgressDrawable {
 		int mWidth, mHeight;
 		Drawable mDrawable;
 		String mUrl;
-		int mAlpha;
 		ColorFilter mCf;
 		boolean mFilterBitmap, mDither;
 		long mAnimationEndTime = 0;
 
 		protected AutoApplyingDrawable() {
-			mAlpha = 255;
+			setAlpha(255);
 			mDither = true;
 			mFilterBitmap = true;
 		}
@@ -628,22 +628,28 @@ public class ImageCache {
 		@Override
 		public void draw(Canvas canvas) {
 			if (mDrawable != null) {
+				long now = System.currentTimeMillis();
+				int myAlpha = getOpacity();
 				int prevAlpha = mDrawable.getOpacity();
 				Rect prevBounds = mDrawable.getBounds();
+				mDrawable.setBounds(getBounds());
+				if (mAnimationEndTime < now) {
+					mDrawable.setAlpha(myAlpha);
+				} else {
+					float interpolation = Math.max(0, 1 - (float) (mAnimationEndTime - now) / REVEAL_ANIMATION_LENGTH);
+					if (interpolation > 1) {
+						interpolation = 1;
+					} else
+						invalidateSelf();
+					interpolation = REVEAL_ANIMATION_INTERPOLATOR.getInterpolation(interpolation);
 
-				float state = mAnimationEndTime - System.currentTimeMillis();
-				state = 1 - (state / REVEAL_ANIMATION_LENGTH);
-				if (state < 0) state = 0;
-				if (state > 1) {
-					state = 1;
-				} else
-					mMainThreadHandler.post(this);
-				mDrawable.setAlpha((int) (mAlpha * REVEAL_ANIMATION_INTERPOLATOR.getInterpolation(state)));
-				Rect r = getBounds();
-				refineRect(r, mDrawable.getIntrinsicWidth(), mDrawable.getIntrinsicHeight());
-				mDrawable.setBounds(r);
+					super.setAlpha((int) (myAlpha * (1 - interpolation)));
+					super.draw(canvas);
+					super.setAlpha(myAlpha);
+
+					mDrawable.setAlpha((int) (myAlpha * interpolation));
+				}
 				mDrawable.draw(canvas);
-
 				mDrawable.setAlpha(prevAlpha);
 				mDrawable.setBounds(prevBounds);
 			}
@@ -651,7 +657,6 @@ public class ImageCache {
 
 		@Override
 		public void setAlpha(int alpha) {
-			mAlpha = alpha;
 			if (mDrawable != null)
 				mDrawable.setAlpha(alpha);
 		}
@@ -663,14 +668,8 @@ public class ImageCache {
 				mDrawable.setColorFilter(cf);
 		}
 
-		@Override
-		public int getOpacity() {
-			return mAlpha;
-		}
-
 		protected void applyDrawable(Drawable bmp) {
 			mDrawable = bmp;
-			mDrawable.setAlpha(mAlpha);
 			mDrawable.setDither(mDither);
 			mDrawable.setFilterBitmap(mFilterBitmap);
 			if (mCf != null)
@@ -679,10 +678,6 @@ public class ImageCache {
 			invalidateSelf();
 		}
 
-		@Override
-		public void run() {
-			invalidateSelf();
-		}
 	}
 
 	private static class ImageLoadDrawable extends WaveProgressDrawable {
@@ -692,14 +687,14 @@ public class ImageCache {
 		ImageView replaceTarget;
 		long mReplaceEndTime;
 
-		ImageLoadDrawable(ImageLoader loader) {
+		protected ImageLoadDrawable(ImageLoader loader) {
 			mLoader = loader;
 			setAlpha(50);
 		}
 
 		@Override
 		public int getPercentage() {
-			int p = mLoader.mLoadProgress * MAX_PERCENTAGE / MAX_IN_PERCENTAGE;
+			int p = replacing ? MAX_PERCENTAGE : mLoader.mLoadProgress * MAX_PERCENTAGE / MAX_IN_PERCENTAGE;
 			if (mTargetProgress != p) {
 				long now = System.currentTimeMillis();
 				if (now < mProgressChangeTimeTarget)
@@ -713,10 +708,9 @@ public class ImageCache {
 		public void replace(ImageView v, Drawable result) {
 			if (replacing)
 				return;
-			v.setImageDrawable(result);
 			replacing = true;
 			replacement = result;
-			replacingDrawable = result.getConstantState().newDrawable().mutate();
+			replacingDrawable = result;
 			replaceTarget = v;
 			mReplaceEndTime = System.currentTimeMillis() + REVEAL_ANIMATION_LENGTH;
 			v.setImageDrawable(null);
@@ -737,23 +731,28 @@ public class ImageCache {
 		public void draw(Canvas canvas) {
 			if (replacing && replaceTarget != null) {
 				long now = System.currentTimeMillis();
-				if (now > mReplaceEndTime) {
-					replacingDrawable.setAlpha(255);
-					replacingDrawable.setBounds(getBounds());
-					replacingDrawable.draw(canvas);
+				int myAlpha = getOpacity();
+				int prevAlpha = replacingDrawable.getOpacity();
+				Rect prevBounds = replacingDrawable.getBounds();
+				float interpolation = Math.max(0, 1 - (float) (mReplaceEndTime - now) / REVEAL_ANIMATION_LENGTH);
+				if (interpolation > 1) {
+					replacement.setAlpha(255);
 					replaceTarget.setImageDrawable(replacement);
-				} else {
-					float interpolation = 1f - (float) (mReplaceEndTime - now) / REVEAL_ANIMATION_LENGTH;
-					interpolation = mInterpolator.getInterpolation(interpolation);
-					replacingDrawable.setAlpha((int) (255 * interpolation));
-					replacingDrawable.setBounds(getBounds());
-					int oldAlpha = super.getOpacity();
-					super.setAlpha((int) (255 * (1 - interpolation)));
-					super.draw(canvas);
-					super.setAlpha(oldAlpha);
-					replacingDrawable.draw(canvas);
+					replaceTarget.setAlpha(1f);
+					interpolation = 1;
+				} else
 					invalidateSelf();
-				}
+				interpolation = REVEAL_ANIMATION_INTERPOLATOR.getInterpolation(interpolation);
+
+				super.setAlpha((int) (myAlpha * (1 - interpolation)));
+				super.draw(canvas);
+				super.setAlpha(myAlpha);
+
+				replacingDrawable.setAlpha((int) (255 * interpolation));
+				replacingDrawable.setBounds(getBounds());
+				replacingDrawable.draw(canvas);
+				replacingDrawable.setAlpha(prevAlpha);
+				replacingDrawable.setBounds(prevBounds);
 			} else {
 				super.draw(canvas);
 			}
@@ -867,7 +866,7 @@ public class ImageCache {
 		}
 
 		int read() {
-			Bitmap b = null;
+			Bitmap b;
 			try {
 				if (!new File(filePath).exists())
 					return OnImageAvailableListener.UNAVAILABLE_FILESYSTEM_ERROR;

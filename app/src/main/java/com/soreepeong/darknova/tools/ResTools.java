@@ -96,4 +96,19 @@ public class ResTools {
 		v.startAnimation(a);
 		v.setVisibility(hideImmediately ? View.GONE : View.INVISIBLE);
 	}
+
+	/**
+	 * Show view with animation
+	 *
+	 * @param ctx   Context
+	 * @param v     View to hide
+	 * @param resId Hide animation
+	 */
+	public static void showWithAnimation(Context ctx, final View v, @AnimRes int resId) {
+		if (v.getVisibility() == View.VISIBLE)
+			return;
+		v.setVisibility(View.VISIBLE);
+		v.startAnimation(AnimationUtils.loadAnimation(ctx, resId));
+		v.clearAnimation();
+	}
 }

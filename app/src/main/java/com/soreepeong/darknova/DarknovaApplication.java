@@ -32,6 +32,8 @@ import java.io.File;
 		mode = ReportingInteractionMode.TOAST,
 		resToastText = R.string.crash_toast_text)
 public class DarknovaApplication extends Application implements Handler.Callback {
+	public static final boolean USE_DEBUG_FEATURES = false;
+
 	private static final int MESSAGE_SHOW_TOAST = 1;
 	public static Context mContext;
 	private static volatile long mRuntimeUniqueIdCounter = 0;

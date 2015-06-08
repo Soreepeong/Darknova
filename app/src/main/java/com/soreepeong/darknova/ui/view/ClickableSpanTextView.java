@@ -1,7 +1,7 @@
 package com.soreepeong.darknova.ui.view;
 
 import android.content.Context;
-import android.graphics.Canvas;
+import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.text.Layout;
 import android.text.Spannable;
@@ -11,18 +11,21 @@ import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.widget.TextView;
 
+import com.soreepeong.darknova.ui.span.SelfInvalidatingSpan;
 import com.soreepeong.darknova.ui.span.TouchableSpan;
-import com.soreepeong.darknova.ui.span.UserImageSpan;
+
+import java.util.ArrayList;
 
 /**
  * http://stackoverflow.com/questions/8558732/listview-textview-with-linkmovementmethod-makes-list-item-unclickable
  */
 
-public class ClickableSpanTextView extends TextView {
+public class ClickableSpanTextView extends TextView implements SelfInvalidatingSpan.Callback {
 
+	private final ArrayList<SelfInvalidatingSpan> mInvalidatingSpans = new ArrayList<>();
 	private TouchableSpan mSpanTouchStart;
 	private boolean mLongClicked;
-	private final GestureDetector gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
+	private final GestureDetector mGestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
 		@Override
 		public void onLongPress(MotionEvent e) {
 			if (mSpanTouchStart != null)
@@ -54,19 +57,15 @@ public class ClickableSpanTextView extends TextView {
 	}
 
 	@Override
-	protected void onDraw(@NonNull Canvas canvas) {
-		if (getText() instanceof Spannable) {
-			Spannable sp = (Spannable) getText();
-			for (UserImageSpan t : sp.getSpans(0, sp.length(), UserImageSpan.class))
-				if (t.isPreparing())
-					postInvalidateDelayed(500);
-		}
-		super.onDraw(canvas);
-	}
-
-	@Override
-	public void setText(CharSequence text, BufferType type) {
-		super.setText(text, type);
+	protected void onTextChanged(CharSequence text, int start, int lengthBefore, int lengthAfter) {
+		if (mInvalidatingSpans == null)
+			return;
+		mInvalidatingSpans.clear();
+		if (text instanceof Spannable)
+			for (SelfInvalidatingSpan span : ((Spannable) text).getSpans(0, lengthAfter, SelfInvalidatingSpan.class)) {
+				span.setCallback(this);
+				mInvalidatingSpans.add(span);
+			}
 	}
 
 	@Override
@@ -78,7 +77,7 @@ public class ClickableSpanTextView extends TextView {
 				if (spanBelow != null) {
 					spanBelow.onTouch(this, event);
 					mLongClicked = false;
-					gestureDetector.onTouchEvent(event);
+					mGestureDetector.onTouchEvent(event);
 					performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
 					return true;
 				}
@@ -87,7 +86,7 @@ public class ClickableSpanTextView extends TextView {
 				if (mLongClicked)
 					return true;
 				if (mSpanTouchStart != null) {
-					gestureDetector.onTouchEvent(event);
+					mGestureDetector.onTouchEvent(event);
 					if (spanBelow != null) {
 						spanBelow.onClick(this);
 						spanBelow.onTouch(this, event);
@@ -100,13 +99,13 @@ public class ClickableSpanTextView extends TextView {
 					event.setAction(MotionEvent.ACTION_CANCEL);
 					mSpanTouchStart.onTouch(this, event);
 					mSpanTouchStart = null;
-					gestureDetector.onTouchEvent(event);
+					mGestureDetector.onTouchEvent(event);
 					return true;
 				}
 				break;
 			case MotionEvent.ACTION_CANCEL:
 				if (mSpanTouchStart != null) {
-					gestureDetector.onTouchEvent(event);
+					mGestureDetector.onTouchEvent(event);
 					mSpanTouchStart.onTouch(this, event);
 					mSpanTouchStart = null;
 				}
@@ -133,5 +132,25 @@ public class ClickableSpanTextView extends TextView {
 		if (link.length == 0)
 			return null;
 		return link[0];
+	}
+
+	@Override
+	public void invalidateSpan(SelfInvalidatingSpan who) {
+		if (mInvalidatingSpans.contains(who))
+			invalidate();
+	}
+
+	@Override
+	public void scheduleSpan(SelfInvalidatingSpan who, Runnable what, long when) {
+		if (mInvalidatingSpans.contains(who)) {
+			final long delay = when - SystemClock.uptimeMillis();
+			postDelayed(what, delay);
+		}
+	}
+
+	@Override
+	public void unscheduleSpan(SelfInvalidatingSpan who, Runnable what) {
+		if (mInvalidatingSpans.contains(who))
+			removeCallbacks(what);
 	}
 }

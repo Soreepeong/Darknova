@@ -27,6 +27,7 @@ import java.util.regex.Pattern;
  */
 public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 	private final Entities.UrlEntity mEntity;
+	@SuppressWarnings("unused")
 	private final Tweet mTweet;
 	private long mExpandStartTime;
 
@@ -55,13 +56,15 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 			else
 				rv = (View) rv.getParent();
 		}
-		if (mEntity._show_expanded || mEntity.expanded_url.equals(mEntity.display_url)) {
-			UrlExpander.expandUrl(mEntity, this, v, (RecyclerView) rv);
-		} else {
+		if (mEntity._expanded_url == null)
+			mEntity._expanded_url = mEntity.expanded_url;
+		mEntity._show_expanded |= mEntity.expanded_url.endsWith(mEntity.display_url);
+		if (!mEntity._show_expanded) {
 			if (rv != null && ((RecyclerView) rv).getAdapter() != null)
 				((RecyclerView) rv).getAdapter().notifyDataSetChanged();
+			mEntity._show_expanded = true;
 		}
-		mEntity._show_expanded = true;
+		UrlExpander.expandUrl(mEntity, this, v, (RecyclerView) rv);
 		return true;
 	}
 
@@ -76,8 +79,6 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 		private static final Pattern TITLE_EXTRACTOR = Pattern.compile("<title(?:\\s[^>]*)?>([^<]*?)</title>", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.DOTALL | Pattern.MULTILINE);
 
 		private static final WeakHashMap<Entities.UrlEntity, UrlExpander> mExpanderMap = new WeakHashMap<>();
-		private static final WeakHashMap<UrlExpander, ArrayList<View>> mViewMap = new WeakHashMap<>();
-		private static final WeakHashMap<UrlExpander, ArrayList<UrlEntitySpan>> mSpanMap = new WeakHashMap<>();
 		private static final Interpolator mFadeOutInterpolator = new DecelerateInterpolator();
 		private static final Interpolator mFadeInInterpolator = new AccelerateInterpolator();
 		private static final int BLINK_DURATION = 600;
@@ -87,6 +88,8 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 		private static final int MESSAGE_UPDATE_COLOR = 1;
 		private static final int MESSAGE_UPDATE_DONE = 2;
 
+		private final ArrayList<View> mViewMap = new ArrayList<>();
+		private final ArrayList<UrlEntitySpan> mSpanMap = new ArrayList<>();
 		private final Entities.UrlEntity mEntity;
 		private final Handler mHandler;
 		private boolean mFinished;
@@ -105,20 +108,19 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 			UrlExpander expander = mExpanderMap.get(entity);
 			if (expander == null) {
 				mExpanderMap.put(entity, expander = new UrlExpander(entity));
-				mViewMap.put(expander, new ArrayList<View>());
-				mSpanMap.put(expander, new ArrayList<UrlEntitySpan>());
 			}
-			mViewMap.get(expander).add(initiator);
-			mViewMap.get(expander).add(list);
-			mSpanMap.get(expander).add(span);
+			expander.mViewMap.add(initiator);
+			expander.mViewMap.add(list);
+			expander.mSpanMap.add(span);
 			span.mExpandStartTime = System.currentTimeMillis();
 		}
 
 		@Override
 		public void run() {
-			HTTPRequest req = HTTPRequest.getRequest(mEntity.expanded_url, null, false, null, false);
+			HTTPRequest req = HTTPRequest.getRequest(mEntity._expanded_url, null, false, null, false);
 			if (req != null)
 				try {
+					req.setMaxRedirects(1);
 					req.submitRequest();
 					Matcher m = TITLE_EXTRACTOR.matcher(req.getWholeData(8192));
 					mEntity._expanded_url = req.getUrl();
@@ -142,7 +144,7 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 		public boolean handleMessage(Message msg) {
 			switch (msg.what) {
 				case MESSAGE_UPDATE_COLOR: {
-					for (UrlEntitySpan span : mSpanMap.get(this)) {
+					for (UrlEntitySpan span : mSpanMap) {
 						span.setAlphaOverride(!mFinished);
 						int alphaLevel = (int) ((System.currentTimeMillis() - span.mExpandStartTime) % BLINK_DURATION);
 						if (alphaLevel >= BLINK_DURATION >> 1) {
@@ -153,20 +155,17 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 						alphaLevel += MIN_ALPHA_LEVEL;
 						span.setAlphaOverrideValue(mFinished ? 255 : alphaLevel);
 					}
-					for (View v : mViewMap.get(this)) {
+					for (View v : mViewMap) {
 						if (!(v instanceof RecyclerView))
 							v.invalidate();
 					}
 					if (!mFinished) {
 						mHandler.sendEmptyMessageDelayed(MESSAGE_UPDATE_COLOR, 50);
-					} else {
-						mSpanMap.remove(this);
-						mViewMap.remove(this);
 					}
 					return true;
 				}
 				case MESSAGE_UPDATE_DONE: {
-					for (View v : mViewMap.get(this)) {
+					for (View v : mViewMap) {
 						if (v instanceof RecyclerView && ((RecyclerView) v).getAdapter() != null)
 							((RecyclerView) v).getAdapter().notifyDataSetChanged();
 					}

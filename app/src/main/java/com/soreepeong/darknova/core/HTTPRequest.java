@@ -53,6 +53,7 @@ public class HTTPRequest {
 	private long mPosted = 0, mPostSize = 0;
 	private InputStream mInputStream;
 	private OutputStream mOutputStream;
+	private int mMaxRedirects = 8;
 
 	private HTTPRequest(OAuth auth, boolean bPost, String sPostData, boolean cancelOffered) throws IOException {
 		if (cancelOffered)
@@ -88,6 +89,10 @@ public class HTTPRequest {
 		}
 	}
 
+	public void setMaxRedirects(int n) {
+		mMaxRedirects = n;
+	}
+
 	private void initHttp(String sUrl) throws IOException {
 		if (!URI_BASIC_PATTERN.matcher(sUrl).matches())
 			sUrl = "http://" + sUrl;
@@ -97,6 +102,7 @@ public class HTTPRequest {
 			mConnection = (HttpURLConnection) new URL(sUrl).openConnection();
 		mConnection.setUseCaches(false);
 		mConnection.setDoInput(true);
+		mConnection.setInstanceFollowRedirects(false);
 		mConnection.setConnectTimeout(30000);
 		mConnection.setReadTimeout(30000);
 		mConnection.setRequestProperty("Connection", "Close");
@@ -118,7 +124,7 @@ public class HTTPRequest {
 	 */
 	public boolean submitRequest() {
 		mRequested = true;
-		int nRedirects = 8;
+		int nRedirects = mMaxRedirects;
 		while (nRedirects-- > 0 && !Thread.interrupted()) {
 			try {
 				for (String sName : mRequestHeaders.keySet())
@@ -142,9 +148,11 @@ public class HTTPRequest {
 				if(Thread.interrupted())
 					return false;
 				if (getStatusCode() / 100 == 3) { // Check if it redirects
-					String sUrl = getUrl();
+					String sUrl = mConnection.getHeaderField("location");
 					mOutputStream = StreamTools.close(mOutputStream);
 					mConnection.disconnect();
+					if (sUrl == null)
+						return false;
 					initHttp(sUrl);
 				} else
 					return true;

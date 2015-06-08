@@ -282,6 +282,10 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 				p.mConnectedFragment.onActionBarHidden();
 	}
 
+	public boolean isActionBarVisible() {
+		return mToolbar.getVisibility() == View.VISIBLE;
+	}
+
 	@Override
 	public void onPageSelected(int position) {
 		mSuggestionFragment.hideAndIconify();

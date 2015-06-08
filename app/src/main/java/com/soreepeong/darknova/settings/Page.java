@@ -153,14 +153,14 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 				}
 				if (mNonTemporaryPageLength > mPages.size())
 					mNonTemporaryPageLength = mPages.size();
-				/* ////////// DEBUG PAGE
-				if(!TwitterEngine.getAll().isEmpty() && (mPages.isEmpty() || mPages.get(0).elements.get(0).function != Element.FUNCTION_DEBUG)){
-					Page.Builder b = new Page.Builder("Debug");
-					b.e().add(new Element(TwitterEngine.getAll().get(0), Element.FUNCTION_DEBUG, 0, null));
-					mPages.add(0, b.build());
-					mNonTemporaryPageLength++;
+				if (DarknovaApplication.USE_DEBUG_FEATURES) {
+					if (!TwitterEngine.getAll().isEmpty() && (mPages.isEmpty() || mPages.get(0).elements.get(0).function != Element.FUNCTION_DEBUG)) {
+						Page.Builder b = new Page.Builder("Debug");
+						b.e().add(new Element(TwitterEngine.getAll().get(0), Element.FUNCTION_DEBUG, 0, null));
+						mPages.add(0, b.build());
+						mNonTemporaryPageLength++;
+					}
 				}
-				//*/
 				for (Page p : oldPages)
 					TwitterStreamServiceReceiver.removeStreamCallback(p);
 				for (Page p : tempPages)

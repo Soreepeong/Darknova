@@ -518,7 +518,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 				}
 			}
 		}
-		if (mImage.mOriginalContentType != null && mImage.mOriginalContentType.toLowerCase().startsWith("video/") && !mLoadOriginalMedia) {
+		if ((mImage.mOriginalContentType != null && mImage.mOriginalContentType.toLowerCase().startsWith("video/") && !mLoadOriginalMedia) || mImage.mResizedUrl == null) {
 			mLoadOriginalMedia = true;
 			mImageLoader = new ImageLoaderTask();
 			mImageLoader.execute(mImage.mOriginalUrl);
