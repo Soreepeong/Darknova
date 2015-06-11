@@ -54,8 +54,9 @@ public class TemplateTweet implements Parcelable {
 	public boolean use_coordinates, autoresolve_coordinates;
 	private boolean mIsPosting;
 
-	public TemplateTweet(ContentResolver resolver, ArrayList<Long> userIdList) {
-		mUserIdList.addAll(userIdList);
+	public TemplateTweet(ContentResolver resolver, List<Long> userIdList) {
+		if (userIdList != null)
+			mUserIdList.addAll(userIdList);
 
 		ContentValues cv = new ContentValues();
 		cv.put("created_at", created_at = System.currentTimeMillis());

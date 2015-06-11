@@ -412,9 +412,10 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		edit.putLong("id", mPage.mPageLastItemId);
 		edit.apply();
 		mHandler.removeCallbacksAndMessages(null);
-		if (mListApplier != null) {
+		Thread listApplier = mListApplier;
+		if (listApplier != null) {
 			synchronized (mPage.mListEditLock) {
-				mListApplier.interrupt();
+				listApplier.interrupt();
 			}
 		}
 		super.onPause();

@@ -35,6 +35,7 @@ import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewStub;
 import android.view.animation.AnimationUtils;
 import android.view.animation.RotateAnimation;
 import android.view.inputmethod.InputMethodManager;
@@ -92,10 +93,9 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	private static final String PREF_LAST_WORKING_TEMPLATE_ID = "last_working_template_id";
 
 	private static final String PREF_EXT_MEDIA_STORAGE = "external_media_storage";
-
-	private SharedPreferences mDefaultPreference;
-
-	private View mViewTemplateTweetEditor;
+	private final HashMap<Tweeter, ToggleButton> mUserMaps = new HashMap<>();
+	private SharedPreferences mDefaultPreference, mEditorPreference;
+	private ViewGroup mViewTemplateTweetEditor;
 	private Button mViewClearBtn;
 	private ImageView mViewLocationBtn, mViewTemplateOptionBtn, mViewTemplateListBtn;
 	private FrameLayout mViewUserSelectBtn;
@@ -106,7 +106,6 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	private ImageCache mImageCache;
 	private OnNewTweetVisibilityChangedListener mListener;
 	private Tweet mInReplyTo;
-	private HashMap<Tweeter, ToggleButton> mUserMaps;
 	private FlowLayout mViewAccount;
 	private View mViewAccountContainer, mViewEditorContainer, mViewLocationContainer, mViewOptionsContainer, mViewToolbarContainer;
 	private RecyclerView mViewAttachList, mViewSelectedUserList, mViewTemplateList, mViewMediaList;
@@ -132,6 +131,8 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 	private File mCurrentPhotoPath;
 
+	private ViewStub mViewStub;
+
 	private File createImageFile() {
 		String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ENGLISH).format(new Date());
 		String imageFileName = "JPEG_" + timeStamp + "_";
@@ -148,59 +149,34 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		mImageCache = ImageCache.getCache(getActivity(), this);
-		mViewTemplateTweetEditor = inflater.inflate(R.layout.fragment_templatetweet, container, false);
+		mDefaultPreference = PreferenceManager.getDefaultSharedPreferences(getActivity());
+		mEditorPreference = getActivity().getSharedPreferences("templatetweeteditorfragment", Context.MODE_MULTI_PROCESS);
+		mViewTemplateTweetEditor = (ViewGroup) inflater.inflate(R.layout.fragment_templatetweet, container, false);
 		mViewWriteBtn = (ImageButton) mViewTemplateTweetEditor.findViewById(R.id.write_btn);
 		mViewClearBtn = (Button) mViewTemplateTweetEditor.findViewById(R.id.clear_btn);
 		mViewUserSelectBtn = (FrameLayout) mViewTemplateTweetEditor.findViewById(R.id.user_select);
 		mViewUserSelectExpander = (ImageView) mViewTemplateTweetEditor.findViewById(R.id.user_select_expander);
 		mViewUserSelectedText = (TextView) mViewTemplateTweetEditor.findViewById(R.id.user_select_text);
 		mViewSelectedUserList = (RecyclerView) mViewTemplateTweetEditor.findViewById(R.id.selected_user_image_list);
-		mViewTemplateList = (RecyclerView) mViewTemplateTweetEditor.findViewById(R.id.list_templates);
+
 		mViewTemplateOptionBtn = (ImageView) mViewTemplateTweetEditor.findViewById(R.id.options);
 		mViewTemplateListBtn = (ImageView) mViewTemplateTweetEditor.findViewById(R.id.template_list);
 		mViewLocationBtn = (ImageView) mViewTemplateTweetEditor.findViewById(R.id.location);
-		mViewLocationContainer = mViewTemplateTweetEditor.findViewById(R.id.template_location);
-		mViewOptionsContainer = mViewTemplateTweetEditor.findViewById(R.id.template_options);
 		mViewAttachList = (RecyclerView) mViewTemplateTweetEditor.findViewById(R.id.attach_list);
 		mViewEditor = (EditText) mViewTemplateTweetEditor.findViewById(R.id.editor);
-		mViewAccount = (FlowLayout) mViewTemplateTweetEditor.findViewById(R.id.account_list);
-		mViewAccountContainer = mViewTemplateTweetEditor.findViewById(R.id.account_list_container);
+
 		mViewEditorContainer = mViewTemplateTweetEditor.findViewById(R.id.editor_container);
-		mViewGeoUse = (CheckBox) mViewTemplateTweetEditor.findViewById(R.id.use_geo);
-		mViewGeoAutoresolve = (CheckBox) mViewTemplateTweetEditor.findViewById(R.id.autoresolve);
-		mViewGeoLatitude = (EditText) mViewTemplateTweetEditor.findViewById(R.id.latitude);
-		mViewGeoLongitude = (EditText) mViewTemplateTweetEditor.findViewById(R.id.longitude);
-		mViewGeoResolve = (Button) mViewTemplateTweetEditor.findViewById(R.id.resolve);
-		mViewGeoPick = (Button) mViewTemplateTweetEditor.findViewById(R.id.pick);
-		mViewTemplateType = (Spinner) mViewTemplateTweetEditor.findViewById(R.id.template_type);
-		mViewEnabled = (CheckBox) mViewTemplateTweetEditor.findViewById(R.id.enabled);
-		mViewRemoveAfter = (CheckBox) mViewTemplateTweetEditor.findViewById(R.id.remove_after);
-		mViewInterval = (EditText) mViewTemplateTweetEditor.findViewById(R.id.interval);
-		mViewTimeStart = (TextView) mViewTemplateTweetEditor.findViewById(R.id.from);
-		mViewTimeEnd = (TextView) mViewTemplateTweetEditor.findViewById(R.id.to);
-		mViewUseRegEx = (CheckBox) mViewTemplateTweetEditor.findViewById(R.id.use_regex);
-		mViewPattern = (EditText) mViewTemplateTweetEditor.findViewById(R.id.pattern);
-		mViewTestPattern = (EditText) mViewTemplateTweetEditor.findViewById(R.id.test);
-		mViewMediaList = (RecyclerView) mViewTemplateTweetEditor.findViewById(R.id.media_list);
 		mViewToolbarContainer = mViewTemplateTweetEditor.findViewById(R.id.toolbar);
-		mUserMaps = new HashMap<>();
-		refillUserMaps(TwitterEngine.getAll());
-		mViewTemplateTweetEditor.setVisibility(View.GONE);
+
+		mViewStub = (ViewStub) mViewTemplateTweetEditor.findViewById(R.id.stub_extra);
+
 		mViewWriteBtn.setOnClickListener(this);
 		mViewClearBtn.setOnClickListener(this);
 		mViewUserSelectBtn.setOnClickListener(this);
 		mViewTemplateOptionBtn.setOnClickListener(this);
 		mViewTemplateListBtn.setOnClickListener(this);
 		mViewLocationBtn.setOnClickListener(this);
-		mViewGeoResolve.setOnClickListener(this);
-		mViewGeoPick.setOnClickListener(this);
-		mViewGeoUse.setOnCheckedChangeListener(this);
-		mViewTimeStart.setOnClickListener(this);
-		mViewTimeEnd.setOnClickListener(this);
-		mViewTemplateType.setOnItemSelectedListener(this);
-		ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(getActivity(), R.array.new_tweet_type_array, android.R.layout.simple_spinner_item);
-		adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-		mViewTemplateType.setAdapter(adapter);
+
 		mViewEditor.addTextChangedListener(this);
 		TwitterEngine.addOnUserlistChangedListener(this);
 		mViewSelectedUserList.setLayoutManager(mUserListLayoutManager = new GridLayoutManager(getActivity(), 1));
@@ -220,8 +196,66 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		mViewAttachList.setLayoutManager(mAttachmentLayoutManager = new LinearLayoutManager(getActivity(), LinearLayoutManager.HORIZONTAL, false));
 		mViewAttachList.setAdapter(mAttachmentAdapter = new AttachmentAdapter());
 		mAttachmentLayoutManager.setStackFromEnd(true);
+
+		if (savedInstanceState != null && savedInstanceState.getBoolean("open"))
+			showNewTweet();
+
+		mViewTemplateTweetEditor.setVisibility(View.GONE);
+		return mViewTemplateTweetEditor;
+	}
+
+	private void loadExtra() {
+		if (mViewStub == null)
+			return;
+		if (mTemplateTweet != null)
+			saveTemplateTweet();
+		ViewGroup v = (ViewGroup) mViewStub.inflate();
+		mViewStub = null;
+		mViewTemplateList = (RecyclerView) v.findViewById(R.id.list_templates);
+		mViewLocationContainer = v.findViewById(R.id.template_location);
+		mViewOptionsContainer = v.findViewById(R.id.template_options);
+		mViewAccount = (FlowLayout) v.findViewById(R.id.account_list);
+		mViewAccountContainer = v.findViewById(R.id.account_list_container);
+		mViewGeoUse = (CheckBox) v.findViewById(R.id.use_geo);
+		mViewGeoAutoresolve = (CheckBox) v.findViewById(R.id.autoresolve);
+		mViewGeoLatitude = (EditText) v.findViewById(R.id.latitude);
+		mViewGeoLongitude = (EditText) v.findViewById(R.id.longitude);
+		mViewGeoResolve = (Button) v.findViewById(R.id.resolve);
+		mViewGeoPick = (Button) v.findViewById(R.id.pick);
+		mViewTemplateType = (Spinner) v.findViewById(R.id.template_type);
+		mViewEnabled = (CheckBox) v.findViewById(R.id.enabled);
+		mViewRemoveAfter = (CheckBox) v.findViewById(R.id.remove_after);
+		mViewInterval = (EditText) v.findViewById(R.id.interval);
+		mViewTimeStart = (TextView) v.findViewById(R.id.from);
+		mViewTimeEnd = (TextView) v.findViewById(R.id.to);
+		mViewUseRegEx = (CheckBox) v.findViewById(R.id.use_regex);
+		mViewPattern = (EditText) v.findViewById(R.id.pattern);
+		mViewTestPattern = (EditText) v.findViewById(R.id.test);
+		mViewMediaList = (RecyclerView) v.findViewById(R.id.media_list);
+
+
+		ArrayList<View> views = new ArrayList<>();
+		for (int i = 0, i_ = v.getChildCount(); i < i_; i++)
+			views.add(v.getChildAt(i));
+		v.removeAllViews();
+		int basePosition = mViewTemplateTweetEditor.indexOfChild(v);
+		mViewTemplateTweetEditor.removeViewAt(basePosition);
+		for (int i = 0; i < views.size(); i++) {
+			mViewTemplateTweetEditor.addView(views.get(i), basePosition + i);
+		}
+
+
+		mViewGeoResolve.setOnClickListener(this);
+		mViewGeoPick.setOnClickListener(this);
+		mViewGeoUse.setOnCheckedChangeListener(this);
+		mViewTimeStart.setOnClickListener(this);
+		mViewTimeEnd.setOnClickListener(this);
+		mViewTemplateType.setOnItemSelectedListener(this);
+
+		ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(getActivity(), R.array.new_tweet_type_array, android.R.layout.simple_spinner_item);
+		adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+		mViewTemplateType.setAdapter(adapter);
 		mViewTemplateList.setLayoutManager(mTemplateLayoutManager = new LinearLayoutManager(getActivity()));
-		mViewTemplateList.setAdapter(mTemplateAdapter = new TemplateAdapter());
 		mViewMediaList.setLayoutManager(mMediaListLayoutManager = new GridLayoutManager(getActivity(), 2, GridLayoutManager.VERTICAL, true));
 		mMediaListLayoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
 			@Override
@@ -229,15 +263,18 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 				return position == 0 ? 2 : 1;
 			}
 		});
-		mViewMediaList.setAdapter(mMediaAdapter = new MediaAdapter());
+		if (mTemplateTweet == null)
+			loadTemplateTweet(mDefaultPreference.getLong(PREF_LAST_WORKING_TEMPLATE_ID, -1));
+		else {
+			mTemplateTweet.updateSelf(getActivity().getContentResolver());
+			loadTemplateTweet(mTemplateTweet.id);
+		}
+	}
 
-		mDefaultPreference = PreferenceManager.getDefaultSharedPreferences(getActivity());
+	@Override
+	public void onResume() {
+		super.onResume();
 		loadTemplateTweet(mDefaultPreference.getLong(PREF_LAST_WORKING_TEMPLATE_ID, -1));
-
-		if (savedInstanceState != null && savedInstanceState.getBoolean("open"))
-			showNewTweet();
-
-		return mViewTemplateTweetEditor;
 	}
 
 	private void loadTemplateTweet(long id) {
@@ -245,7 +282,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		if (c.moveToFirst())
 			mTemplateTweet = new TemplateTweet(c, getActivity().getContentResolver());
 		else {
-			mTemplateTweet = new TemplateTweet(getActivity().getContentResolver(), getPostFromIdList());
+			mTemplateTweet = new TemplateTweet(getActivity().getContentResolver(), mTemplateTweet == null ? null : mTemplateTweet.mUserIdList);
 			id = mTemplateTweet.id;
 		}
 		c.close();
@@ -260,31 +297,30 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 					mTemplateTweet.selection_end = Math.min(mTemplateTweet.selection_end, mTemplateTweet.text.length()));
 		} else
 			mViewEditor.setText("");
-		for (Tweeter ttr : mUserMaps.keySet()) {
-			mUserMaps.get(ttr).setChecked(false);
-			for (Long user_id : mTemplateTweet.mUserIdList)
-				if (ttr.user_id == user_id)
-					mUserMaps.get(ttr).setChecked(true);
-		}
+
 		applyUserText();
 		for (TemplateTweetAttachment attachment : mTemplateTweet.mAttachments)
 			if (!attachment.mLocalFileExists || attachment.media_type == 0)
 				attachment.resolve(getActivity(), mAttachmentAdapter);
 		mAttachmentAdapter.notifyDataSetChanged();
 
-		mViewGeoUse.setChecked(mTemplateTweet.use_coordinates);
-		mViewGeoAutoresolve.setChecked(mTemplateTweet.autoresolve_coordinates);
-		mViewEnabled.setChecked(mTemplateTweet.enabled);
-		mViewRemoveAfter.setChecked(mTemplateTweet.remove_after);
-		mViewUseRegEx.setChecked(mTemplateTweet.trigger_use_regex);
-		mViewPattern.setText(mTemplateTweet.trigger_pattern);
-		mViewGeoLatitude.setText(Float.toString(mTemplateTweet.latitude));
-		mViewGeoLongitude.setText(Float.toString(mTemplateTweet.longitude));
-		assignTimeValue(mViewTimeStart, mTemplateTweet.time_start);
-		assignTimeValue(mViewTimeEnd, mTemplateTweet.time_end);
+		if (mViewStub == null) {
+			refillUserMaps(TwitterEngine.getAll());
+			mViewGeoUse.setChecked(mTemplateTweet.use_coordinates);
+			mViewGeoAutoresolve.setChecked(mTemplateTweet.autoresolve_coordinates);
+			mViewEnabled.setChecked(mTemplateTweet.enabled);
+			mViewRemoveAfter.setChecked(mTemplateTweet.remove_after);
+			mViewUseRegEx.setChecked(mTemplateTweet.trigger_use_regex);
+			mViewPattern.setText(mTemplateTweet.trigger_pattern);
+			mViewGeoLatitude.setText(Float.toString(mTemplateTweet.latitude));
+			mViewGeoLongitude.setText(Float.toString(mTemplateTweet.longitude));
+			assignTimeValue(mViewTimeStart, mTemplateTweet.time_start);
+			assignTimeValue(mViewTimeEnd, mTemplateTweet.time_end);
+			applyTweetType();
+			if (mTemplateAdapter != null)
+				mTemplateAdapter.refill();
+		}
 
-		applyTweetType();
-		mTemplateAdapter.refill();
 	}
 
 	private void saveTemplateTweet() {
@@ -292,16 +328,23 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			return;
 		mTemplateTweet.in_reply_to_id = mInReplyTo == null ? 0 : mInReplyTo.id;
 		mTemplateTweet.text = mViewEditor.getText().toString();
-		mTemplateTweet.mUserIdList.clear();
-		mTemplateTweet.mUserIdList.addAll(getPostFromIdList());
-		mTemplateTweet.selection_start = mViewEditor.getSelectionStart();
-		mTemplateTweet.selection_end = mViewEditor.getSelectionEnd();
-		mTemplateTweet.use_coordinates = mViewGeoUse.isChecked();
-		mTemplateTweet.autoresolve_coordinates = mViewGeoAutoresolve.isChecked();
-		mTemplateTweet.remove_after = mViewRemoveAfter.isChecked();
-		mTemplateTweet.trigger_use_regex = mViewUseRegEx.isChecked();
-		mTemplateTweet.time_start = (long) mViewTimeStart.getTag(R.id.UNIX_TIMESTAMP);
-		mTemplateTweet.time_end = (long) mViewTimeEnd.getTag(R.id.UNIX_TIMESTAMP);
+		if (mViewStub == null) {
+			mTemplateTweet.mUserIdList.clear();
+			for (Tweeter ttr : mUserMaps.keySet())
+				if (mUserMaps.get(ttr).isChecked())
+					mTemplateTweet.mUserIdList.add(ttr.user_id);
+		}
+		if (mViewStub == null) {
+			mTemplateTweet.selection_start = mViewEditor.getSelectionStart();
+			mTemplateTweet.selection_end = mViewEditor.getSelectionEnd();
+			mTemplateTweet.use_coordinates = mViewGeoUse.isChecked();
+			mTemplateTweet.autoresolve_coordinates = mViewGeoAutoresolve.isChecked();
+			mTemplateTweet.remove_after = mViewRemoveAfter.isChecked();
+			mTemplateTweet.trigger_pattern = mViewPattern.getText().toString();
+			mTemplateTweet.trigger_use_regex = mViewUseRegEx.isChecked();
+			mTemplateTweet.time_start = (long) mViewTimeStart.getTag(R.id.UNIX_TIMESTAMP);
+			mTemplateTweet.time_end = (long) mViewTimeEnd.getTag(R.id.UNIX_TIMESTAMP);
+		}
 		mTemplateTweet.updateSelf(getActivity().getContentResolver());
 	}
 
@@ -311,7 +354,10 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		for (Tweeter t : mUserMaps.keySet()) {
 			t.removeOnChangeListener(this);
 		}
-		mTemplateAdapter.done();
+		if (mTemplateAdapter != null) {
+			mTemplateAdapter.done();
+			mTemplateAdapter = null;
+		}
 		if (mMediaAdapter != null) {
 			mMediaAdapter.done();
 			mMediaAdapter = null;
@@ -321,18 +367,16 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	}
 
 	private void refillUserMaps(ArrayList<TwitterEngine> engines) {
-		ArrayList<Tweeter> selected = new ArrayList<>();
-		for (Tweeter t : mUserMaps.keySet()) {
-			if (mUserMaps.get(t).isChecked())
-				selected.add(t);
+		if (mViewStub != null)
+			return;
+		for (Tweeter t : mUserMaps.keySet())
 			t.removeOnChangeListener(this);
-		}
 		mUserMaps.clear();
 		mViewAccount.removeAllViews();
 		for (TwitterEngine engine : engines) {
 			Tweeter t = engine.getTweeter();
 			ToggleButton box = (ToggleButton) getActivity().getLayoutInflater().inflate(R.layout.col_templatetweet_user, mViewAccount, false);
-			box.setChecked(selected.contains(t));
+			box.setChecked(mTemplateTweet.mUserIdList.contains(t.user_id));
 			box.setTextOff(t.screen_name);
 			box.setTextOn(t.screen_name);
 			box.setText(t.screen_name);
@@ -391,11 +435,30 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		ResTools.hideWithAnimation(mViewTemplateTweetEditor, R.anim.hide_downward, true);
 	}
 
+	public void initializeNewTweet() {
+		mIsShown = true;
+		if (!mIsActionbarShown)
+			return;
+		if (mViewTemplateTweetEditor.getVisibility() == View.VISIBLE) return;
+		loadTemplateTweet(mDefaultPreference.getLong(PREF_LAST_WORKING_TEMPLATE_ID, -1));
+		mViewTemplateTweetEditor.setVisibility(View.VISIBLE);
+		if (mListener != null)
+			mListener.onNewTweetVisibilityChanged(true);
+		showKeyboard();
+		mViewSelectedUserList.post(new Runnable() {
+			@Override
+			public void run() {
+				mUserAdapter.invalidate();
+			}
+		});
+	}
+
 	public void showNewTweet() {
 		mIsShown = true;
 		if (!mIsActionbarShown)
 			return;
 		if (mViewTemplateTweetEditor.getVisibility() == View.VISIBLE) return;
+
 		mViewTemplateTweetEditor.setVisibility(View.VISIBLE);
 
 		mViewTemplateTweetEditor.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.show_upward));
@@ -434,6 +497,8 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		hideKeyboard();
 
 		switchViews(null);
+
+		mTemplateTweet.updateSelf(getActivity().getContentResolver());
 	}
 
 	public boolean isNewTweetVisible() {
@@ -458,20 +523,13 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 	public ArrayList<TwitterEngine> getPostFromList() {
 		ArrayList<TwitterEngine> postFrom = new ArrayList<>();
-		for (Tweeter ttr : mUserMaps.keySet())
-			if (mUserMaps.get(ttr).isChecked())
-				postFrom.add(TwitterEngine.get(ttr.user_id));
+		if (mTemplateTweet == null)
+			loadTemplateTweet(mDefaultPreference.getLong(PREF_LAST_WORKING_TEMPLATE_ID, -1));
+		for (TwitterEngine e : TwitterEngine.getAll())
+			if (mTemplateTweet.mUserIdList.contains(e.getUserId()))
+				postFrom.add(e);
 		return postFrom;
 	}
-
-	public ArrayList<Long> getPostFromIdList() {
-		ArrayList<Long> postFrom = new ArrayList<>();
-		for (Tweeter ttr : mUserMaps.keySet())
-			if (mUserMaps.get(ttr).isChecked())
-				postFrom.add(ttr.user_id);
-		return postFrom;
-	}
-
 
 	@Override
 	public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -495,6 +553,8 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	}
 
 	private void applyTweetType() {
+		if (mViewStub != null)
+			return;
 		mViewEnabled.setChecked(false);
 		switch (mTemplateTweet.type) {
 			case TemplateTweetProvider.TEMPLATE_TYPE_ONESHOT:
@@ -549,6 +609,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	public void onCheckedChanged(CompoundButton v, boolean isChecked) {
 		if (mUserMaps.containsValue(v)) {
 			v.getCompoundDrawables()[0].setAlpha(isChecked ? 255 : 80);
+			saveTemplateTweet();
 			applyUserText();
 		} else if (v.equals(mViewGeoUse)) {
 			mViewLocationBtn.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewLocationContainer.getVisibility() == View.VISIBLE ? R.attr.ic_navigation_expand_less : (mViewGeoUse.isChecked() ? R.attr.ic_communication_location_on : R.attr.ic_communication_location_off)));
@@ -556,7 +617,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	}
 
 	private boolean isEmpty() {
-		return mViewEditor.getText().length() == 0 && mTemplateTweet.mAttachments.isEmpty();
+		return mTemplateTweet == null || (mViewEditor.getText().length() == 0 && mTemplateTweet.mAttachments.isEmpty());
 	}
 
 	@Override
@@ -580,12 +641,16 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 				loadTemplateTweet(-1);
 			}
 		} else if (v.equals(mViewUserSelectBtn)) {
+			loadExtra();
 			switchViews(mViewAccountContainer);
 		} else if (v.equals(mViewTemplateOptionBtn)) {
+			loadExtra();
 			switchViews(mViewOptionsContainer);
 		} else if (v.equals(mViewTemplateListBtn)) {
+			loadExtra();
 			switchViews(mViewTemplateList);
 		} else if (v.equals(mViewLocationBtn)) {
+			loadExtra();
 			switchViews(mViewLocationContainer);
 		} else if (v.equals(mViewTimeStart)) {
 			datetimepicker(mViewTimeStart, R.string.new_tweet_time_start);
@@ -624,50 +689,61 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	}
 
 	public boolean switchViews(View v) {
+		android.util.Log.d("TemplateTweetEditor", "switchViews called");
 		boolean somethingHidden = false;
-		if (mViewMediaList.getVisibility() == View.VISIBLE) {
-			mViewMediaList.setVisibility(View.GONE);
-			mViewEditor.setVisibility(View.VISIBLE);
-			mViewToolbarContainer.setVisibility(View.VISIBLE);
-			mMediaListLayoutManager.removeAllViews();
-			somethingHidden = true;
-		} else if (v == mViewMediaList) {
-			mViewMediaList.setVisibility(View.VISIBLE);
-			mViewEditor.setVisibility(View.GONE);
-			mViewToolbarContainer.setVisibility(View.GONE);
-		}
-		if (v == mViewAccountContainer || mViewAccountContainer.getVisibility() == View.VISIBLE) {
-			mViewUserSelectExpander.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewAccountContainer.getVisibility() != View.VISIBLE ? R.attr.ic_navigation_expand_less : R.attr.ic_navigation_expand_more));
-			RotateAnimation ani = new RotateAnimation(-180, 0, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
-			ani.setDuration(300);
-			ani.setInterpolator(getActivity(), android.R.anim.accelerate_decelerate_interpolator);
-			mViewUserSelectExpander.startAnimation(ani);
-		}
-		for (View v_ : new View[]{mViewAccountContainer, mViewOptionsContainer, mViewTemplateList, mViewLocationContainer}) {
-			if (v_ == v) {
-				if (v.getVisibility() == View.VISIBLE) {
-					v.setVisibility(View.GONE);
-					mViewEditorContainer.setVisibility(View.VISIBLE);
-					mViewEditor.requestFocus();
-					somethingHidden = true;
+		if (mViewStub == null) {
+			if (mViewMediaList.getVisibility() == View.VISIBLE) {
+				mViewMediaList.setVisibility(View.GONE);
+				mViewEditor.setVisibility(View.VISIBLE);
+				mViewToolbarContainer.setVisibility(View.VISIBLE);
+				mMediaListLayoutManager.removeAllViews();
+				somethingHidden = true;
+			} else if (v == mViewMediaList) {
+				mViewMediaList.setVisibility(View.VISIBLE);
+				mViewEditor.setVisibility(View.GONE);
+				mViewToolbarContainer.setVisibility(View.GONE);
+			}
+			if (v == mViewAccountContainer || mViewAccountContainer.getVisibility() == View.VISIBLE) {
+				mViewUserSelectExpander.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewAccountContainer.getVisibility() != View.VISIBLE ? R.attr.ic_navigation_expand_less : R.attr.ic_navigation_expand_more));
+				RotateAnimation ani = new RotateAnimation(-180, 0, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
+				ani.setDuration(300);
+				ani.setInterpolator(getActivity(), android.R.anim.accelerate_decelerate_interpolator);
+				mViewUserSelectExpander.startAnimation(ani);
+			}
+			for (View v_ : new View[]{mViewAccountContainer, mViewOptionsContainer, mViewTemplateList, mViewLocationContainer}) {
+				if (v_ == v) {
+					if (v.getVisibility() == View.VISIBLE) {
+						v.setVisibility(View.GONE);
+						mViewEditorContainer.setVisibility(View.VISIBLE);
+						mViewEditor.requestFocus();
+						somethingHidden = true;
+					} else {
+						v.setVisibility(View.VISIBLE);
+						mViewEditorContainer.setVisibility(View.GONE);
+					}
 				} else {
-					v.setVisibility(View.VISIBLE);
-					mViewEditorContainer.setVisibility(View.GONE);
+					if (v_.getVisibility() != View.VISIBLE)
+						continue;
+					v_.setVisibility(View.GONE);
+					somethingHidden = true;
 				}
-			} else
-				v_.setVisibility(View.GONE);
+			}
+			if (mViewMediaList.getVisibility() == View.VISIBLE && mMediaAdapter == null) {
+				mViewMediaList.setAdapter(mMediaAdapter = new MediaAdapter());
+			} else if (mViewTemplateList.getVisibility() == View.VISIBLE && mTemplateAdapter == null)
+				mViewTemplateList.setAdapter(mTemplateAdapter = new TemplateAdapter());
 		}
 		if (v == null) {
 			mViewEditorContainer.setVisibility(View.VISIBLE);
 		}
-		mViewTemplateOptionBtn.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewOptionsContainer.getVisibility() == View.VISIBLE ? R.attr.ic_navigation_expand_less : R.attr.ic_action_settings));
-		mViewTemplateListBtn.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewTemplateList.getVisibility() == View.VISIBLE ? R.attr.ic_navigation_expand_less : R.attr.ic_content_drafts));
-		mViewLocationBtn.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewLocationContainer.getVisibility() == View.VISIBLE ? R.attr.ic_navigation_expand_less : (mViewGeoUse.isChecked() ? R.attr.ic_communication_location_on : R.attr.ic_communication_location_off)));
+		mViewTemplateOptionBtn.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewStub == null && mViewOptionsContainer.getVisibility() == View.VISIBLE ? R.attr.ic_navigation_expand_less : R.attr.ic_action_settings));
+		mViewTemplateListBtn.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewStub == null && mViewTemplateList.getVisibility() == View.VISIBLE ? R.attr.ic_navigation_expand_less : R.attr.ic_content_drafts));
+		mViewLocationBtn.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewStub == null && mViewLocationContainer.getVisibility() == View.VISIBLE ? R.attr.ic_navigation_expand_less : (mViewGeoUse != null && mViewGeoUse.isChecked() ? R.attr.ic_communication_location_on : R.attr.ic_communication_location_off)));
 		if (mViewEditorContainer.getVisibility() == View.VISIBLE && mViewEditor.getVisibility() == View.VISIBLE && isNewTweetVisible())
 			showKeyboard();
 		else
 			hideKeyboard();
-		if (isNewTweetVisible() && (mViewTemplateList.getVisibility() == View.VISIBLE || mViewMediaList.getVisibility() == View.VISIBLE))
+		if (isNewTweetVisible() && ((mViewTemplateList != null && mViewTemplateList.getVisibility() == View.VISIBLE) || (mViewMediaList != null && mViewMediaList.getVisibility() == View.VISIBLE)))
 			((MultiContentFragmentActivity) getActivity()).hideContents();
 		else
 			((MultiContentFragmentActivity) getActivity()).showContents();
@@ -746,7 +822,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			Uri u = data.getData();
 			android.util.Log.d("Darknova", u.toString());
 			getActivity().getContentResolver().takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-			mDefaultPreference.edit().putString(PREF_EXT_MEDIA_STORAGE, u.toString()).apply();
+			mEditorPreference.edit().putString(PREF_EXT_MEDIA_STORAGE, u.toString()).apply();
 		}
 		mCurrentPhotoPath = null;
 	}
@@ -995,7 +1071,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 						.setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
 							@Override
 							public void onClick(DialogInterface dialog, int which) {
-								String ext = mDefaultPreference.getString(PREF_EXT_MEDIA_STORAGE, null);
+								String ext = mEditorPreference.getString(PREF_EXT_MEDIA_STORAGE, null);
 								if (!FileTools.deleteFile(f, v.getContext(), ext == null ? null : Uri.parse(ext))) {
 									if (ext == null) {
 										if (Build.VERSION.SDK_INT >= 19) {
@@ -1037,6 +1113,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			setHasStableIds(true);
 			mResolver = getActivity().getContentResolver();
 			mResolver.registerContentObserver(TemplateTweetProvider.URI_BASE, true, mObserver);
+			refill();
 		}
 
 		public void refill() {
@@ -1337,7 +1414,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 		@Override
 		public int getItemCount() {
-			return mTemplateTweet.mAttachments.size() + (canAddMore() ? 1 : 0);
+			return mTemplateTweet == null ? 0 : mTemplateTweet.mAttachments.size() + (canAddMore() ? 1 : 0);
 		}
 
 		@Override
@@ -1416,6 +1493,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			public void onClick(View v) {
 				final int position = getAdapterPosition();
 				if (position >= mTemplateTweet.mAttachments.size()) {
+					loadExtra();
 					switchViews(mViewMediaList);
 					return;
 				}

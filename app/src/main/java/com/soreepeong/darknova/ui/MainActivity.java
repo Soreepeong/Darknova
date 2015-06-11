@@ -44,7 +44,7 @@ import java.util.ArrayList;
  *
  * @author Soreepeong
  */
-public class MainActivity extends AppCompatActivity implements ViewPager.OnPageChangeListener, NavigationDrawerFragment.NavigationDrawerCallbacks, View.OnClickListener, TemplateTweetEditorFragment.OnNewTweetVisibilityChangedListener, Page.OnPageListChangedListener, MultiContentFragmentActivity {
+public class MainActivity extends AppCompatActivity implements ViewPager.OnPageChangeListener, NavigationDrawerFragment.NavigationDrawerCallbacks, View.OnClickListener, TemplateTweetEditorFragment.OnNewTweetVisibilityChangedListener, Page.OnPageListChangedListener, MultiContentFragmentActivity, View.OnLongClickListener {
 
 
 	private ViewPager mPager;
@@ -79,6 +79,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		mActionBar = getSupportActionBar();
 
 		mNewTweetOpener.setOnClickListener(this);
+		mNewTweetOpener.setOnLongClickListener(this);
 		mViewOpenDrawerDragTargetButton.setOnClickListener(this);
 		mToolbar.setOnClickListener(this);
 
@@ -89,7 +90,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		mPager.setOffscreenPageLimit(6);
 
 		mNavigationDrawerFragment = (NavigationDrawerFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_drawer);
-		mTemplateTweetEditorFragment = (TemplateTweetEditorFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_new_tweet);
+		mTemplateTweetEditorFragment = (TemplateTweetEditorFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_template_tweet);
 		mSuggestionFragment = (SearchSuggestionFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_search_suggestions);
 
 		mNavigationDrawerFragment.setup(R.id.fragment_drawer, (DrawerLayout) findViewById(R.id.drawer_layout), mToolbar);
@@ -343,12 +344,13 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	@Override
 	public void onClick(View v) {
 		if (v.equals(mNewTweetOpener))
-			mTemplateTweetEditorFragment.showNewTweet();
+			startActivity(new Intent(this, TemplateTweetActivity.class));
 		else if (v.equals(mToolbar) && Page.size() > 0) {
 			if (getFragmentAt(mPager.getCurrentItem()) != null)
 				getFragmentAt(mPager.getCurrentItem()).scrollToTop();
-		} else if (v.equals(mViewOpenDrawerDragTargetButton))
+		} else if (v.equals(mViewOpenDrawerDragTargetButton)) {
 			mNavigationDrawerFragment.openDrawer();
+		}
 	}
 
 	public PageFragment getFragmentAt(int position) {
@@ -367,6 +369,15 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 			if (mNewTweetOpener.getVisibility() != View.VISIBLE) return;
 			ResTools.hideWithAnimation(mNewTweetOpener, R.anim.hide_downward, true);
 		}
+	}
+
+	@Override
+	public boolean onLongClick(View v) {
+		if (v.equals(mNewTweetOpener)) {
+			mTemplateTweetEditorFragment.showNewTweet();
+			return true;
+		}
+		return false;
 	}
 
 	public class TimelineFragmentPagerAdapter extends SortableFragmentStatePagerAdapter {

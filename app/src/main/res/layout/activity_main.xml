@@ -71,7 +71,7 @@
 		</com.soreepeong.darknova.ui.dragaction.DragParentFrameLayout>
 
 		<fragment
-			android:id="@+id/fragment_new_tweet"
+			android:id="@+id/fragment_template_tweet"
 			android:name="com.soreepeong.darknova.ui.fragments.TemplateTweetEditorFragment"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"

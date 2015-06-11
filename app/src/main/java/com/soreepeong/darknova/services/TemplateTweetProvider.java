@@ -35,9 +35,9 @@ public class TemplateTweetProvider extends ContentProvider {
 		if (!mAttachmentDir.exists())
 			mAttachmentDir.mkdirs();
 		mDb = SQLiteDatabase.openOrCreateDatabase(new File(getContext().getFilesDir(), "template-tweets.db"), null);
-		mDb.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_TEMPLATES + " (_id INTEGER PRIMARY KEY, type INTEGER DEFAULT 0, created_at INTEGER, enabled INTEGER DEFAULT 0, remove_after INTEGER DEFAULT 0, interval INTEGER DEFAULT 0, selection_start INTEGER DEFAULT 0, selection_end INTEGER DEFAULT 0, start_time INTEGER DEFAULT  0, end_time INTEGER DEFAULT  0, trigger_pattern TEXT, use_regex INTEGER DEFAULT 0, text TEXT, in_reply_to INTEGER DEFAULT 0, latitude REAL DEFAULT 0, longitude REAL DEFAULT 0, use_coordinates INTEGER DEFAULT 0, autoresolve_coordinates INTEGER DEFAULT 0)");
-		mDb.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_FROM_USERS + " (_id INTEGER PRIMARY KEY, template_id INTEGER, user_id INTEGER)");
-		mDb.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_ATTACHMENTS + " (_id INTEGER PRIMARY KEY, template_id INTEGER, original_url TEXT, media_type INTEGER)");
+		mDb.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_TEMPLATES + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, type INTEGER DEFAULT 0, created_at INTEGER, enabled INTEGER DEFAULT 0, remove_after INTEGER DEFAULT 0, interval INTEGER DEFAULT 0, selection_start INTEGER DEFAULT 0, selection_end INTEGER DEFAULT 0, start_time INTEGER DEFAULT  0, end_time INTEGER DEFAULT  0, trigger_pattern TEXT, use_regex INTEGER DEFAULT 0, text TEXT, in_reply_to INTEGER DEFAULT 0, latitude REAL DEFAULT 0, longitude REAL DEFAULT 0, use_coordinates INTEGER DEFAULT 0, autoresolve_coordinates INTEGER DEFAULT 0)");
+		mDb.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_FROM_USERS + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, template_id INTEGER, user_id INTEGER)");
+		mDb.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_ATTACHMENTS + " (_id INTEGER PRIMARY KEY AUTOINCREMENT, template_id INTEGER, original_url TEXT, media_type INTEGER)");
 		return true;
 	}
 
