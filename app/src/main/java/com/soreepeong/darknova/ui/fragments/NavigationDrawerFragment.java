@@ -50,6 +50,7 @@ import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.twitter.TwitterStreamServiceReceiver;
+import com.soreepeong.darknova.ui.MainActivity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -223,6 +224,11 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				if (!isAdded()) return;
 
 				getActivity().supportInvalidateOptionsMenu(); // calls onPrepareOptionsMenu()
+			}
+
+			@Override
+			public void onDrawerSlide(View drawerView, float slideOffset) {
+				super.onDrawerSlide(drawerView, slideOffset);
 			}
 
 			@Override
@@ -688,6 +694,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				mViewShowAccountList = (ImageView) itemView.findViewById(R.id.show_account_list);
 
 				itemView.setOnClickListener(this);
+				mViewAvatar.setOnClickListener(this);
 				if (mViewShowAccountList != null)
 					((View) mViewShowAccountList.getParent()).setOnClickListener(this);
 			}
@@ -704,6 +711,9 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					ani.setDuration(300);
 					ani.setInterpolator(getActivity(), android.R.anim.accelerate_decelerate_interpolator);
 					mViewShowAccountList.startAnimation(ani);
+				} else if (v.equals(mViewAvatar)) {
+					Page.templatePageUser(mCurrentUser.getUserId(), mCurrentUser.getScreenName(), (MainActivity) getActivity());
+					closeDrawer();
 				}
 			}
 

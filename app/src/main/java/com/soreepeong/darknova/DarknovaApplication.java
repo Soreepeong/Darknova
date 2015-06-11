@@ -10,8 +10,6 @@ import android.widget.Toast;
 
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
-import com.soreepeong.darknova.settings.TemplateTweet;
-import com.soreepeong.darknova.settings.TemplateTweetAttachment;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
@@ -19,8 +17,6 @@ import com.soreepeong.darknova.twitter.TwitterEngine;
 import org.acra.ACRA;
 import org.acra.ReportingInteractionMode;
 import org.acra.annotation.ReportsCrashes;
-
-import java.io.File;
 
 /**
  * Global constant variables initialization
@@ -70,12 +66,6 @@ public class DarknovaApplication extends Application implements Handler.Callback
 
 		// No dependency
 		TwitterEngine.prepare(this, "TwitterEngine");
-
-		// No dependency
-		TemplateTweet.initialize(this, "TemplateTweet");
-
-		// AFTER TemplateTweet
-		TemplateTweetAttachment.initialize(new File(getFilesDir(), "attachment"));
 
 		// AFTER TwitterEngine
 		Page.initialize(this, "Page");

@@ -1,6 +1,15 @@
 package com.soreepeong.darknova.tools;
 
+import android.annotation.TargetApi;
+import android.content.ContentResolver;
+import android.content.Context;
+import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.BaseColumns;
+import android.provider.MediaStore;
+import android.support.v4.provider.DocumentFile;
 
 import com.soreepeong.darknova.core.ImageCache;
 
@@ -70,5 +79,78 @@ public class FileTools {
 			if (tempFile.exists() && !tempFile.delete())
 				tempFile.deleteOnExit();
 		}
+	}
+
+
+	/**
+	 * Delete a file. May be even on external SD card.
+	 * <p/>
+	 * From https://github.com/jeisfeld/Android/tree/master/Augendiagnose
+	 *
+	 * @param file the file to be deleted.
+	 * @return True if successfully deleted.
+	 */
+	public static boolean deleteFile(File file, Context context, Uri treeUri) {
+		Cursor c = null;
+		try {
+			if (file.delete())
+				return true;
+			else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+				DocumentFile document = getDocumentFile(file, context, treeUri);
+				if (document != null)
+					return document.delete();
+			} else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.KITKAT) {
+				ContentResolver resolver = context.getContentResolver();
+				try {
+					c = resolver.query(MediaStore.Files.getContentUri("external"), new String[]{BaseColumns._ID}, MediaStore.MediaColumns.DATA + "=?", new String[]{file.getAbsolutePath()}, null);
+					if (c.moveToFirst()) {
+						resolver.delete(MediaStore.Files.getContentUri("external").buildUpon().appendPath(Integer.toString(c.getInt(0))).build(), null, null);
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+			return !file.exists();
+		} finally {
+			if (c != null)
+				c.close();
+		}
+	}
+
+	@TargetApi(Build.VERSION_CODES.KITKAT)
+	private static DocumentFile getDocumentFile(File file, Context context, Uri treeUri) {
+		if (treeUri == null)
+			return null;
+		String fullPath;
+		try {
+			fullPath = file.getCanonicalPath();
+		} catch (Exception e) {
+			return null;
+		}
+		wholeLoop:
+		for (File dir : context.getExternalFilesDirs("external")) {
+			try {
+				if (dir != null && !dir.equals(context.getExternalFilesDir("external"))) {
+					int index = dir.getAbsolutePath().lastIndexOf("/Android/data");
+					if (index >= 0) {
+						String path = new File(dir.getAbsolutePath().substring(0, index)).getCanonicalPath();
+						if (fullPath.startsWith(path)) {
+							String relativePath = fullPath.substring(path.length() + 1);
+							DocumentFile document = DocumentFile.fromTreeUri(context, treeUri);
+							for (String segment : relativePath.split("/")) {
+								DocumentFile nextDocument = document.findFile(segment);
+								if (nextDocument == null)
+									continue wholeLoop;
+								document = nextDocument;
+							}
+							return document;
+						}
+					}
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		return null;
 	}
 }

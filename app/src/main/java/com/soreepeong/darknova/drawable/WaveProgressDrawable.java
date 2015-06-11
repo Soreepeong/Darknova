@@ -45,7 +45,6 @@ public class WaveProgressDrawable extends Drawable {
 	protected int mProgress, mTargetProgress;
 	protected long mProgressChangeTimeTarget;
 	private int mClipType, mClipParameter;
-	private Path mClipPath;
 	private float mLoopWidth, mPower, mWaveHeight;
 	private int mWaveHeightPeriod, mWaveLengthPeriod, mAlpha, mDuplicateDeltaPeriod;
 	private Bitmap mWaveBitmap, mBackBufferBitmap;
@@ -74,10 +73,9 @@ public class WaveProgressDrawable extends Drawable {
 		mBitmapCreateTime = System.currentTimeMillis() + BITMAP_CREATE_DELAY;
 	}
 
-	public void clip(int clipType, int clipParam, Path clipPath) {
+	public void clip(int clipType, int clipParam) {
 		mClipType = clipType;
 		mClipParameter = clipParam;
-		mClipPath = clipPath;
 	}
 
 	public int getPercentage() {
@@ -151,9 +149,6 @@ public class WaveProgressDrawable extends Drawable {
 			case CLIP_TYPE_ROUND_RECT:
 				canvas.drawRoundRect(mBoundF, mClipParameter, mClipParameter, mBackgroundPaint);
 				break;
-			case CLIP_TYPE_PATH:
-				canvas.drawPath(mClipPath, mBackgroundPaint);
-				break;
 		}
 		if (mBackBufferBitmap == null) {
 			if (mBitmapCreateTime < now)
@@ -179,9 +174,6 @@ public class WaveProgressDrawable extends Drawable {
 				break;
 			case CLIP_TYPE_ROUND_RECT:
 				backCanvas.drawRoundRect(mBoundF, mClipParameter, mClipParameter, mClipMaskPaint);
-				break;
-			case CLIP_TYPE_PATH:
-				backCanvas.drawPath(mClipPath, mClipMaskPaint);
 				break;
 		}
 		if (mProgress == MAX_PERCENTAGE && targetProgress == MAX_PERCENTAGE) {

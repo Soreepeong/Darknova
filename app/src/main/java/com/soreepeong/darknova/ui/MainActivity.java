@@ -44,7 +44,7 @@ import java.util.ArrayList;
  *
  * @author Soreepeong
  */
-public class MainActivity extends AppCompatActivity implements ViewPager.OnPageChangeListener, NavigationDrawerFragment.NavigationDrawerCallbacks, View.OnClickListener, TemplateTweetEditorFragment.OnNewTweetVisibilityChangedListener, Page.OnPageListChangedListener {
+public class MainActivity extends AppCompatActivity implements ViewPager.OnPageChangeListener, NavigationDrawerFragment.NavigationDrawerCallbacks, View.OnClickListener, TemplateTweetEditorFragment.OnNewTweetVisibilityChangedListener, Page.OnPageListChangedListener, MultiContentFragmentActivity {
 
 
 	private ViewPager mPager;
@@ -242,10 +242,27 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	public void onBackPressed() {
 		if (mNavigationDrawerFragment.isDrawerOpen())
 			mNavigationDrawerFragment.closeDrawer();
+		else if (mTemplateTweetEditorFragment.switchViews(null))
+			return;
 		else if (mTemplateTweetEditorFragment.isNewTweetVisible())
 			mTemplateTweetEditorFragment.hideNewTweet();
 		else
 			super.onBackPressed();
+	}
+
+	@Override
+	public void hideContents() {
+		if (mPager.getVisibility() == View.GONE) return;
+		mPager.setVisibility(View.GONE);
+		mPager.setAdapter(null);
+	}
+
+	@Override
+	public void showContents() {
+		if (mPager.getVisibility() == View.VISIBLE) return;
+		mPager.setVisibility(View.VISIBLE);
+		mPager.setAdapter(mPagerAdapter);
+		mPager.setCurrentItem(mNavigationDrawerFragment.getCurrentPage(), false);
 	}
 
 	@Override
@@ -276,7 +293,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	public void hideActionBar() {
 		if (mToolbar.getVisibility() != View.VISIBLE) return;
 		mTemplateTweetEditorFragment.hideWithActionBar();
-		ResTools.hideWithAnimation(this, mToolbar, R.anim.hide_upward, true);
+		ResTools.hideWithAnimation(mToolbar, R.anim.hide_upward, true);
 		for (Page p : Page.getList())
 			if (p.mConnectedFragment != null)
 				p.mConnectedFragment.onActionBarHidden();
@@ -348,7 +365,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 			mNewTweetOpener.setVisibility(View.VISIBLE);
 		} else {
 			if (mNewTweetOpener.getVisibility() != View.VISIBLE) return;
-			ResTools.hideWithAnimation(this, mNewTweetOpener, R.anim.hide_downward, true);
+			ResTools.hideWithAnimation(mNewTweetOpener, R.anim.hide_downward, true);
 		}
 	}
 

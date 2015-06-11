@@ -1,13 +1,17 @@
 package com.soreepeong.darknova.settings;
 
-import android.content.Context;
-import android.content.SharedPreferences;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.os.Handler;
 import android.os.Parcel;
 import android.os.Parcelable;
 
-import java.io.File;
+import com.soreepeong.darknova.services.TemplateTweetProvider;
+import com.soreepeong.darknova.twitter.TwitterEngine;
+
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -17,10 +21,6 @@ import java.util.List;
  */
 public class TemplateTweet implements Parcelable {
 
-	public static final int TYPE_ONESHOT = 1;
-	public static final int TYPE_SCHEDULED = 2; // startTime
-	public static final int TYPE_PERIODIC = 3; // Interval, startTime, endTime
-	public static final int TYPE_REPLY = 4; // startTime, endTime, Trigger, isRegex
 	@SuppressWarnings("unused")
 	public static final Parcelable.Creator<TemplateTweet> CREATOR = new Parcelable.Creator<TemplateTweet>() {
 		@Override
@@ -33,177 +33,141 @@ public class TemplateTweet implements Parcelable {
 			return new TemplateTweet[size];
 		}
 	};
-	private static final ArrayList<TemplateTweet> mTemplateTweets = new ArrayList<>();
-	private static long mLastNewTweetLoad;
-	private static SharedPreferences mNewTweetPreference;
-	private static TemplateTweet mEditorTweet;
 	public final List<Long> mUserIdList = new ArrayList<>();
-	public final List<String> mMediaTempPathList = new ArrayList<>();
 	public final List<TemplateTweetAttachment> mAttachments = new ArrayList<>();
-	public int mType;
-	public long mCreatedAt;
-	public boolean mUserEnabled;
-	public boolean mRemoveAfter;
-	public int mInterval;
-	public long mStartTime;
-	public long mEndTime;
-	public String mTriggerPattern;
-	public boolean mUseRegex;
-	public int mSelectionStart;
-	public int mSelectionEnd;
-	public String mText;
-	public long mInReplyTo;
-	public float mLatitude;
-	public float mLongitude;
-	public boolean mUseCoordinates;
+	public final long id;
+	public final long created_at;
+	public int type;
+	public boolean enabled;
+	public boolean remove_after;
+	public int interval;
+	public long time_start;
+	public long time_end;
+	public String trigger_pattern;
+	public boolean trigger_use_regex;
+	public int selection_start;
+	public int selection_end;
+	public String text;
+	public long in_reply_to_id;
+	public float latitude;
+	public float longitude;
+	public boolean use_coordinates, autoresolve_coordinates;
+	private boolean mIsPosting;
 
-	public TemplateTweet() {
+	public TemplateTweet(ContentResolver resolver, ArrayList<Long> userIdList) {
+		mUserIdList.addAll(userIdList);
+
+		ContentValues cv = new ContentValues();
+		cv.put("created_at", created_at = System.currentTimeMillis());
+		cv.put("start_time", time_start = System.currentTimeMillis());
+		cv.put("end_time", time_end = System.currentTimeMillis());
+		cv.put("type", type = TemplateTweetProvider.TEMPLATE_TYPE_ONESHOT);
+		cv.put("remove_after", remove_after = true);
+		cv.put("enabled", enabled = false);
+		id = Long.decode(resolver.insert(TemplateTweetProvider.URI_TEMPLATES, cv).getLastPathSegment());
+
+		cv.clear();
+		cv.put("template_id", id);
+		for (long user_id : mUserIdList) {
+			cv.put("user_id", user_id);
+			resolver.insert(TemplateTweetProvider.URI_FROM_USERS, cv);
+		}
 	}
 
-	public TemplateTweet(String key, SharedPreferences in) {
-		mType = in.getInt(key + ".mType", 0);
-		mCreatedAt = in.getLong(key + ".mCreatedAt", 0);
-		mUserEnabled = in.getBoolean(key + ".mUserEnabled", false);
-		mRemoveAfter = in.getBoolean(key + ".mRemoveAfter", false);
-		mInterval = in.getInt(key + ".mInterval", 0);
-		mSelectionStart = in.getInt(key + ".mSelectionStart", 0);
-		mSelectionEnd = in.getInt(key + ".mSelectionEnd", 0);
-		mStartTime = in.getLong(key + ".mStartTime", 0);
-		mEndTime = in.getLong(key + ".mEndTime", 0);
-		mTriggerPattern = in.getString(key + ".mTriggerPattern", null);
-		mUseRegex = in.getBoolean(key + ".mUseRegex", false);
-		mText = in.getString(key + ".mText", null);
-		mInReplyTo = in.getLong(key + ".mInReplyTo", 0);
-		mLatitude = in.getFloat(key + ".mLatitude", 0);
-		mLongitude = in.getFloat(key + ".mLongitude", 0);
-		mUseCoordinates = in.getBoolean(key + ".mUseCoordinates", false);
-		for (int i = 0, i_ = in.getInt(key + ".mUserIdList.length", 0); i < i_; i++)
-			mUserIdList.add(in.getLong(key + ".mUserIdList." + i, 0));
-		for (int i = 0, i_ = in.getInt(key + ".mMediaTempPathList.length", 0); i < i_; i++)
-			mMediaTempPathList.add(in.getString(key + ".mMediaTempPathList." + i, null));
-		for (int i = 0, i_ = in.getInt(key + ".mAttachments.length", 0); i < i_; i++) {
-			TemplateTweetAttachment a = new TemplateTweetAttachment(key + ".mAttachments." + i, in);
-			if (a.mUnresolvedUrl != null || (a.mLocalPath != null && new File(a.mLocalPath).exists()))
-				mAttachments.add(a);
-		}
+	public TemplateTweet(Cursor c, ContentResolver resolver) {
+		id = c.getLong(c.getColumnIndex("_id"));
+		type = c.getInt(c.getColumnIndex("type"));
+		created_at = c.getLong(c.getColumnIndex("created_at"));
+		enabled = c.getInt(c.getColumnIndex("enabled")) != 0;
+		remove_after = c.getInt(c.getColumnIndex("remove_after")) != 0;
+		interval = c.getInt(c.getColumnIndex("interval"));
+		selection_start = c.getInt(c.getColumnIndex("selection_start"));
+		selection_end = c.getInt(c.getColumnIndex("selection_end"));
+		time_start = c.getLong(c.getColumnIndex("start_time"));
+		time_end = c.getLong(c.getColumnIndex("end_time"));
+		trigger_pattern = c.getString(c.getColumnIndex("trigger_pattern"));
+		trigger_use_regex = c.getInt(c.getColumnIndex("use_regex")) != 0;
+		text = c.getString(c.getColumnIndex("text"));
+		in_reply_to_id = c.getLong(c.getColumnIndex("in_reply_to"));
+		latitude = c.getFloat(c.getColumnIndex("latitude"));
+		longitude = c.getFloat(c.getColumnIndex("longitude"));
+		use_coordinates = c.getInt(c.getColumnIndex("use_coordinates")) != 0;
+		autoresolve_coordinates = c.getInt(c.getColumnIndex("autoresolve_coordinates")) != 0;
+
+		c = resolver.query(TemplateTweetProvider.URI_FROM_USERS, null, "template_id=?", new String[]{Long.toString(id)}, null);
+		if (c.moveToFirst())
+			do {
+				mUserIdList.add(c.getLong(c.getColumnIndex("user_id")));
+			} while (c.moveToNext());
+		c.close();
+
+		c = resolver.query(TemplateTweetProvider.URI_ATTACHMENTS, null, "template_id=?", new String[]{Long.toString(id)}, null);
+		if (c.moveToFirst())
+			do {
+				mAttachments.add(new TemplateTweetAttachment(c, resolver));
+			} while (c.moveToNext());
+		c.close();
 	}
 
 	protected TemplateTweet(Parcel in) {
-		mType = in.readInt();
-		mCreatedAt = in.readLong();
-		mUserEnabled = in.readByte() != 0x00;
-		mRemoveAfter = in.readByte() != 0x00;
-		mInterval = in.readInt();
-		mSelectionStart = in.readInt();
-		mSelectionEnd = in.readInt();
-		mStartTime = in.readLong();
-		mEndTime = in.readLong();
-		mTriggerPattern = in.readString();
-		mUseRegex = in.readByte() != 0x00;
-		mText = in.readString();
-		mInReplyTo = in.readLong();
-		mLatitude = in.readFloat();
-		mLongitude = in.readFloat();
-		mUseCoordinates = in.readByte() != 0x00;
+		id = in.readLong();
+		type = in.readInt();
+		created_at = in.readLong();
+		enabled = in.readByte() != 0x00;
+		remove_after = in.readByte() != 0x00;
+		interval = in.readInt();
+		selection_start = in.readInt();
+		selection_end = in.readInt();
+		time_start = in.readLong();
+		time_end = in.readLong();
+		trigger_pattern = in.readString();
+		trigger_use_regex = in.readByte() != 0x00;
+		text = in.readString();
+		in_reply_to_id = in.readLong();
+		latitude = in.readFloat();
+		longitude = in.readFloat();
+		use_coordinates = in.readByte() != 0x00;
+		autoresolve_coordinates = in.readByte() != 0;
 		in.readList(mUserIdList, Long.class.getClassLoader());
-		in.readList(mMediaTempPathList, String.class.getClassLoader());
 		in.readList(mAttachments, TemplateTweetAttachment.class.getClassLoader());
-		Iterator<TemplateTweetAttachment> i = mAttachments.iterator();
-		while (i.hasNext()) {
-			TemplateTweetAttachment a = i.next();
-			if (a.mUnresolvedUrl == null && (a.mLocalPath == null || !new File(a.mLocalPath).exists()))
-				i.remove();
+	}
+
+	public void removeSelf(ContentResolver resolver) {
+		resolver.delete(TemplateTweetProvider.URI_TEMPLATES, "_id=?", new String[]{Long.toString(id)});
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		return o instanceof TemplateTweet && ((TemplateTweet) o).id == id;
+	}
+
+	public void updateSelf(ContentResolver resolver) {
+		ContentValues cv = new ContentValues();
+		cv.put("type", type);
+		cv.put("enabled", enabled);
+		cv.put("remove_after", remove_after);
+		cv.put("interval", interval);
+		cv.put("selection_start", selection_start);
+		cv.put("selection_end", selection_end);
+		cv.put("start_time", time_start);
+		cv.put("end_time", time_end);
+		cv.put("trigger_pattern", trigger_pattern);
+		cv.put("use_regex", trigger_use_regex);
+		cv.put("text", text);
+		cv.put("in_reply_to", in_reply_to_id);
+		cv.put("latitude", latitude);
+		cv.put("longitude", longitude);
+		cv.put("use_coordinates", use_coordinates);
+		cv.put("autoresolve_coordinates", autoresolve_coordinates);
+		resolver.update(TemplateTweetProvider.URI_TEMPLATES, cv, "_id=?", new String[]{Long.toString(id)});
+		resolver.delete(TemplateTweetProvider.URI_FROM_USERS, "template_id=?", new String[]{Long.toString(id)});
+
+		cv.clear();
+		cv.put("template_id", id);
+		for (long user_id : mUserIdList) {
+			cv.put("user_id", user_id);
+			resolver.insert(TemplateTweetProvider.URI_FROM_USERS, cv);
 		}
-	}
-
-	/**
-	 * Reload list of template tweets from settings
-	 */
-	private static void refreshNewTweets() {
-		synchronized (mTemplateTweets) {
-			if (mNewTweetPreference.getLong("new_tweet.lastedit", 1) != mLastNewTweetLoad) {
-				mTemplateTweets.clear();
-				for (int i = 0, i_ = mNewTweetPreference.getInt("new_tweet.length", 0); i < i_; i++)
-					mTemplateTweets.add(new TemplateTweet("new_tweet." + i, mNewTweetPreference));
-				mLastNewTweetLoad = mNewTweetPreference.getLong("new_tweet.lastedit", 1);
-			}
-		}
-	}
-
-	/**
-	 * Initialize template tweets from settings
-	 */
-	public static void loadNewTweets(Context context) {
-		if (mLastNewTweetLoad != 0)
-			return;
-		refreshNewTweets();
-	}
-
-	/**
-	 * Save template tweets
-	 */
-	public static void saveNewTweets() {
-		synchronized (mTemplateTweets) {
-			SharedPreferences.Editor editor = mNewTweetPreference.edit();
-			editor.putInt("new_tweet.length", mTemplateTweets.size());
-			for (int i = 0, i_ = mTemplateTweets.size(); i < i_; i++)
-				mTemplateTweets.get(i).writeToPreferences("new_tweet." + i, editor);
-			mNewTweetPreference.getLong("new_tweet.lastedit", mLastNewTweetLoad = System.currentTimeMillis());
-			editor.apply();
-		}
-	}
-
-	public static void initialize(Context context, String prefName) {
-		mNewTweetPreference = context.getSharedPreferences(prefName, Context.MODE_MULTI_PROCESS);
-		mNewTweetPreference.registerOnSharedPreferenceChangeListener(new SharedPreferences.OnSharedPreferenceChangeListener() {
-			@Override
-			public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-				refreshNewTweets();
-			}
-		});
-		loadNewTweets(context);
-		mEditorTweet = new TemplateTweet("making_tweet", mNewTweetPreference);
-	}
-
-	public static void saveEditorTweet() {
-		synchronized (mTemplateTweets) {
-			SharedPreferences.Editor editor = mNewTweetPreference.edit();
-			mEditorTweet.writeToPreferences("making_tweet", editor);
-			editor.apply();
-			TemplateTweetAttachment.clearUnusedFiles();
-		}
-	}
-
-	public static TemplateTweet getEditorTweet() {
-		return mEditorTweet;
-	}
-
-	public void writeToPreferences(String key, SharedPreferences.Editor dest) {
-		dest.putInt(key + ".mType", mType);
-		dest.putLong(key + ".mCreatedAt", mCreatedAt);
-		dest.putBoolean(key + ".mUserEnabled", mUserEnabled);
-		dest.putBoolean(key + ".mRemoveAfter", mRemoveAfter);
-		dest.putInt(key + ".mInterval", mInterval);
-		dest.putInt(key + ".mSelectionStart", mSelectionStart);
-		dest.putInt(key + ".mSelectionEnd", mSelectionEnd);
-		dest.putLong(key + ".mStartTime", mStartTime);
-		dest.putLong(key + ".mEndTime", mEndTime);
-		dest.putString(key + ".mTriggerPattern", mTriggerPattern);
-		dest.putBoolean(key + ".mUseRegex", mUseRegex);
-		dest.putString(key + ".mText", mText);
-		dest.putLong(key + ".mInReplyTo", mInReplyTo);
-		dest.putFloat(key + ".mLatitude", mLatitude);
-		dest.putFloat(key + ".mLongitude", mLongitude);
-		dest.putBoolean(key + ".mUseCoordinates", mUseCoordinates);
-		dest.putInt(key + ".mUserIdList.length", mUserIdList.size());
-		for (int i = 0, i_ = mUserIdList.size(); i < i_; i++)
-			dest.putLong(key + ".mUserIdList." + i, mUserIdList.get(i));
-		dest.putInt(key + ".mMediaTempPathList.length", mMediaTempPathList.size());
-		for (int i = 0, i_ = mMediaTempPathList.size(); i < i_; i++)
-			dest.putString(key + ".mMediaTempPathList." + i, mMediaTempPathList.get(i));
-		dest.putInt(key + ".mAttachments.length", mAttachments.size());
-		for (int i = 0, i_ = mAttachments.size(); i < i_; i++)
-			mAttachments.get(i).writeToPreferences(key + ".mAttachments." + i, dest);
 	}
 
 	@Override
@@ -213,24 +177,83 @@ public class TemplateTweet implements Parcelable {
 
 	@Override
 	public void writeToParcel(Parcel dest, int flags) {
-		dest.writeInt(mType);
-		dest.writeLong(mCreatedAt);
-		dest.writeByte((byte) (mUserEnabled ? 0x01 : 0x00));
-		dest.writeByte((byte) (mRemoveAfter ? 0x01 : 0x00));
-		dest.writeInt(mInterval);
-		dest.writeInt(mSelectionStart);
-		dest.writeInt(mSelectionEnd);
-		dest.writeLong(mStartTime);
-		dest.writeLong(mEndTime);
-		dest.writeString(mTriggerPattern);
-		dest.writeByte((byte) (mUseRegex ? 0x01 : 0x00));
-		dest.writeString(mText);
-		dest.writeLong(mInReplyTo);
-		dest.writeFloat(mLatitude);
-		dest.writeFloat(mLongitude);
-		dest.writeByte((byte) (mUseCoordinates ? 0x01 : 0x00));
+		dest.writeLong(id);
+		dest.writeInt(type);
+		dest.writeLong(created_at);
+		dest.writeByte((byte) (enabled ? 0x01 : 0x00));
+		dest.writeByte((byte) (remove_after ? 0x01 : 0x00));
+		dest.writeInt(interval);
+		dest.writeInt(selection_start);
+		dest.writeInt(selection_end);
+		dest.writeLong(time_start);
+		dest.writeLong(time_end);
+		dest.writeString(trigger_pattern);
+		dest.writeByte((byte) (trigger_use_regex ? 0x01 : 0x00));
+		dest.writeString(text);
+		dest.writeLong(in_reply_to_id);
+		dest.writeFloat(latitude);
+		dest.writeFloat(longitude);
+		dest.writeByte((byte) (use_coordinates ? 0x01 : 0x00));
+		dest.writeByte((byte) (autoresolve_coordinates ? 0x01 : 0x00));
 		dest.writeList(mUserIdList);
-		dest.writeList(mMediaTempPathList);
 		dest.writeList(mAttachments);
+	}
+
+	public void post(final OnTweetListener listener, Handler handler) {
+		final int CHUNK_SIZE = 1048576;
+		mIsPosting = true;
+		try {
+			for (long user_id : mUserIdList) {
+				TwitterEngine e = TwitterEngine.get(user_id);
+				if (e == null)
+					throw new RuntimeException("No user exists");
+				List<Long> mediaIds = Collections.synchronizedList(new ArrayList<Long>());
+				for (TemplateTweetAttachment a : mAttachments) {
+					if (a.mMediaId == 0) {
+						if (a.media_type == TemplateTweetProvider.MEDIA_TYPE_VIDEO) {
+							long length = a.mLocalFile.length();
+							android.util.Log.d("AttachmentUploader", "INIT");
+							a.mMediaId = e.uploadMediaChunkInit(length, "video/mp4", mUserIdList);
+							android.util.Log.d("AttachmentUploader", "INIT " + a.mMediaId);
+							for (int i = 0; i * CHUNK_SIZE < length; i++) {
+								android.util.Log.d("AttachmentUploader", "Chunk " + i + ": START (" + i * CHUNK_SIZE + "~" + Math.min((i + 1) * CHUNK_SIZE, length) + ") " + (Math.min((i + 1) * CHUNK_SIZE, length) - i * CHUNK_SIZE));
+								e.uploadMediaChunkAppend(a.mMediaId, i, a.mLocalFile, i * CHUNK_SIZE, Math.min((i + 1) * CHUNK_SIZE, length));
+								android.util.Log.d("AttachmentUploader", "Chunk " + i + ": END");
+							}
+							a.mMediaId = e.uploadMediaFinalize(a.mMediaId);
+							android.util.Log.d("AttachmentUploader", "FIN " + a.mMediaId);
+						} else
+							a.mMediaId = e.uploadMedia(a.mLocalFile, mUserIdList);
+					}
+					mediaIds.add(a.mMediaId);
+				}
+				e.postTweet(text, in_reply_to_id, latitude, longitude, use_coordinates, mediaIds.isEmpty() ? null : mediaIds);
+			}
+			handler.post(new Runnable() {
+				@Override
+				public void run() {
+					listener.onTweetSucceed(TemplateTweet.this);
+				}
+			});
+		} catch (final Throwable t) {
+			handler.post(new Runnable() {
+				@Override
+				public void run() {
+					listener.onTweetFail(TemplateTweet.this, t);
+				}
+			});
+		} finally {
+			mIsPosting = false;
+		}
+	}
+
+	public boolean isPosting() {
+		return mIsPosting;
+	}
+
+	public interface OnTweetListener {
+		void onTweetSucceed(TemplateTweet template);
+
+		void onTweetFail(TemplateTweet template, Throwable why);
 	}
 }

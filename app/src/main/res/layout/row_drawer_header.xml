@@ -26,7 +26,8 @@
 			android:layout_marginBottom="8dp"
 			android:layout_marginLeft="16dp"
 			android:layout_marginStart="16dp"
-			android:layout_marginTop="40dp"/>
+			android:layout_marginTop="40dp"
+			android:background="@drawable/ripple_bg"/>
 
 		<com.soreepeong.darknova.ui.view.ChildBlockingFrameLayout
 			android:layout_width="64dp"

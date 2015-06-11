@@ -44,12 +44,12 @@
 			android:name=".services.DarknovaService"
 			android:exported="false"
 			android:label="NotificationService"
-			android:process=":notification_service"/>
+			android:process=":background"/>
 
 		<receiver
 			android:name=".services.NotificationBroadcastReceiver"
 			android:exported="false"
-			android:process=":notification_service">
+			android:process=":background">
 			<intent-filter>
 				<action android:name="com.soreepeong.darknova.services.NotificationBroadcastReceiver.CLEAR_NOTIFICATIONS"/>
 				<action android:name="com.soreepeong.darknova.services.NotificationBroadcastReceiver.STOP_STREAMING"/>
@@ -60,9 +60,15 @@
 
 		<provider
 			android:name=".services.ImageCacheProvider"
-			android:authorities="com.soreepeong.darknova.core.ImageCache.ImageCacheProvider"
+			android:authorities="com.soreepeong.darknova.services.ImageCacheProvider"
 			android:exported="false"
-			android:process=":notification_service"/>
+			android:process=":background"/>
+
+		<provider
+			android:name=".services.TemplateTweetProvider"
+			android:authorities="com.soreepeong.darknova.services.TemplateTweetProvider"
+			android:exported="false"
+			android:process=":background"/>
 
 		<activity
 			android:name="com.soreepeong.darknova.ui.LoginActivity"

@@ -2,7 +2,6 @@ package com.soreepeong.darknova.ui.span;
 
 import android.view.View;
 
-import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.settings.Page;
 import com.soreepeong.darknova.twitter.Entities;
 import com.soreepeong.darknova.twitter.TwitterEngine;
@@ -28,12 +27,6 @@ public class UserEntitySpan extends TouchableSpan implements EntitySpan {
 	public void onClick(View v) {
 		if (!(v.getContext() instanceof MainActivity))
 			return;
-		MainActivity a = (MainActivity) v.getContext();
-		Page.Builder builder = new Page.Builder(mEntity.screen_name, R.drawable.ic_eyes);
-		TwitterEngine currentUser = a.getDrawerFragment().getCurrentUser();
-		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_SINGLE, mEntity.id, mEntity.screen_name));
-		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_TIMELINE, mEntity.id, mEntity.screen_name));
-		builder.setParentPage(a.getCurrentPage().getRepresentingPage());
-		a.selectPage(Page.addIfNoExist(builder.build()));
+		Page.templatePageUser(mEntity.id, mEntity.screen_name, (MainActivity) v.getContext());
 	}
 }

@@ -42,16 +42,57 @@
 	<string name="tweet_description_retweet_user_counts" formatted="false">${count} users</string>
 
 	<string name="new_tweet_select_user">Select user</string>
-	<string name="new_tweet_oneshot">Post now</string>
+	<string name="new_tweet_geo">Location</string>
+	<string name="new_tweet_geo_use">Use location</string>
+	<string name="new_tweet_geo_lat">Latitude</string>
+	<string name="new_tweet_geo_long">Longitude</string>
+	<string name="new_tweet_geo_auto">Autoresolve</string>
+	<string name="new_tweet_geo_resolve">Resolve now</string>
+	<string name="new_tweet_geo_pick">Pick</string>
+	<string name="new_tweet_remove">Remove this item?</string>
+	<string name="new_tweet_options">Options</string>
+	<string name="new_tweet_enabled">Enabled</string>
+	<string name="new_tweet_disabled">Disabled</string>
+	<string name="new_tweet_remove_after">Remove after tweet</string>
+	<string name="new_tweet_interval">Interval</string>
+	<string name="new_tweet_time_start">Starts at</string>
+	<string name="new_tweet_time_end">Ends at</string>
+	<string name="new_tweet_pattern">Pattern</string>
+	<string name="new_tweet_use_regex">Use RegEx</string>
+	<string name="new_tweet_pattern_test">- Test</string>
+	<string name="new_tweet_list">List</string>
 	<string name="new_tweet_hint">New tweet&#8230;</string>
-	<string name="new_tweet_clear">Clear</string>
-	<string name="new_tweet_clear_confirm">Discard all input?</string>
+	<string name="new_tweet_hide">Hide</string>
 	<string name="new_tweet_write">Write</string>
 	<string name="new_tweet_save">Save</string>
 	<string name="new_tweet_attach_remove_required">4 images, 1 video, or 1 animation gif allowed for one tweet. Remove some of media to post.</string>
 	<string name="new_tweet_attach">Attach</string>
+	<string name="new_tweet_attach_remove_file">Do you want to remove file &quot;%&quot;?</string>
+	<string name="new_tweet_attach_remove_select_extsdcard">Select the external storage directory.</string>
+	<string name="new_tweet_attach_remove_failed">Cannot remove file.</string>
 	<string name="new_tweet_attach_image">Attach image</string>
 	<string name="new_tweet_attach_take_picture">Take a picture</string>
+	<string name="new_tweet_attach_video">Attach video</string>
+	<string name="new_tweet_attach_take_video">Take a video</string>
+	<string name="new_tweet_attach_invalid">Bad response.</string>
+	<string name="new_tweet_attach_no_app_choose_picture">No suitable app to choose picture.</string>
+	<string name="new_tweet_attach_no_app_take_picture">No suitable app to take picture.</string>
+	<string name="new_tweet_attach_no_app_choose_video">No suitable app to choose video.</string>
+	<string name="new_tweet_attach_no_app_take_video">No suitable app to take video.</string>
+
+	<string-array name="new_tweet_type_array">
+		<item>Once</item>
+		<item>Scheduled</item>
+		<item>Periodic</item>
+		<item>Reply</item>
+	</string-array>
+
+	<string-array name="new_tweet_attachment_type_array">
+		<item>Show all supported media</item>
+		<item>Show only images</item>
+		<item>Show only videos (&lt;15MB)</item>
+		<item>Show only GIF files (&lt;5MB)</item>
+	</string-array>
 
 	<string name="tweet_action_reply">Reply</string>
 	<string name="tweet_action_retweet">Retweet</string>

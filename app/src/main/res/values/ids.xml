@@ -8,4 +8,5 @@
 	<item name="DRAG_ACTION_TYPE_ALL" type="id" />
 	<item name="DRAG_ACTION_CLICK_PERSIST" type="id" />
 	<item name="VIEWHOLDER_ID" type="id" />
+	<item name="UNIX_TIMESTAMP" type="id"/>
 </resources>

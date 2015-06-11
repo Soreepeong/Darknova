@@ -5,7 +5,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -15,11 +14,9 @@ public class ClippedBitmapDrawable extends BitmapDrawable {
 	public static final int CLIP_TYPE_NONE = 0;
 	public static final int CLIP_TYPE_OVAL = 1;
 	public static final int CLIP_TYPE_ROUND_RECT = 2;
-	public static final int CLIP_TYPE_PATH = 3;
 	private final Paint mPaint;
 	private final RectF mRectF = new RectF();
 	private int mClipType, mClipParameter;
-	private Path mClipPath;
 
 	public ClippedBitmapDrawable(Resources res, Bitmap bitmap) {
 		super(res, bitmap);
@@ -37,10 +34,9 @@ public class ClippedBitmapDrawable extends BitmapDrawable {
 		mPaint.setShader(new BitmapShader(getBitmap(), Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
 	}
 
-	public void clip(int clipType, int clipParam, Path clipPath) {
+	public void clip(int clipType, int clipParam) {
 		mClipType = clipType;
 		mClipParameter = clipParam;
-		mClipPath = clipPath;
 	}
 
 	@Override
@@ -54,9 +50,6 @@ public class ClippedBitmapDrawable extends BitmapDrawable {
 				break;
 			case CLIP_TYPE_ROUND_RECT:
 				canvas.drawRoundRect(mRectF, mClipParameter, mClipParameter, mPaint);
-				break;
-			case CLIP_TYPE_PATH:
-				canvas.drawPath(mClipPath, mPaint);
 				break;
 		}
 	}

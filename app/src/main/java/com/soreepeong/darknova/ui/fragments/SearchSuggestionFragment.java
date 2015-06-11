@@ -219,7 +219,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 	public void hide() {
 		if (mViewFragment.getVisibility() != View.VISIBLE)
 			return;
-		ResTools.hideWithAnimation(getActivity(), mViewFragment, R.anim.hide_downward, true);
+		ResTools.hideWithAnimation(mViewFragment, R.anim.hide_upward, true);
 	}
 
 	private ArrayList<UserSuggestion> makeUserSuggestions(String user) {
@@ -325,12 +325,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 	}
 
 	private void openUser(long user_id, String screen_name){
-		Page.Builder builder = new Page.Builder(screen_name, R.drawable.ic_eyes);
-		TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
-		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_SINGLE, user_id, screen_name));
-		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_TIMELINE, user_id, screen_name));
-		builder.setParentPage(((MainActivity) getActivity()).getCurrentPage().getRepresentingPage());
-		((MainActivity) getActivity()).selectPage(Page.addIfNoExist(builder.build()));
+		Page.templatePageUser(user_id, screen_name, (MainActivity) getActivity());
 		mSearchView.setIconified(true);
 		MenuItemCompat.collapseActionView(mMenuItem);
 		hide();
@@ -352,11 +347,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			openUser(s.user.user_id, s.user.screen_name);
 		} else if (mViewSearchList.equals(parent)) {
 			SearchSuggestion s = mSearchList.get(position);
-			Page.Builder builder = new Page.Builder(s.text, R.drawable.ic_bigeyed);
-			TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
-			builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_SEARCH, 0, s.text));
-			builder.setParentPage(((MainActivity) getActivity()).getCurrentPage().getRepresentingPage());
-			((MainActivity) getActivity()).selectPage(Page.addIfNoExist(builder.build()));
+			Page.templatePageSearch(s.text, (MainActivity) getActivity());
 			mSearchView.setIconified(true);
 			MenuItemCompat.collapseActionView(mMenuItem);
 			hide();

@@ -753,21 +753,90 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		}
 	}
 
-	public long uploadMedia(File localFile) throws RequestException {
+	public long uploadMedia(File localFile, List<Long> additionalUsers) throws RequestException {
 		HTTPRequest request = HTTPRequest.getRequest(UPLOAD_BASE_PATH + "media/upload.json", auth, true, null, true);
-		if (request == null) throw new RequestException("lookupUser", "Nulled");
-		InputStream in = null;
+		if (request == null) throw new RequestException("uploadMedia", "Nulled");
 		try {
+			if (additionalUsers != null && !additionalUsers.isEmpty()) {
+				StringBuilder additional = new StringBuilder();
+				for (long l : additionalUsers) {
+					if (additional.length() != 0)
+						additional.append(",");
+					additional.append(l);
+				}
+				request.addMultipartParameter("additional_owners", additional.toString());
+			}
 			request.addMultipartFileParameter("media", localFile);
 			request.submitRequest();
 			if (request.getStatusCode() != 200)
-				throw new RequestException("lookupUser", request);
+				throw new RequestException("uploadMedia", request);
 			JSONObject parsed = new JSONObject(request.getWholeData());
 			return parsed.getLong("media_id");
 		} catch (JSONException e) {
-			throw new RequestException("lookupUser", e);
+			throw new RequestException("uploadMedia", e);
 		} finally {
-			StreamTools.close(in);
+			request.close();
+		}
+	}
+
+	public long uploadMediaChunkInit(long length, String mediaType, List<Long> additionalUsers) throws RequestException {
+		HTTPRequest request = HTTPRequest.getRequest(UPLOAD_BASE_PATH + "media/upload.json", auth, true, null, false);
+		if (request == null) throw new RequestException("uploadMediaChunkInit", "Nulled");
+		try {
+			if (additionalUsers != null && !additionalUsers.isEmpty()) {
+				StringBuilder additional = new StringBuilder();
+				for (long l : additionalUsers) {
+					if (additional.length() != 0)
+						additional.append(",");
+					additional.append(l);
+				}
+				request.addMultipartParameter("additional_owners", additional.toString());
+			}
+			request.addMultipartParameter("command", "INIT");
+			request.addMultipartParameter("total_bytes", Long.toString(length));
+			request.addMultipartParameter("media_type", mediaType);
+			request.submitRequest();
+			if (request.getStatusCode() / 100 != 2)
+				throw new RequestException("uploadMediaChunkInit", request);
+			JSONObject parsed = new JSONObject(request.getWholeData());
+			return parsed.getLong("media_id");
+		} catch (JSONException e) {
+			throw new RequestException("uploadMediaChunkInit", e);
+		} finally {
+			request.close();
+		}
+	}
+
+	public void uploadMediaChunkAppend(long media_id, int segment_index, File localFile, long from, long to) throws RequestException {
+		HTTPRequest request = HTTPRequest.getRequest(UPLOAD_BASE_PATH + "media/upload.json", auth, true, null, true);
+		if (request == null) throw new RequestException("uploadMediaChunkAppend", "Nulled");
+		try {
+			request.addMultipartParameter("media_id", Long.toString(media_id));
+			request.addMultipartParameter("segment_index", Integer.toString(segment_index));
+			request.addMultipartParameter("command", "APPEND");
+			request.addMultipartFileParameter("media", localFile, from, to);
+			request.submitRequest();
+			if (request.getStatusCode() / 100 != 2)
+				throw new RequestException("uploadMediaChunkAppend", request);
+		} finally {
+			request.close();
+		}
+	}
+
+	public long uploadMediaFinalize(long media_id) throws RequestException {
+		HTTPRequest request = HTTPRequest.getRequest(UPLOAD_BASE_PATH + "media/upload.json", auth, true, null, false);
+		if (request == null) throw new RequestException("uploadMediaFinalize", "Nulled");
+		try {
+			request.addMultipartParameter("media_id", Long.toString(media_id));
+			request.addMultipartParameter("command", "FINALIZE");
+			request.submitRequest();
+			if (request.getStatusCode() / 100 != 2)
+				throw new RequestException("uploadMediaChunkInit", request);
+			JSONObject parsed = new JSONObject(request.getWholeData());
+			return parsed.getLong("media_id");
+		} catch (JSONException e) {
+			throw new RequestException("uploadMediaFinalize", e);
+		} finally {
 			request.close();
 		}
 	}
@@ -776,7 +845,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		return getTweeterArrayRequest("users/search.json?q=" + StringTools.UrlEncode(q) + "&count=" + count + "&page=" + page, null);
 	}
 
-	public Tweet postTweet(String status, long in_reply_to_status_id, long latitude, long longitude, boolean display_coordinates, List<Long> media_ids) throws RequestException {
+	public Tweet postTweet(String status, long in_reply_to_status_id, float latitude, float longitude, boolean display_coordinates, List<Long> media_ids) throws RequestException {
 		String post = "status=" + StringTools.UrlEncode(status) + "&in_reply_to_status_id=" + in_reply_to_status_id + "&latitude=" + latitude + "&longitude=" + longitude + "&display_coordinates=" + (display_coordinates ? "t" : "f");
 		if (media_ids != null && !media_ids.isEmpty()) {
 			post += "&media_ids=" + media_ids.remove(0);
@@ -1298,7 +1367,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-			;
+			android.util.Log.d("TwitterEngine " + functionName, "StatusCode: " + request.getStatusCode());
 			if (request.getLastError() != null)
 				request.getLastError().printStackTrace();
 		}

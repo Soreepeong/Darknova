@@ -1,0 +1,67 @@
+Page
+- Manage page: UI for changing, removing, renaming, or reordering pages & page elements
+- On user change: send pages to "recycler", to reassign TwitterEngine for elements
+
+Media Previewer
+- Introduce on first use: Tap to show/hide menu
+
+NavBar
+- Two finger drag to open from user list
+- Selected item - lighter color
+
+Accounts
+- Profile settings
+- On web
+
+Page to be made
+- FUNCTION_RETWEETS_OF_ME
+- FUNCTION_LIST_TWEETS
+- FUNCTION_USER_FAVORITES
+- FUNCTION_DM_SENT
+- FUNCTION_DM_RECEIVED
+-- DisplayMode: by tweet, or by user
+-- ? Relocate TimeFragment.mList to PageFragment
+- FUNCTION_SINGLE_TWEET
+-- AppBar: When CoordinatorLayout gets fixed
+-- Animate transition (use different one from VP Default)
+-- PageTransformer
+-- big display style + buttons
+-- List upper tweet: Replies (normal display style), grouped by conversation
+-- Tab under tweet: Links preview, Images preview (MediaFragment), Thread
+- FUNCTION_SINGLE_USER
+
+How to display? Page or popup?
+- FUNCTION_TRENDS
+- FUNCTION_ACTIVITIES
+-- ? Twitter hidden API
+- FUNCTION_BLOCKED_USERS
+- FUNCTION_NO_RETWEET_USERS
+- FUNCTION_LIST_MEMBERS
+- FUNCTION_LIST_SUBSCRIBERS
+- FUNCTION_USER_FOLLOWERS
+- FUNCTION_USER_FRIENDS
+- FUNCTION_USER_LIST_FOLLOWING
+- FUNCTION_TWEET_RETWEETED_BY
+
+Template Tweet
+- Types: Oneshot, Scheduled, Periodic, Reply
+- RegEx enabled, maybe RegEx Editor
+- Special replacements: ${sender.property_name} ${me.property_name} ${script.script_name}
+- AlarmManager + Schedule
+
+Notification
+- Page list managed by service
+- Page updated notification
+- New activity related to me notification
+-- Mentions
+-- Retweet of my tweet
+-- Followed / Unfollowed
+
+Settings
+- WaveProgressDrawable performance
+- Page memory settings
+- Streaming
+-- Max connection time
+- Filter
+- Theme
+- Bitmap clipping style

@@ -31,8 +31,10 @@ import android.widget.ImageView;
 
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.drawable.ClippedBitmapDrawable;
+import com.soreepeong.darknova.drawable.ClippedDrawable;
 import com.soreepeong.darknova.drawable.WaveProgressDrawable;
 import com.soreepeong.darknova.services.ImageCacheProvider;
+import com.soreepeong.darknova.tools.ResTools;
 import com.soreepeong.darknova.tools.StreamTools;
 
 import java.io.File;
@@ -51,6 +53,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import pl.droidsonroids.gif.GifDrawable;
+
 /**
  * Custom image cache that uses {@see ImageCacheProvider} for DB management.
  *
@@ -64,6 +68,33 @@ public class ImageCache {
 	private static final AccelerateDecelerateInterpolator REVEAL_ANIMATION_INTERPOLATOR = new AccelerateDecelerateInterpolator();
 	private static final Pattern LOCAL_FILE_MATCHER = Pattern.compile("^(?:file://)?(/.*)$", Pattern.CASE_INSENSITIVE);
 	private static final Handler mMainThreadHandler = new Handler(Looper.getMainLooper());
+	private static final WeakHashMap<DrawableWrapper, GifDrawable> mWrappedDrawableCallbacks = new WeakHashMap<>();
+	private static final WeakHashMap<GifDrawable, String> mExistingWrappedDrawables = new WeakHashMap<>();
+	private static final Drawable.Callback mWrapperCallback = new Drawable.Callback() {
+		@Override
+		public void invalidateDrawable(Drawable who) {
+			synchronized (mWrappedDrawableCallbacks) {
+				for (DrawableWrapper w : mWrappedDrawableCallbacks.keySet())
+					w.invalidateDrawable(who);
+			}
+		}
+
+		@Override
+		public void scheduleDrawable(Drawable who, Runnable what, long when) {
+			synchronized (mWrappedDrawableCallbacks) {
+				for (DrawableWrapper w : mWrappedDrawableCallbacks.keySet())
+					w.scheduleDrawable(who, what, when);
+			}
+		}
+
+		@Override
+		public void unscheduleDrawable(Drawable who, Runnable what) {
+			synchronized (mWrappedDrawableCallbacks) {
+				for (DrawableWrapper w : mWrappedDrawableCallbacks.keySet())
+					w.unscheduleDrawable(who, what);
+			}
+		}
+	};
 	private static ImageCache mCurrentCache;
 	private static CacheLoader mCacheLoader;
 	private final LinkedList<ImageLoader> mPendingImages;
@@ -76,15 +107,20 @@ public class ImageCache {
 		public Drawable onDrawablePreprocess(Drawable drawable) {
 			if (drawable instanceof BitmapDrawable) {
 				drawable = new ClippedBitmapDrawable(mResources, (BitmapDrawable) drawable);
-				((ClippedBitmapDrawable) drawable).clip(ClippedBitmapDrawable.CLIP_TYPE_OVAL, 0, null);
-			} else if (drawable instanceof WaveProgressDrawable)
-				((WaveProgressDrawable) drawable).clip(WaveProgressDrawable.CLIP_TYPE_OVAL, 0, null);
+				((ClippedBitmapDrawable) drawable).clip(ClippedBitmapDrawable.CLIP_TYPE_OVAL, 0);
+			} else if (drawable instanceof WaveProgressDrawable) {
+				((WaveProgressDrawable) drawable).clip(WaveProgressDrawable.CLIP_TYPE_OVAL, 0);
+			} else {
+				drawable = new ClippedDrawable(drawable);
+				((ClippedDrawable) drawable).clip(ClippedBitmapDrawable.CLIP_TYPE_OVAL, 0);
+			}
 			return drawable;
 		}
 	};
 	private final LruCache<String, WeakReference<BitmapDrawable>> mMemoryCache;
 	private final WeakHashMap<WeakReference<BitmapDrawable>, Integer> mSizeCache;
 	private final WeakHashMap<AutoApplyingDrawable, String> mUsedDrawables;
+	private final WeakHashMap<Bitmap, GifDrawable> mGifPaths;
 	private final ContentResolver mDb;
 	private final SparseArray<BitmapDrawable> mNullResourceBitmaps = new SparseArray<>();
 	private File mCacheFile;
@@ -99,6 +135,7 @@ public class ImageCache {
 		mScheduler = new ImageLoaderScheduler();
 		mSizeCache = new WeakHashMap<>();
 		mUsedDrawables = new WeakHashMap<>();
+		mGifPaths = new WeakHashMap<>();
 		mMemoryCache = new LruCache<String, WeakReference<BitmapDrawable>>(MAX_SIZE) {
 			@Override
 			protected int sizeOf(String key, WeakReference<BitmapDrawable> bitmap) {
@@ -190,24 +227,14 @@ public class ImageCache {
 		throw new OutOfMemoryError();
 	}
 
-	public static void refineRect(Rect rct, int bitmapWidth, int bitmapHeight) {
-		if (bitmapWidth / bitmapHeight < (rct.right - rct.left) / (rct.bottom - rct.top)) {
-			// height fit
-			int newHeight = rct.bottom - rct.top;
-			int newWidth = bitmapWidth * newHeight / bitmapHeight;
-			int newLeft = rct.left + (rct.right - rct.left - newWidth) / 2;
-			rct.left = newLeft;
-			rct.right = newLeft + newWidth;
-			rct.bottom = rct.top + newHeight;
-		} else {
-			// width fit
-			int newWidth = rct.right - rct.left;
-			int newHeight = bitmapHeight * newWidth / bitmapWidth;
-			int newTop = rct.top + (rct.bottom - rct.top - newHeight) / 2;
-			rct.right = rct.left + newWidth;
-			rct.top = newTop;
-			rct.bottom = newTop + newHeight;
+	private static DrawableWrapper makeGifDrawableWrapper(GifDrawable dr) {
+		DrawableWrapper wr = new DrawableWrapper(dr);
+		synchronized (mWrappedDrawableCallbacks) {
+			mWrappedDrawableCallbacks.put(wr, dr);
 		}
+		dr.setVisible(true, false);
+		dr.start();
+		return wr;
 	}
 
 	/**
@@ -345,6 +372,7 @@ public class ImageCache {
 		view.clearAnimation();
 		view.setTag(R.id.IMAGEVIEW_URL, url);
 		view.setTag(R.id.IMAGEVIEW_PREPROCESSOR, preprocessor);
+		view.clearAnimation();
 		if (url == null) {
 			if (nullDrawable == null)
 				view.setImageDrawable(null);
@@ -354,8 +382,7 @@ public class ImageCache {
 				view.setImageDrawable(getResourceDrawable((int) nullDrawable));
 			return;
 		}
-		BitmapDrawable drawable = getBitmapFromMemCache(url);
-		view.clearAnimation();
+		Drawable drawable = getBitmapFromMemCache(url);
 		if (drawable == null) {
 			if (nullDrawable == null) {
 				view.setImageDrawable(null);
@@ -363,8 +390,12 @@ public class ImageCache {
 				view.setImageDrawable((Drawable) nullDrawable);
 			else
 				view.setImageDrawable(getResourceDrawable((int) nullDrawable));
-		} else
+		} else {
+			GifDrawable gif = mGifPaths.get(((BitmapDrawable) drawable).getBitmap());
+			if (gif != null)
+				drawable = makeGifDrawableWrapper(gif);
 			view.setImageDrawable(preprocessor != null ? preprocessor.onDrawablePreprocess(drawable) : drawable);
+		}
 		if (drawable == null) {
 			boolean newObject;
 			synchronized (mScheduler) {
@@ -759,11 +790,66 @@ public class ImageCache {
 		}
 	}
 
-	private class ImageLoaderScheduler extends Thread {
-		@Override
-		public void interrupt() {
-			super.interrupt();
+	private static class DrawableWrapper extends Drawable implements Drawable.Callback {
+		private final Drawable mDrawable;
+		private int mAlpha = 255;
+
+		DrawableWrapper(Drawable dr) {
+			mDrawable = dr;
 		}
+
+		@Override
+		public void draw(Canvas canvas) {
+			mDrawable.setAlpha(mAlpha);
+			mDrawable.setBounds(getBounds());
+			mDrawable.draw(canvas);
+		}
+
+		@Override
+		public void setAlpha(int alpha) {
+			mAlpha = alpha;
+		}
+
+		@Override
+		public void setColorFilter(ColorFilter cf) {
+
+		}
+
+		@Override
+		public int getIntrinsicHeight() {
+			return mDrawable.getIntrinsicHeight();
+		}
+
+		@Override
+		public int getIntrinsicWidth() {
+			return mDrawable.getIntrinsicWidth();
+		}
+
+		@Override
+		public int getOpacity() {
+			return mAlpha;
+		}
+
+		@Override
+		public void invalidateDrawable(Drawable who) {
+			if (who == mDrawable)
+				invalidateSelf();
+		}
+
+		@Override
+		public void scheduleDrawable(Drawable who, Runnable what, long when) {
+			if (who == mDrawable)
+				scheduleSelf(what, when);
+		}
+
+		@Override
+		public void unscheduleDrawable(Drawable who, Runnable what) {
+			if (who == mDrawable)
+				unscheduleSelf(what);
+		}
+	}
+
+	private class ImageLoaderScheduler extends Thread {
 
 		@Override
 		public void run() {
@@ -774,6 +860,7 @@ public class ImageCache {
 						while (mWorkingImageLoaders.size() >= DEFAULT_IMAGE_LOADERS || mPendingImages.isEmpty())
 							wait();
 						newLoader = mPendingImages.removeFirst();
+						newLoader.setPriority(Thread.MIN_PRIORITY);
 						mWorkingImageLoaders.add(newLoader);
 					}
 					newLoader.start();
@@ -791,6 +878,8 @@ public class ImageCache {
 		final CopyOnWriteArrayList<ImageView> mTargetViews = new CopyOnWriteArrayList<>();
 		final CopyOnWriteArrayList<View> mTargetStatusIndicaters = new CopyOnWriteArrayList<>();
 		BitmapDrawable bmp;
+		GifDrawable maybeGif;
+		boolean isGif;
 		String id = null;
 		String filePath;
 		int mLoadProgress;
@@ -866,18 +955,39 @@ public class ImageCache {
 		}
 
 		int read() {
-			Bitmap b;
+			Bitmap b = null;
+			File f = new File(filePath);
+			if (!f.exists())
+				return OnImageAvailableListener.UNAVAILABLE_FILESYSTEM_ERROR;
 			try {
-				if (!new File(filePath).exists())
-					return OnImageAvailableListener.UNAVAILABLE_FILESYSTEM_ERROR;
+				synchronized (mExistingWrappedDrawables) {
+					for (GifDrawable dr : mExistingWrappedDrawables.keySet())
+						if (mExistingWrappedDrawables.get(dr).equals(filePath))
+							maybeGif = dr;
+					if (maybeGif == null) {
+						maybeGif = new GifDrawable(filePath);
+						maybeGif.setCallback(mWrapperCallback);
+						maybeGif.setLoopCount(0);
+						mExistingWrappedDrawables.put(maybeGif, filePath);
+					}
+				}
+				isGif = true;
+			} catch (IOException e) {
+				isGif = false;
+			}
+			try {
 				b = decodeFile(filePath, 1280, 1280);
 			} catch (IOException e) {
-				b = ThumbnailUtils.createVideoThumbnail(filePath, MediaStore.Video.Thumbnails.MINI_KIND);
+				e.printStackTrace();
 			} catch (OutOfMemoryError oom) {
 				return OnImageAvailableListener.UNAVAILABLE_MEMORY_ERROR;
 			}
+			if (b == null)
+				b = ThumbnailUtils.createVideoThumbnail(filePath, MediaStore.Video.Thumbnails.MINI_KIND);
 			if (b != null)
 				bmp = new BitmapDrawable(mResources, b);
+			if (isGif)
+				mGifPaths.put(b, maybeGif);
 			return 0;
 		}
 
@@ -905,13 +1015,14 @@ public class ImageCache {
 						error = download();
 					}
 					cursor.close();
+					if (error == 0)
+						error = read();
+					if (error != 0 && !downloaded && (error = download()) == 0) {
+						filePath = new File(getCacheFile(), id).getAbsolutePath();
+						error = read();
+					}
 				} else {
 					filePath = m.group(1);
-				}
-				if (error == 0)
-					error = read();
-				if (error != 0 && !downloaded && (error = download()) == 0) {
-					filePath = new File(getCacheFile(), id).getAbsolutePath();
 					error = read();
 				}
 				if (error == 0)
@@ -935,11 +1046,13 @@ public class ImageCache {
 						for (ImageView view : mTargetViews) {
 							if (mUrl.equals(view.getTag(R.id.IMAGEVIEW_URL))) {
 								if (finalError == 0) {
-									Drawable newDrawable;
-									if (view.getTag(R.id.IMAGEVIEW_PREPROCESSOR) instanceof OnDrawablePreprocessListener)
-										newDrawable = ((OnDrawablePreprocessListener) view.getTag(R.id.IMAGEVIEW_PREPROCESSOR)).onDrawablePreprocess(bmp);
-									else
+									Drawable newDrawable = null;
+									if (isGif)
+										newDrawable = makeGifDrawableWrapper(maybeGif);
+									if (newDrawable == null)
 										newDrawable = bmp;
+									if (view.getTag(R.id.IMAGEVIEW_PREPROCESSOR) instanceof OnDrawablePreprocessListener)
+										newDrawable = ((OnDrawablePreprocessListener) view.getTag(R.id.IMAGEVIEW_PREPROCESSOR)).onDrawablePreprocess(newDrawable);
 									if (view.getDrawable() instanceof ImageLoadDrawable)
 										((ImageLoadDrawable) view.getDrawable()).replace(view, newDrawable);
 									else {
@@ -959,11 +1072,7 @@ public class ImageCache {
 						}
 						for (View view : mTargetStatusIndicaters) {
 							if (mUrl.equals(view.getTag(R.id.IMAGEVIEW_URL))) {
-								AlphaAnimation anim = new AlphaAnimation(1, 0);
-								anim.setInterpolator(view.getContext(), android.R.anim.accelerate_decelerate_interpolator);
-								anim.setDuration(REVEAL_ANIMATION_LENGTH);
-								view.clearAnimation();
-								view.startAnimation(anim);
+								ResTools.hideWithAnimation(view, android.R.anim.fade_out, true);
 							}
 						}
 						for (Iterator<AutoApplyingDrawable> iter = mUsedDrawables.keySet().iterator(); iter.hasNext(); ) {

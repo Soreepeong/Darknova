@@ -2,6 +2,7 @@ package com.soreepeong.darknova.ui.fragments;
 
 import android.animation.Animator;
 import android.animation.ObjectAnimator;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
@@ -11,7 +12,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Parcel;
-import android.os.Parcelable;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.widget.SwipeRefreshLayout;
@@ -126,7 +126,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	private File mListCacheFile;
 
 	private boolean mSavePending;
-	private boolean mPaused;
 
 	public TimelineFragment() {
 		super();
@@ -147,25 +146,16 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		super.onCreate(savedInstanceState);
 		mPagePositionPreferences = getActivity().getSharedPreferences("page-position-" + mPage.generateUniqid(), 0);
 		try {
-			if (savedInstanceState == null) {
-				mPage.mPageLastItemPosition = mPagePositionPreferences.getInt("position", 0);
-				mPage.mPageLastItemId = mPagePositionPreferences.getLong("id", 0);
-				mPage.mPageNewestSeenItemId = mPagePositionPreferences.getLong("seen_id", 0);
-				mPage.mPageLastOffset = mPagePositionPreferences.getInt("lastoffset", 0);
-				mPage.mIsListAtTop = mPagePositionPreferences.getBoolean("isattop", true);
+			mPage.mPageLastItemPosition = mPagePositionPreferences.getInt("position", 0);
+			mPage.mPageLastItemId = mPagePositionPreferences.getLong("id", 0);
+			mPage.mPageNewestSeenItemId = mPagePositionPreferences.getLong("seen_id", 0);
+			mPage.mPageLastOffset = mPagePositionPreferences.getInt("lastoffset", 0);
+			mPage.mIsListAtTop = mPagePositionPreferences.getBoolean("isattop", true);
+			if (savedInstanceState == null || savedInstanceState.getParcelableArrayList("selected-tweets") == null)
 				return;
-			} else {
-				mPage.mPageLastItemPosition = savedInstanceState.getInt("position", 0);
-				mPage.mPageLastItemId = savedInstanceState.getLong("id", 0);
-				mPage.mPageNewestSeenItemId = savedInstanceState.getLong("seen_id", 0);
-				mPage.mPageLastOffset = savedInstanceState.getInt("lastoffset", 0);
-				mPage.mIsListAtTop = savedInstanceState.getBoolean("isattop", true);
-			}
 			mSelectedList.clear();
-			if (savedInstanceState.getParcelableArrayList("selected-tweets") == null)
-				return;
-			for (Parcelable p : savedInstanceState.getParcelableArrayList("selected-tweets"))
-				mSelectedList.add((Tweet) p);
+			ArrayList<Tweet> selectedList = savedInstanceState.getParcelableArrayList("selected-tweets");
+			mSelectedList.addAll(selectedList);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -175,12 +165,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	public void onSaveInstanceState(Bundle outState) {
 		super.onSaveInstanceState(outState);
 		outState.putParcelableArrayList("selected-tweets", mSelectedList);
-		calculateListPositions();
-		outState.putInt("position", mPage.mPageLastItemPosition);
-		outState.putInt("lastoffset", mPage.mPageLastOffset);
-		outState.putLong("seen_id", mPage.mPageNewestSeenItemId);
-		outState.putBoolean("isattop", mPage.mIsListAtTop);
-		outState.putLong("id", mPage.mPageLastItemId);
 	}
 
 	@Override
@@ -317,9 +301,8 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 
 		mImageCache = ImageCache.getCache(getActivity(), this);
 
-		if (mIsPagePrepared && mBackgroundLoader != null) {
+		if (mIsPagePrepared && mBackgroundLoader != null)
 			mBackgroundLoader.onPostExecute(null);
-		}
 		if (mIsPagePrepared)
 			mPage.setFragment(this);
 	}
@@ -354,9 +337,9 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		unread = Math.min(unread, mList.size());
 		mViewUnreadTweetCount.setText(getString(R.string.page_unread).replace("%", Integer.toString(unread)));
 		if (unread > 0 && mPage.mPageNewestSeenItemId != -1) {
-			ResTools.showWithAnimation(getActivity(), mViewUnreadTweetCount, R.anim.show_downward);
+			ResTools.showWithAnimation(mViewUnreadTweetCount, R.anim.show_downward);
 		} else
-			ResTools.hideWithAnimation(getActivity(), mViewUnreadTweetCount, R.anim.hide_upward, true);
+			ResTools.hideWithAnimation(mViewUnreadTweetCount, R.anim.hide_upward, true);
 	}
 
 	@Override
@@ -420,9 +403,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 
 	@Override
 	public void onPause() {
-		super.onPause();
 		calculateListPositions();
-		mPaused = true;
 		SharedPreferences.Editor edit = mPagePositionPreferences.edit();
 		edit.putInt("position", mPage.mPageLastItemPosition);
 		edit.putInt("lastoffset", mPage.mPageLastOffset);
@@ -436,8 +417,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 				mListApplier.interrupt();
 			}
 		}
-		if (!mIsPagePrepared)
-			return;
+		super.onPause();
 	}
 
 	@Override
@@ -448,10 +428,36 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	@Override
 	public void onResume() {
 		super.onResume();
-		mPaused = false;
 		registerTimeUpdate();
 		applyTweetChanges();
 		restorePositions();
+	}
+
+	@Override
+	public void onAttach(Activity activity) {
+		super.onAttach(activity);
+		registerTimeUpdate();
+		applyTweetChanges();
+		restorePositions();
+	}
+
+	@Override
+	public void onDetach() {
+		super.onDetach();
+		calculateListPositions();
+		SharedPreferences.Editor edit = mPagePositionPreferences.edit();
+		edit.putInt("position", mPage.mPageLastItemPosition);
+		edit.putInt("lastoffset", mPage.mPageLastOffset);
+		edit.putLong("seen_id", mPage.mPageNewestSeenItemId);
+		edit.putBoolean("isattop", mPage.mIsListAtTop);
+		edit.putLong("id", mPage.mPageLastItemId);
+		edit.apply();
+		mHandler.removeCallbacksAndMessages(null);
+		if (mListApplier != null) {
+			synchronized (mPage.mListEditLock) {
+				mListApplier.interrupt();
+			}
+		}
 	}
 
 	private int getRemainingUpdateTime(long time) {
@@ -498,7 +504,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	}
 
 	private Object calculateListPositions() {
-		if (getView() == null || mPaused)
+		if (getView() == null || !mIsActive)
 			return null;
 		if (mViewList.getChildCount() == 0 || mPage.mIsListAtTop) {
 			mPage.mIsListAtTop = true;
@@ -529,7 +535,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		if (mPage.mPageLastItemId != -1) {
 			int lastIndex = mList.indexOf(Tweet.getTweet(mPage.mPageLastItemId));
 			if (lastIndex < 0) lastIndex = -1 - lastIndex;
-			mListLayout.scrollToPositionWithOffset(lastIndex, mPage.mPageLastOffset + mAdapter.mNonElementHeaders.size());
+			mListLayout.scrollToPositionWithOffset(lastIndex, mPage.mPageLastOffset + mAdapter.mElementHeaders.size() + mAdapter.mNonElementHeaders.size());
 		} else
 			mListLayout.scrollToPositionWithOffset(mPage.mPageLastItemPosition, mPage.mPageLastOffset);
 
@@ -597,7 +603,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	}
 
 	private void applyTweetChanges() {
-		if (mPage.mListPending.isEmpty() || mViewFragmentRoot == null || mListApplier != null || mList == null || mPaused)
+		if (mPage == null || mPage.mListPending.isEmpty() || mViewFragmentRoot == null || mListApplier != null || mList == null || !mIsActive)
 			return;
 		if (Looper.getMainLooper().equals(Looper.myLooper())) {
 			new Thread() {
@@ -801,9 +807,14 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		mPage.mIsListAtTop = true;
 		mPage.mPageLastItemPosition = 0;
 		mPage.mPageLastOffset = 0;
-		mListLayout.scrollToPosition(0);
-		mViewList.smoothScrollBy(0, 0);
-		itemRead(mList.isEmpty() ? -1 : mList.get(0).id, true);
+		if (mListLayout.findFirstVisibleItemPosition() < 8) {
+			mListLayout.smoothScrollToPosition(mViewList, null, 0);
+		} else {
+			mListLayout.scrollToPosition(0);
+			mViewList.smoothScrollBy(0, 0);
+		}
+		if (mList != null)
+			itemRead(mList.isEmpty() ? -1 : mList.get(0).id, true);
 	}
 
 	private void loadNewerThan() {
@@ -952,7 +963,8 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 			try {
 				in = new FileInputStream(mListCacheFile);
 				byte[] b = new byte[(int) mListCacheFile.length()];
-				in.read(b, 0, b.length);
+				if (b.length != in.read(b, 0, b.length))
+					return;
 				p.unmarshall(b, 0, b.length);
 				p.setDataPosition(0);
 				if (p.dataSize() > 0) {
@@ -1058,7 +1070,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 		private FilteredTweet checkAndAdd(Tweet t) {
 			boolean userIdExists = false, userNameExists = false, textExists;
 			boolean userExactId = false, userExactName = false, emptyUser;
-			Matcher matchedUserId = null, matchedUserName = null, matchedText = null;
+			Matcher matchedUserId = null, matchedUserName = null, matchedText;
 			emptyUser = (mQuickFilterUsersExact.isEmpty() && mQuickFilterUsers.isEmpty());
 			if (!emptyUser) {
 				for (String user : mQuickFilterUsersExact) {
@@ -1487,6 +1499,8 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 
 		public Object getItem(int position) {
 			if (!isPageReady()) return null;
+			if (position < 0)
+				return null;
 			int elementHeaderLength = mQuickFilteredList != null ? 0 : mElementHeaders.size();
 			int headerLength = elementHeaderLength + mNonElementHeaders.size();
 			if (position < elementHeaderLength)
@@ -1495,6 +1509,8 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 				return mNonElementHeaders.get(position - elementHeaderLength);
 			if (mQuickFilteredList != null)
 				return mQuickFilteredList.get(position - headerLength);
+			if (position - headerLength >= mList.size())
+				return null;
 			return mList.get(position - headerLength);
 		}
 
@@ -1615,7 +1631,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 
 			@Override
 			public void bindViewHolder(int position) {
-				wpd2.clip(WaveProgressDrawable.CLIP_TYPE_ROUND_RECT, 64, null);
+				wpd2.clip(WaveProgressDrawable.CLIP_TYPE_ROUND_RECT, 64);
 				((ImageView) itemView.findViewById(R.id.viewer)).setImageDrawable(wpd);
 				((ImageView) itemView.findViewById(R.id.viewer2)).setImageDrawable(wpd2);
 				((SeekBar) itemView.findViewById(R.id.seekbar)).setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {

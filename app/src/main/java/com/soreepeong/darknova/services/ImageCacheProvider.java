@@ -19,7 +19,7 @@ import java.util.Arrays;
  * @author Soreepeong
  */
 public class ImageCacheProvider extends ContentProvider {
-	public static final Uri PROVIDER_URI = Uri.parse("content://com.soreepeong.darknova.core.ImageCache.ImageCacheProvider/");
+	public static final Uri PROVIDER_URI = Uri.parse("content://com.soreepeong.darknova.services.ImageCacheProvider/");
 	private static final int TRUNCATE_DISK_CACHE = 1;
 	private static final int TRUNCATE_DISK_CACHE_INTERVAL = 30000;
 	private static final String KEY_TABLE_NAME = "cache_keys";

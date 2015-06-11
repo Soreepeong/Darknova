@@ -1,8 +1,9 @@
 package com.soreepeong.darknova.settings;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.graphics.Bitmap;
+import android.database.Cursor;
 import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.os.Handler;
@@ -12,9 +13,9 @@ import android.os.Parcelable;
 import android.provider.MediaStore;
 
 import com.soreepeong.darknova.DarknovaApplication;
+import com.soreepeong.darknova.services.TemplateTweetProvider;
 import com.soreepeong.darknova.tools.FileTools;
 import com.soreepeong.darknova.tools.StreamTools;
-import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 
 import java.io.File;
@@ -22,7 +23,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.WeakHashMap;
 
 import pl.droidsonroids.gif.GifDrawable;
 
@@ -46,169 +46,107 @@ public class TemplateTweetAttachment implements Parcelable {
 		}
 	};
 	private static final Handler mMainHandler = new Handler(Looper.getMainLooper());
-	private static final WeakHashMap<TemplateTweetAttachment, File> mFileMap = new WeakHashMap<>();
-	private static File mAttachmentStorage;
-	public final long mRuntimeId = DarknovaApplication.uniqid();
-	public Uri mUnresolvedUrl;
-	public boolean mTypeResolved;
-	public String mLocalPath;
-	public boolean mIsImageMedia;
-	public long media_id;
+	public final File mLocalFile;
+	public final Uri original_url;
+	public final long template_id;
+	public final long id;
+	public boolean mLocalFileExists;
+	public int media_type;
+	public long mMediaId;
 	private Thread mResolver;
 
-	public TemplateTweetAttachment(Uri unresolved) {
-		mUnresolvedUrl = unresolved;
+	// _id, template_id, original_url, media_type
+
+	public TemplateTweetAttachment(Uri unresolved, ContentResolver resolver, TemplateTweet template) {
+		ContentValues cv = new ContentValues();
+		cv.put("template_id", template_id = template.id);
+		cv.put("original_url", (original_url = unresolved).toString());
+		id = Long.decode(resolver.insert(TemplateTweetProvider.URI_ATTACHMENTS, cv).getLastPathSegment());
+		mLocalFile = new File(resolver.getType(TemplateTweetProvider.URI_ATTACHMENTS) + "/" + id);
 	}
 
-	public TemplateTweetAttachment(String localPath, boolean isImageMedia) {
-		mIsImageMedia = isImageMedia;
-		mLocalPath = localPath;
-		if (localPath != null)
-			mFileMap.put(this, new File(localPath));
-	}
-
-	protected TemplateTweetAttachment(String key, SharedPreferences in) {
-		mLocalPath = in.getString(key + ".mLocalPath", null);
-		mIsImageMedia = in.getBoolean(key + ".mIsImageMedia", false);
-		media_id = in.getLong(key + ".media_id", 0);
-		String unresolved = in.getString(key + ".mUnresolvedUrl", null);
-		mUnresolvedUrl = unresolved == null || unresolved.isEmpty() ? null : Uri.parse(unresolved);
-		if (mLocalPath != null)
-			mFileMap.put(this, new File(mLocalPath));
+	public TemplateTweetAttachment(Cursor cursor, ContentResolver resolver) {
+		original_url = Uri.parse(cursor.getString(cursor.getColumnIndex("original_url")));
+		id = cursor.getLong(cursor.getColumnIndex("_id"));
+		template_id = cursor.getLong(cursor.getColumnIndex("template_id"));
+		media_type = cursor.getInt(cursor.getColumnIndex("media_type"));
+		mLocalFile = new File(resolver.getType(TemplateTweetProvider.URI_ATTACHMENTS) + "/" + id);
+		mLocalFileExists = mLocalFile.exists();
 	}
 
 	protected TemplateTweetAttachment(Parcel in) {
-		if (in.readByte() == 1) {
-			mLocalPath = in.readString();
-			mFileMap.put(this, new File(mLocalPath));
-		}
-		mIsImageMedia = in.readByte() != 0x00;
-		media_id = in.readLong();
-		if (mLocalPath != null)
-			mFileMap.put(this, new File(mLocalPath));
-		if (in.readByte() == 1)
-			mUnresolvedUrl = Uri.parse(in.readString());
+		original_url = Uri.parse(in.readString());
+		id = in.readLong();
+		template_id = in.readLong();
+		media_type = in.readInt();
+		mLocalFile = new File(in.readString());
+		mLocalFileExists = mLocalFile.exists();
 	}
 
-	public static void initialize(File mStorage) {
-		mAttachmentStorage = mStorage;
-		mAttachmentStorage.mkdirs();
-		clearUnusedFiles();
+	public void updateSelf(ContentResolver resolver) {
+		ContentValues cv = new ContentValues();
+		cv.put("media_type", media_type);
+		resolver.update(TemplateTweetProvider.URI_ATTACHMENTS, cv, "_id=?", new String[]{Long.toString(id)});
 	}
 
-	public static void removeUnreferencedFile(File f, TemplateTweetAttachment ignore) {
-		if (f == null)
-			return;
-		synchronized (mFileMap) {
-			if (mFileMap.containsValue(f)) {
-				if (ignore == null)
-					return;
-				File f2 = mFileMap.remove(ignore);
-				if (mFileMap.containsValue(f)) {
-					mFileMap.put(ignore, f2);
-					return;
-				}
-			} else if (f.getName().endsWith("_resizing")) {
-				File f_orig = new File(f.getAbsolutePath().substring(0, f.getAbsolutePath().length() - 9));
-				if (mFileMap.containsValue(f_orig)) {
-					if (ignore == null)
-						return;
-					File f2 = mFileMap.remove(ignore);
-					if (mFileMap.containsValue(f_orig)) {
-						mFileMap.put(ignore, f2);
-						return;
-					}
-				}
-			}
-		}
-		if (!f.delete())
-			f.deleteOnExit();
-		android.util.Log.d("Darknova", "Unused attachment removal: " + f.getName());
-	}
-
-	public static void clearUnusedFiles() {
-		new Thread() {
-			@Override
-			public void run() {
-				File[] files = mAttachmentStorage.listFiles();
-				if (files == null)
-					return;
-				for (File f : files)
-					removeUnreferencedFile(f, null);
-			}
-		}.start();
-	}
-
-	private static File generateRandomAttachmentFileName() {
-		while (true) {
-			File f = new File(mAttachmentStorage, StringTools.getSafeRandomString(32));
-			if (!f.exists())
-				return f;
-		}
+	public void removeSelf(ContentResolver resolver) {
+		resolver.delete(TemplateTweetProvider.URI_ATTACHMENTS, "_id=?", new String[]{Long.toString(id)});
 	}
 
 	public void resolve(final Context context, final AttachmentResolveResult resolveResult) {
-		if (mUnresolvedUrl == null || mResolver != null)
+		if (mResolver != null || mLocalFile.exists())
 			return;
 		mResolver = new Thread() {
 			@Override
 			public void run() {
 				InputStream in = null;
 				OutputStream out = null;
-				File saveTo = generateRandomAttachmentFileName();
 				try {
-					synchronized (mFileMap) {
-						mFileMap.put(TemplateTweetAttachment.this, saveTo);
-					}
-					in = context.getContentResolver().openInputStream(mUnresolvedUrl);
-					out = new FileOutputStream(saveTo);
+					in = context.getContentResolver().openInputStream(original_url);
+					out = new FileOutputStream(mLocalFile);
 					StreamTools.passthroughStreams(in, out);
-					saveTo.getAbsolutePath();
-					boolean isGif = false;
-					boolean isMovie;
-					GifDrawable gifTester = null;
-					Bitmap bitmapTester;
-					bitmapTester = ThumbnailUtils.createVideoThumbnail(saveTo.getAbsolutePath(), MediaStore.Images.Thumbnails.MICRO_KIND);
-					isMovie = bitmapTester != null;
-					if (bitmapTester != null) bitmapTester.recycle();
-					try {
-						gifTester = new GifDrawable(saveTo.getAbsolutePath());
-						isGif = gifTester.getNumberOfFrames() > 1;
-					} catch (Exception e) {
-						e.printStackTrace();
-						if (gifTester != null) gifTester.recycle();
+					media_type = 0;
+					if (null != ThumbnailUtils.createVideoThumbnail(mLocalFile.getAbsolutePath(), MediaStore.Images.Thumbnails.MICRO_KIND))
+						media_type = TemplateTweetProvider.MEDIA_TYPE_VIDEO;
+					else {
+						GifDrawable g = null;
+						try {
+							g = new GifDrawable(mLocalFile.getAbsolutePath());
+							if (g.getNumberOfFrames() > 1)
+								media_type = TemplateTweetProvider.MEDIA_TYPE_GIF;
+						} catch (Exception e) {
+							if (g != null)
+								g.recycle();
+						}
 					}
-					mIsImageMedia = !isGif && !isMovie;
-					mTypeResolved = true;
+					if (media_type == 0)
+						media_type = TemplateTweetProvider.MEDIA_TYPE_IMAGE;
 					mMainHandler.post(new Runnable() {
 						@Override
 						public void run() {
 							resolveResult.onTypeResolved(TemplateTweetAttachment.this);
 						}
 					});
-					if (isMovie) {
-						if (saveTo.length() > TwitterEngine.MAX_VIDEO_MEDIA_SIZE) {
+					if (media_type == TemplateTweetProvider.MEDIA_TYPE_VIDEO) {
+						if (mLocalFile.length() > TwitterEngine.MAX_VIDEO_MEDIA_SIZE) {
 							DarknovaApplication.showToast("Video file too big (>15MB)");
 							throw new IOException("File too big");
 						}
-					} else if (isGif) {
-						if (saveTo.length() > TwitterEngine.MAX_IMAGE_MEDIA_SIZE) {
+					} else if (media_type == TemplateTweetProvider.MEDIA_TYPE_GIF) {
+						if (mLocalFile.length() > TwitterEngine.MAX_IMAGE_MEDIA_SIZE) {
 							DarknovaApplication.showToast("Animated GIF file too big (>5MB)");
 							throw new IOException("File too big");
 						}
 					} else {
-						if (saveTo.length() > TwitterEngine.MAX_IMAGE_MEDIA_SIZE) {
-							FileTools.resizeImage(saveTo, TwitterEngine.MAX_IMAGE_MEDIA_SIZE);
+						if (mLocalFile.length() > TwitterEngine.MAX_IMAGE_MEDIA_SIZE) {
+							FileTools.resizeImage(mLocalFile, TwitterEngine.MAX_IMAGE_MEDIA_SIZE);
 						}
 					}
-					mLocalPath = saveTo.getAbsolutePath();
-					mUnresolvedUrl = null;
-				} catch (final IOException e) {
-					synchronized (mFileMap) {
-						mFileMap.remove(TemplateTweetAttachment.this);
-						if (!saveTo.delete())
-							saveTo.deleteOnExit();
-					}
+					mLocalFileExists = true;
+					updateSelf(context.getContentResolver());
+				} catch (final Throwable e) {
+					if (!mLocalFile.delete())
+						mLocalFile.deleteOnExit();
 					mMainHandler.post(new Runnable() {
 						@Override
 						public void run() {
@@ -216,30 +154,16 @@ public class TemplateTweetAttachment implements Parcelable {
 						}
 					});
 					e.printStackTrace();
-				} catch (final Error e) {
-					synchronized (mFileMap) {
-						mFileMap.remove(TemplateTweetAttachment.this);
-						if (!saveTo.delete())
-							saveTo.deleteOnExit();
-					}
-					mMainHandler.post(new Runnable() {
-						@Override
-						public void run() {
-							resolveResult.onResolveFailed(TemplateTweetAttachment.this, new Exception(e));
-						}
-					});
-					e.printStackTrace();
 				} finally {
 					StreamTools.close(in);
 					StreamTools.close(out);
-					if (mLocalPath != null) {
+					if (mLocalFile.exists())
 						mMainHandler.post(new Runnable() {
 							@Override
 							public void run() {
 								resolveResult.onResolved(TemplateTweetAttachment.this);
 							}
 						});
-					}
 				}
 			}
 		};
@@ -251,28 +175,13 @@ public class TemplateTweetAttachment implements Parcelable {
 		return 0;
 	}
 
-	public void writeToPreferences(String key, SharedPreferences.Editor dest) {
-		if (mLocalPath == null)
-			dest.remove(key + ".mLocalPath");
-		else
-			dest.putString(key + ".mLocalPath", mLocalPath);
-		dest.putBoolean(key + ".mIsImageMedia", mIsImageMedia);
-		dest.putLong(key + ".media_id", media_id);
-		if (mUnresolvedUrl == null)
-			dest.remove(key + ".mUnresolvedUrl");
-		else
-			dest.putString(key + ".mUnresolvedUrl", mUnresolvedUrl.toString());
-	}
-
 	@Override
 	public void writeToParcel(Parcel dest, int flags) {
-		if (mLocalPath != null)
-			dest.writeString(mLocalPath);
-		dest.writeByte((byte) (mIsImageMedia ? 0x01 : 0x00));
-		dest.writeLong(media_id);
-		dest.writeByte((byte) (mUnresolvedUrl == null ? 0 : 1));
-		if (mUnresolvedUrl != null)
-			dest.writeString(mUnresolvedUrl.toString());
+		dest.writeString(original_url.toString());
+		dest.writeLong(id);
+		dest.writeLong(template_id);
+		dest.writeInt(media_type);
+		dest.writeString(mLocalFile.getAbsolutePath());
 	}
 
 	public interface AttachmentResolveResult {
@@ -280,6 +189,6 @@ public class TemplateTweetAttachment implements Parcelable {
 
 		void onTypeResolved(TemplateTweetAttachment attachment);
 
-		void onResolveFailed(TemplateTweetAttachment attachment, Exception e);
+		void onResolveFailed(TemplateTweetAttachment attachment, Throwable e);
 	}
 }

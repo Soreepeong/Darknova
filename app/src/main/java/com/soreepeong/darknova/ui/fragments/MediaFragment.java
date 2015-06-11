@@ -236,7 +236,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			if (immediate)
 				mViewLoadInfo.setVisibility(View.GONE);
 			else
-				ResTools.hideWithAnimation(getActivity(), mViewLoadInfo, android.R.anim.fade_out, true);
+				ResTools.hideWithAnimation(mViewLoadInfo, android.R.anim.fade_out, true);
 		} else if (((mLoadInfoVisible && ((MediaPreviewActivity) getActivity()).isActionBarVisible()) || !mViewImageViewer.isLoaded()) && mViewLoadInfo.getVisibility() != View.VISIBLE) {
 			if (immediate)
 				mViewLoadInfo.setVisibility(View.VISIBLE);
@@ -250,7 +250,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			if (immediate)
 				mViewPageInfo.setVisibility(View.GONE);
 			else
-				ResTools.hideWithAnimation(getActivity(), mViewPageInfo, android.R.anim.fade_out, true);
+				ResTools.hideWithAnimation(mViewPageInfo, android.R.anim.fade_out, true);
 		} else if (mViewImageViewer.isLoaded() && ((MediaPreviewActivity) getActivity()).isActionBarVisible() && mViewPageInfo.getVisibility() != View.VISIBLE) {
 			if (immediate)
 				mViewPageInfo.setVisibility(View.VISIBLE);
@@ -530,6 +530,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 	@Override
 	public void onImageParamChanged(int x, int minX, int maxX, int y, int minY, int maxY, int width, int height, float zoom) {
+		if (mViewImageViewer == null)
+			return;
 		((MediaPreviewActivity) getActivity()).setAtRight(mImage, x <= minX, minX != maxX);
 		((MediaPreviewActivity) getActivity()).setAtLeft(mImage, x >= maxX, minX != maxX);
 		int w = (int) (width * zoom);
@@ -733,7 +735,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 							.show();
 				}
 			}
-			ResTools.hideWithAnimation(getActivity(), mViewProgressTop, android.R.anim.fade_out, true);
+			ResTools.hideWithAnimation(mViewProgressTop, android.R.anim.fade_out, true);
 			if (isCancelled()) {
 				mViewLoadInfoText.setText(R.string.mediapreview_cancelled);
 				mViewLoadProgressText.setText("");

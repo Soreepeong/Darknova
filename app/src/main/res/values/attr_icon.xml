@@ -2,6 +2,7 @@
 <resources>
 	<attr name="ic_content_add" format="reference" />
 	<attr name="ic_editor_attach_file" format="reference" />
+	<attr name="ic_image_camera_alt" format="reference"/>
 	<attr name="ic_communication_chat" format="reference" />
 	<attr name="ic_navigation_check" format="reference" />
 	<attr name="ic_content_clear" format="reference" />
@@ -27,4 +28,5 @@
 	<attr name="ic_action_star_rate" format="reference" />
 	<attr name="ic_editor_vertical_align_top" format="reference" />
 	<attr name="ic_av_videocam" format="reference"/>
+	<attr name="ic_av_video_collection" format="reference"/>
 </resources>

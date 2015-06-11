@@ -232,12 +232,12 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 			return;
 		mHandler.removeMessages(MESSAGE_HIDE_ACTIONBAR);
 		if (mViewActionbarToolbar.getVisibility() != View.VISIBLE) return;
-		ResTools.hideWithAnimation(this, mViewActionbarToolbar, R.anim.hide_upward, true);
+		ResTools.hideWithAnimation(mViewActionbarToolbar, R.anim.hide_upward, true);
 		for (Fragment f : getSupportFragmentManager().getFragments())
 			if (f instanceof MediaFragment)
 				((MediaFragment) f).onActionBarHidden();
 		if (mImageList.size() < 2) return;
-		ResTools.hideWithAnimation(this, mViewImageList, R.anim.hide_downward, true);
+		ResTools.hideWithAnimation(mViewImageList, R.anim.hide_downward, true);
 	}
 
 	public boolean isActionBarVisible() {

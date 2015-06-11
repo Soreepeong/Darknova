@@ -4,15 +4,17 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.database.ContentObserver;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.Parcel;
@@ -23,6 +25,7 @@ import android.support.v4.app.NotificationCompat;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.settings.TemplateTweet;
 import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweet;
@@ -42,7 +45,9 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Created by Soreepeong on 2015-04-28.
+ * Service: Stream, Notification, new tweets
+ *
+ * @author Soreepeong
  */
 public class DarknovaService extends Service implements TwitterEngine.TwitterStreamCallback, OnUserlistChangedListener, Handler.Callback, ImageCache.OnImageCacheReadyListener, ImageCache.OnImageAvailableListener {
 
@@ -73,12 +78,68 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	public static final int MESSAGE_USER_REMOVED_STREAM_STOP_WAIT_DURATION = 1000;
 	public static final String NOTIFICATION_LIST_FILE = "notification-list";
 	private static final int DELAY_QUIT_TIME = 5 * 60000; // 5 min.
-	private final Handler mHandler = new Handler(Looper.getMainLooper(), this);
+	private final Handler mHandler = new Handler(this);
 	private final Messenger mMessenger = new Messenger(mHandler);
 	private final ArrayList<StreamableTwitterEngine> mActiveStreams = new ArrayList<>();
+	private final ArrayList<StreamableTwitterEngine> mRemovalPendingStreamingUsers = new ArrayList<>();
 	private final ArrayList<ActivityNotification> mActivities = new ArrayList<>();
 	private final Object mCallbackModifyLock = new Object();
-	private final ArrayList<StreamableTwitterEngine> mRemovalPendingStreamingUsers = new ArrayList<>();
+	private final ArrayList<TemplateTweet> mTemplateOneshot = new ArrayList<>();
+	private final ContentObserver mTemplateTweetObserver = new ContentObserver(new Handler()) {
+		@Override
+		public void onChange(boolean selfChange) {
+			if (selfChange)
+				return;
+			ContentResolver resolver = getContentResolver();
+			synchronized (mTemplateOneshot) {
+				Cursor c = resolver.query(TemplateTweetProvider.URI_TEMPLATES, null, "enabled!=0 AND type=" + TemplateTweetProvider.TEMPLATE_TYPE_ONESHOT, null, "_id ASC");
+				if (c.moveToFirst()) {
+					wholeLoop:
+					do {
+						final TemplateTweet t = new TemplateTweet(c, resolver);
+						if (t.mUserIdList.isEmpty())
+							continue;
+						if (mTemplateOneshot.contains(t))
+							continue;
+						for (long user_id : t.mUserIdList)
+							if (TwitterEngine.get(user_id) == null)
+								continue wholeLoop;
+						mTemplateOneshot.add(t);
+						new Thread() {
+							@Override
+							public void run() {
+								t.post(new TemplateTweet.OnTweetListener() {
+									@Override
+									public void onTweetSucceed(TemplateTweet template) {
+										synchronized (mTemplateOneshot) {
+											mTemplateOneshot.remove(t);
+											if (t.remove_after) {
+												t.removeSelf(getContentResolver());
+											} else {
+												template.enabled = false;
+												t.updateSelf(getContentResolver());
+											}
+										}
+									}
+
+									@Override
+									public void onTweetFail(TemplateTweet template, Throwable why) {
+										synchronized (mTemplateOneshot) {
+											mTemplateOneshot.remove(t);
+											template.enabled = false;
+											t.updateSelf(getContentResolver());
+											// TODO Notify why
+										}
+									}
+								}, mHandler);
+							}
+						}.start();
+					} while (c.moveToNext());
+				}
+				c.close();
+			}
+		}
+	};
 	private Messenger mCallback;
 	private Page mNotifyChecker;
 	private ImageCache mImageCache;
@@ -100,6 +161,9 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 
 		mNotificationListCacheFile = new File(getCacheDir(), NOTIFICATION_LIST_FILE);
 		loadActivityNotifications();
+
+		getContentResolver().registerContentObserver(TemplateTweetProvider.URI_BASE, true, mTemplateTweetObserver);
+		mTemplateTweetObserver.onChange(false);
 	}
 
 	@Override
@@ -331,7 +395,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				stopForeground(true);
 				mIsForegroundService = true;
 				synchronized (mActiveStreams) {
-					for(StreamableTwitterEngine e : mActiveStreams)
+					for (StreamableTwitterEngine e : mActiveStreams)
 						e.setUseStream(false);
 				}
 				return true;
@@ -427,6 +491,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 			}
 			mActiveStreams.clear();
 		}
+		getContentResolver().unregisterContentObserver(mTemplateTweetObserver);
 		applyStreamIndicator(StringTools.fillStringResFormat(this, R.string.stream_stopped_all));
 		super.onDestroy();
 	}

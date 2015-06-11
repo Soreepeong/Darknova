@@ -17,6 +17,7 @@ import com.soreepeong.darknova.twitter.Entities;
 import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.ui.MediaPreviewActivity;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.WeakHashMap;
 import java.util.regex.Matcher;
@@ -25,11 +26,12 @@ import java.util.regex.Pattern;
 /**
  * @author Soreepeong
  */
-public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
+public class UrlEntitySpan extends TouchableSpan implements EntitySpan, SelfInvalidatingSpan {
 	private final Entities.UrlEntity mEntity;
 	@SuppressWarnings("unused")
 	private final Tweet mTweet;
 	private long mExpandStartTime;
+	private WeakReference<Callback> mCallback;
 
 	public UrlEntitySpan(Entities.UrlEntity me, Tweet tweet) {
 		super(0xFF909dff, 0, false, true, 0xFF909dff, 0x40FFFFFF, false, true);
@@ -64,8 +66,13 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 				((RecyclerView) rv).getAdapter().notifyDataSetChanged();
 			mEntity._show_expanded = true;
 		}
-		UrlExpander.expandUrl(mEntity, this, v, (RecyclerView) rv);
+		UrlExpander.expandUrl(mEntity, this, (RecyclerView) rv);
 		return true;
+	}
+
+	@Override
+	public void setCallback(Callback callback) {
+		mCallback = callback == null ? null : new WeakReference<>(callback);
 	}
 
 	public static class UrlTitleEntitySpan extends ForegroundColorSpan {
@@ -88,7 +95,7 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 		private static final int MESSAGE_UPDATE_COLOR = 1;
 		private static final int MESSAGE_UPDATE_DONE = 2;
 
-		private final ArrayList<View> mViewMap = new ArrayList<>();
+		private final ArrayList<RecyclerView> mViewMap = new ArrayList<>();
 		private final ArrayList<UrlEntitySpan> mSpanMap = new ArrayList<>();
 		private final Entities.UrlEntity mEntity;
 		private final Handler mHandler;
@@ -102,14 +109,13 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 			start();
 		}
 
-		public static void expandUrl(Entities.UrlEntity entity, UrlEntitySpan span, View initiator, RecyclerView list) {
+		public static void expandUrl(Entities.UrlEntity entity, UrlEntitySpan span, RecyclerView list) {
 			if (Looper.myLooper() != Looper.getMainLooper())
 				throw new RuntimeException("expandUrl can only be called from UI Thread");
 			UrlExpander expander = mExpanderMap.get(entity);
 			if (expander == null) {
 				mExpanderMap.put(entity, expander = new UrlExpander(entity));
 			}
-			expander.mViewMap.add(initiator);
 			expander.mViewMap.add(list);
 			expander.mSpanMap.add(span);
 			span.mExpandStartTime = System.currentTimeMillis();
@@ -120,7 +126,7 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 			HTTPRequest req = HTTPRequest.getRequest(mEntity._expanded_url, null, false, null, false);
 			if (req != null)
 				try {
-					req.setMaxRedirects(1);
+					req.setMaxRedirects(4);
 					req.submitRequest();
 					Matcher m = TITLE_EXTRACTOR.matcher(req.getWholeData(8192));
 					mEntity._expanded_url = req.getUrl();
@@ -154,20 +160,24 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan {
 							alphaLevel = (int) ((255 - MIN_ALPHA_LEVEL) * mFadeInInterpolator.getInterpolation(alphaLevel * 2f / BLINK_DURATION));
 						alphaLevel += MIN_ALPHA_LEVEL;
 						span.setAlphaOverrideValue(mFinished ? 255 : alphaLevel);
+						Callback cb = span.mCallback == null ? null : span.mCallback.get();
+						if (cb != null)
+							cb.invalidateSpan(span);
 					}
-					for (View v : mViewMap) {
-						if (!(v instanceof RecyclerView))
-							v.invalidate();
-					}
-					if (!mFinished) {
+					if (!mFinished)
 						mHandler.sendEmptyMessageDelayed(MESSAGE_UPDATE_COLOR, 50);
-					}
 					return true;
 				}
 				case MESSAGE_UPDATE_DONE: {
-					for (View v : mViewMap) {
-						if (v instanceof RecyclerView && ((RecyclerView) v).getAdapter() != null)
-							((RecyclerView) v).getAdapter().notifyDataSetChanged();
+					for (UrlEntitySpan span : mSpanMap) {
+						span.setAlphaOverride(!mFinished);
+						Callback cb = span.mCallback == null ? null : span.mCallback.get();
+						if (cb != null)
+							cb.invalidateSpan(span);
+					}
+					for (RecyclerView v : mViewMap) {
+						if (v.getAdapter() != null)
+							v.getAdapter().notifyDataSetChanged();
 					}
 					mExpanderMap.remove(mEntity);
 					return true;

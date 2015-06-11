@@ -66,16 +66,14 @@ public class ResTools {
 
 	/**
 	 * Hide view with animation
-	 *
-	 * @param ctx             Context
-	 * @param v               View to hide
+	 *  @param v               View to hide
 	 * @param resId           Hide animation
 	 * @param hideImmediately Set if the view needs to be gone immediately
 	 */
-	public static void hideWithAnimation(Context ctx, final View v, @AnimRes int resId, boolean hideImmediately) {
+	public static void hideWithAnimation(final View v, @AnimRes int resId, boolean hideImmediately) {
 		if (v.getVisibility() != View.VISIBLE)
 			return;
-		Animation a = AnimationUtils.loadAnimation(ctx, resId);
+		Animation a = AnimationUtils.loadAnimation(v.getContext(), resId);
 		a.setAnimationListener(new Animation.AnimationListener() {
 			@Override
 			public void onAnimationStart(Animation animation) {
@@ -99,16 +97,14 @@ public class ResTools {
 
 	/**
 	 * Show view with animation
-	 *
-	 * @param ctx   Context
-	 * @param v     View to hide
+	 *  @param v     View to hide
 	 * @param resId Hide animation
 	 */
-	public static void showWithAnimation(Context ctx, final View v, @AnimRes int resId) {
+	public static void showWithAnimation(final View v, @AnimRes int resId) {
 		if (v.getVisibility() == View.VISIBLE)
 			return;
 		v.setVisibility(View.VISIBLE);
-		v.startAnimation(AnimationUtils.loadAnimation(ctx, resId));
+		v.startAnimation(AnimationUtils.loadAnimation(v.getContext(), resId));
 		v.clearAnimation();
 	}
 }

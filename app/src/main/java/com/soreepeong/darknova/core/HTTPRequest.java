@@ -9,6 +9,8 @@ import com.soreepeong.darknova.tools.ArrayTools;
 import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.StringTools;
 
+import org.mozilla.universalchardet.UniversalDetector;
+
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -132,8 +134,8 @@ public class HTTPRequest {
 				if (mIsPostRequest) {
 					mConnection.setDoOutput(true);
 					calculatePostSize();
-					mConnection.setFixedLengthStreamingMode((int) mPostSize);
 					mConnection.setRequestProperty("Content-Length", Long.toString(mPostSize));
+					mConnection.setFixedLengthStreamingMode((int) mPostSize);
 					if (mIsMultipartRequest) {
 						mConnection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + mMultipartBoundary);
 						mOutputStream = mConnection.getOutputStream();
@@ -141,15 +143,15 @@ public class HTTPRequest {
 					} else {
 						mConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 						mOutputStream = mConnection.getOutputStream();
-						mPostSize = mPostData.getBytes().length;
 						recordAndWrite(mPostData);
 					}
+					mOutputStream.flush();
+					mOutputStream = StreamTools.close(mOutputStream);
 				}
-				if(Thread.interrupted())
+				if (Thread.interrupted())
 					return false;
 				if (getStatusCode() / 100 == 3) { // Check if it redirects
 					String sUrl = mConnection.getHeaderField("location");
-					mOutputStream = StreamTools.close(mOutputStream);
 					mConnection.disconnect();
 					if (sUrl == null)
 						return false;
@@ -272,6 +274,7 @@ public class HTTPRequest {
 
 	/**
 	 * Get buffered input stream
+	 *
 	 * @return Input stream for the response
 	 */
 	public InputStream getInputStream() {
@@ -288,7 +291,13 @@ public class HTTPRequest {
 		InputStream in;
 		checkRequested();
 		try {
-			in = getStatusCode() / 100 == 2 ? mConnection.getInputStream() : mConnection.getErrorStream();
+			try {
+				in = mConnection.getInputStream();
+			} catch (IOException e) {
+				in = mConnection.getErrorStream();
+				if (in == null)
+					throw e;
+			}
 			if (bUseBufferedStream)
 				in = new BufferedInputStream(in);
 			mInputStream = in;
@@ -318,20 +327,30 @@ public class HTTPRequest {
 		checkRequested();
 		InputStream in = null;
 		int bytesRead;
+		UniversalDetector detector = new UniversalDetector(null);
 		byte[] buffer = new byte[readUpTo == -1 ? BYTE_BUFFER_SIZE : readUpTo];
 		ByteArrayOutputStream bos = new ByteArrayOutputStream(buffer.length);
 		try {
-			if (getStatusCode() != 200)
-				in = mConnection.getErrorStream();
-			else
+			try {
 				in = mConnection.getInputStream();
-			while ((readUpTo == -1 || bos.size() < readUpTo) && (bytesRead = in.read(buffer)) >= 0)
+			} catch (IOException e) {
+				in = mConnection.getErrorStream();
+				if (in == null)
+					throw e;
+			}
+			while ((readUpTo == -1 || bos.size() < readUpTo || (bos.size() < readUpTo * 10 && !detector.isDone())) && (bytesRead = in.read(buffer)) >= 0) {
 				bos.write(buffer, 0, bytesRead);
-			return new String(bos.toByteArray());
+				if (!detector.isDone())
+					detector.handleData(buffer, 0, bytesRead);
+			}
+			detector.dataEnd();
+			String charset = detector.getDetectedCharset();
+			return new String(bos.toByteArray(), charset == null ? "UTF-8" : charset);
 		} catch (Exception e) {
 			mLastError = e;
 		} finally {
 			StreamTools.close(in);
+			detector.reset();
 		}
 		return new String(bos.toByteArray());
 	}
@@ -350,7 +369,7 @@ public class HTTPRequest {
 	/**
 	 * Add parameter for multipart post request
 	 *
-	 * @param sName parameter key
+	 * @param sName  parameter key
 	 * @param sValue parameter value
 	 */
 	public void addMultipartParameter(String sName, String sValue) {
@@ -361,10 +380,22 @@ public class HTTPRequest {
 	 * Add parameter for multipart post request
 	 *
 	 * @param sName parameter key
-	 * @param file parameter file
+	 * @param file  parameter file
 	 */
 	public void addMultipartFileParameter(String sName, File file) {
-		arrMultipart.add(new MultipartPart(sName, file));
+		arrMultipart.add(new MultipartPart(sName, file, 0, file.length()));
+	}
+
+	/**
+	 * Add parameter for multipart post request
+	 *
+	 * @param sName parameter key
+	 * @param file  parameter file
+	 * @param from  read file from
+	 * @param to    read file to
+	 */
+	public void addMultipartFileParameter(String sName, File file, long from, long to) {
+		arrMultipart.add(new MultipartPart(sName, file, from, to));
 	}
 
 	private void recordAndWrite(byte[] b, int offset, int count) throws IOException {
@@ -386,20 +417,20 @@ public class HTTPRequest {
 			mPostSize = 0;
 			for (MultipartPart pt : arrMultipart)
 				mPostSize += mMultipartBoundary.length() + pt.partLength + 6;
-			mPostSize += 4 + mMultipartBoundary.length();
+			mPostSize += 4 + mMultipartBoundary.length() + 2;
 		} else {
 			mPostSize = mPostData.getBytes().length;
 		}
 	}
 
-	private void putMultipartRequest() throws IOException{
+	private void putMultipartRequest() throws IOException {
 		for (MultipartPart pt : arrMultipart) {
 			if (Thread.interrupted()) return;
 			recordAndWrite("--" + mMultipartBoundary + "\r\n");
 			pt.writePost();
 			recordAndWrite("\r\n");
 		}
-		recordAndWrite("--" + mMultipartBoundary + "--");
+		recordAndWrite("--" + mMultipartBoundary + "--\r\n");
 		mOutputStream.flush();
 	}
 
@@ -479,9 +510,9 @@ public class HTTPRequest {
 		final String paramData;
 		final String paramFileName;
 		final File file;
-		final long fileLength, partLength;
+		final long fileLength, partLength, fileFrom;
 
-		public MultipartPart(String name, File f) {
+		public MultipartPart(String name, File f, long from, long to) {
 			partType = TYPE_FILE;
 			paramName = name;
 			file = f;
@@ -493,7 +524,8 @@ public class HTTPRequest {
 			if (fileName.length() == 0)
 				fileName = StringTools.getSafeRandomString(16);
 			paramFileName = fileName;
-			fileLength = file.length();
+			fileLength = to - from;
+			fileFrom = from;
 			partLength = paramName.getBytes().length + paramFileName.getBytes().length + Long.toString(fileLength).length() + fileLength + 149;
 		}
 
@@ -504,6 +536,7 @@ public class HTTPRequest {
 			file = null;
 			paramFileName = null;
 			fileLength = 0;
+			fileFrom = 0;
 			partLength = paramName.getBytes().length + Integer.toString(paramData.getBytes().length).length() + paramData.getBytes().length + 61;
 		}
 
@@ -511,13 +544,19 @@ public class HTTPRequest {
 			byte[] buffer = new byte[BYTE_BUFFER_SIZE];
 			switch (partType) {
 				case TYPE_FILE: {
+					android.util.Log.d("HTTPRequest", "Multipart " + paramName + " (" + fileLength + ": " + fileFrom + "~)");
 					recordAndWrite("Content-Disposition: form-data; name=\"" + paramName + "\"; filename=\"" + paramFileName + "\"\r\n" + "Content-Length: " + fileLength + "\r\n" + "Content-Transfer-Encoding: binary\r\n" + "Content-Type: application/octet-stream\r\n" + "\r\n");
 					InputStream in = null;
 					try {
 						in = new FileInputStream(file);
 						int bytesRead;
-						while (!Thread.interrupted() && (bytesRead = in.read(buffer)) > 0)
+						long left = fileLength;
+						in.skip(fileFrom);
+						while (!Thread.interrupted() && left > 0 && (bytesRead = in.read(buffer)) > 0) {
+							bytesRead = (int) Math.min(left, bytesRead);
+							left -= bytesRead;
 							recordAndWrite(buffer, 0, bytesRead);
+						}
 					} finally {
 						StreamTools.close(in);
 					}
@@ -598,7 +637,7 @@ public class HTTPRequest {
 						try {
 							mRemoteOutput.write(sRemoteHeader.getBytes());
 							StreamTools.passthroughStreams(mLocalInput, mRemoteOutput);
-						} catch (IOException e) {
+						} catch (Exception e) {
 							if (!mFinished)
 								e.printStackTrace();
 						} finally {
@@ -611,7 +650,7 @@ public class HTTPRequest {
 				mRemoteHeader = new HeaderInspectResult(mRemoteInput);
 				mLocalOutput.write((mRemoteHeader.mRawHeader.substring(0, mRemoteHeader.mRawHeader.indexOf("\r\n") + 2) + mRemoteHeader.getHeadersWithoutProxy() + "\r\n").getBytes());
 				StreamTools.passthroughStreams(mRemoteInput, mLocalOutput);
-			} catch (IOException e) {
+			} catch (Exception e) {
 				if (!mFinished)
 					e.printStackTrace();
 			} finally {

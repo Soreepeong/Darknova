@@ -14,6 +14,7 @@ import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.twitter.TwitterStreamServiceReceiver;
+import com.soreepeong.darknova.ui.MainActivity;
 import com.soreepeong.darknova.ui.fragments.TimelineFragment;
 
 import java.lang.ref.WeakReference;
@@ -112,6 +113,23 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		elements = Collections.unmodifiableList(newElements);
 		mId = DarknovaApplication.uniqid();
 		mParentPage = null;
+	}
+
+	public static void templatePageUser(long user_id, String screen_name, MainActivity mainActivity) {
+		Page.Builder builder = new Page.Builder(screen_name, R.drawable.ic_eyes);
+		TwitterEngine currentUser = mainActivity.getDrawerFragment().getCurrentUser();
+		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_SINGLE, user_id, screen_name));
+		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_TIMELINE, user_id, screen_name));
+		builder.setParentPage(mainActivity.getCurrentPage().getRepresentingPage());
+		mainActivity.selectPage(Page.addIfNoExist(builder.build()));
+	}
+
+	public static void templatePageSearch(String search, MainActivity mainActivity) {
+		Page.Builder builder = new Page.Builder(search, R.drawable.ic_bigeyed);
+		TwitterEngine currentUser = mainActivity.getDrawerFragment().getCurrentUser();
+		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_SEARCH, 0, search));
+		builder.setParentPage(mainActivity.getCurrentPage().getRepresentingPage());
+		mainActivity.selectPage(Page.addIfNoExist(builder.build()));
 	}
 
 	public static void savePages() {

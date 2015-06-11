@@ -160,8 +160,10 @@ public class StreamTools {
 	public static void passthroughStreams(InputStream in, OutputStream out) throws IOException {
 		int bytesRead;
 		byte buffer[] = new byte[8192];
-		while (!Thread.interrupted() && (bytesRead = in.read(buffer)) > 0)
+		while (!Thread.interrupted() && (bytesRead = in.read(buffer)) > 0) {
 			out.write(buffer, 0, bytesRead);
+			out.flush();
+		}
 		close(in);
 		close(out);
 	}
