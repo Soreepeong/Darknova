@@ -140,12 +140,6 @@ public abstract class PageFragment extends Fragment{
 	}
 
 	@Override
-	public void onStart() {
-		super.onStart();
-		mIsActive = true;
-	}
-
-	@Override
 	public void onResume() {
 		super.onResume();
 		mIsActive = true;

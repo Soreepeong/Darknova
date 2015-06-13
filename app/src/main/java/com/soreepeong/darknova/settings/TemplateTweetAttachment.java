@@ -121,12 +121,13 @@ public class TemplateTweetAttachment implements Parcelable {
 					}
 					if (media_type == 0)
 						media_type = TemplateTweetProvider.MEDIA_TYPE_IMAGE;
-					mMainHandler.post(new Runnable() {
-						@Override
-						public void run() {
-							resolveResult.onTypeResolved(TemplateTweetAttachment.this);
-						}
-					});
+					if (resolveResult != null)
+						mMainHandler.post(new Runnable() {
+							@Override
+							public void run() {
+								resolveResult.onTypeResolved(TemplateTweetAttachment.this);
+							}
+						});
 					if (media_type == TemplateTweetProvider.MEDIA_TYPE_VIDEO) {
 						if (mLocalFile.length() > TwitterEngine.MAX_VIDEO_MEDIA_SIZE) {
 							DarknovaApplication.showToast("Video file too big (>15MB)");
@@ -147,23 +148,25 @@ public class TemplateTweetAttachment implements Parcelable {
 				} catch (final Throwable e) {
 					if (!mLocalFile.delete())
 						mLocalFile.deleteOnExit();
-					mMainHandler.post(new Runnable() {
-						@Override
-						public void run() {
-							resolveResult.onResolveFailed(TemplateTweetAttachment.this, e);
-						}
-					});
+					if (resolveResult != null)
+						mMainHandler.post(new Runnable() {
+							@Override
+							public void run() {
+								resolveResult.onResolveFailed(TemplateTweetAttachment.this, e);
+							}
+						});
 					e.printStackTrace();
 				} finally {
 					StreamTools.close(in);
 					StreamTools.close(out);
-					if (mLocalFile.exists())
-						mMainHandler.post(new Runnable() {
-							@Override
-							public void run() {
-								resolveResult.onResolved(TemplateTweetAttachment.this);
-							}
-						});
+					if (resolveResult != null)
+						if (mLocalFile.exists())
+							mMainHandler.post(new Runnable() {
+								@Override
+								public void run() {
+									resolveResult.onResolved(TemplateTweetAttachment.this);
+								}
+							});
 				}
 			}
 		};

@@ -90,6 +90,7 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 			mTweets.put(tweet.id, t);
 		}else{
 			synchronized (t) {
+				t.removed |= tweet.removed;
 				if (!tweet.info.stub && tweet.info.lastUpdated > t.info.lastUpdated) {
 					t.info = tweet.info;
 					t.id = tweet.id;
@@ -99,14 +100,13 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 					t.favourites_count = tweet.favourites_count;
 					t.source = tweet.source;
 					t.possibly_sensitive = tweet.possibly_sensitive;
-					t.removed = tweet.removed;
 					t.user = tweet.user;
 					t.retweeted_status = tweet.retweeted_status;
 					t.entities = tweet.entities;
 					t.in_reply_to_status = tweet.in_reply_to_status;
 					t.in_reply_to_user = tweet.in_reply_to_user;
-					// <duplication removals>
 					t.perUserInfo.putAll(tweet.perUserInfo);
+					// <duplication removals>
 					t.accessedBy.removeAll(tweet.accessedBy);
 					t.accessedBy.addAll(tweet.accessedBy);
 					// </duplication removals>

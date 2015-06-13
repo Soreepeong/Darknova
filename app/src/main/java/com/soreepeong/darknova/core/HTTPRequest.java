@@ -1,6 +1,5 @@
 package com.soreepeong.darknova.core;
 
-import android.net.SSLCertificateSocketFactory;
 import android.os.Looper;
 import android.support.annotation.Nullable;
 
@@ -20,10 +19,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PushbackInputStream;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,11 +36,9 @@ public class HTTPRequest {
 	private static final int BYTE_BUFFER_SIZE = 2048;
 	private static final int MAX_HEADER_SIZE = 65536;
 	private static final Pattern URI_BASIC_PATTERN = Pattern.compile("^[a-z0-9]+:.*$", Pattern.CASE_INSENSITIVE);
-	private static volatile int mConnectionId;
 	private final boolean mIsPostRequest, mIsMultipartRequest;
 	private final String mMultipartBoundary;
 	private final String mPostData;
-	private HttpURLConnectionCloseFixer mConnectionBehind;
 	private HttpURLConnection mConnection;
 	private ArrayList<MultipartPart> arrMultipart;
 	private Exception mLastError;
@@ -57,9 +50,7 @@ public class HTTPRequest {
 	private OutputStream mOutputStream;
 	private int mMaxRedirects = 8;
 
-	private HTTPRequest(OAuth auth, boolean bPost, String sPostData, boolean cancelOffered) throws IOException {
-		if (cancelOffered)
-			mConnectionBehind = new HttpURLConnectionCloseFixer();
+	private HTTPRequest(OAuth auth, boolean bPost, String sPostData) throws IOException {
 		mMultipartBoundary = "MultipartBoundary" + StringTools.getRandomString(32);
 		mIsPostRequest = bPost;
 		mPostData = sPostData;
@@ -80,9 +71,9 @@ public class HTTPRequest {
 	 * @return Newly created HTTP Request
 	 */
 	@Nullable
-	public static HTTPRequest getRequest(String sUrl, OAuth auth, boolean bPost, String sPostData, boolean cancelOffered) {
+	public static HTTPRequest getRequest(String sUrl, OAuth auth, boolean bPost, String sPostData) {
 		try {
-			HTTPRequest ret = new HTTPRequest(auth, bPost, sPostData, cancelOffered);
+			HTTPRequest ret = new HTTPRequest(auth, bPost, sPostData);
 			ret.initHttp(sUrl);
 			return ret;
 		} catch (Exception e) {
@@ -98,10 +89,7 @@ public class HTTPRequest {
 	private void initHttp(String sUrl) throws IOException {
 		if (!URI_BASIC_PATTERN.matcher(sUrl).matches())
 			sUrl = "http://" + sUrl;
-		if (mConnectionBehind != null)
-			mConnection = mConnectionBehind.getConnection(sUrl);
-		else
-			mConnection = (HttpURLConnection) new URL(sUrl).openConnection();
+		mConnection = (HttpURLConnection) new URL(sUrl).openConnection();
 		mConnection.setUseCaches(false);
 		mConnection.setDoInput(true);
 		mConnection.setInstanceFollowRedirects(false);
@@ -444,8 +432,6 @@ public class HTTPRequest {
 			}.start();
 			return;
 		}
-		if (mConnectionBehind != null)
-			mConnectionBehind.close();
 		StreamTools.close(mInputStream);
 		StreamTools.close(mOutputStream);
 		mConnection.disconnect();
@@ -568,134 +554,4 @@ public class HTTPRequest {
 		}
 	}
 
-	private class HttpURLConnectionCloseFixer implements Runnable {
-		private final ServerSocket mSocketListener;
-		private final Proxy mProxy;
-		private final int conId = mConnectionId++;
-		private Thread mReceiverThread, mSenderThread;
-		private String mConnectionVerifier;
-		private Socket mLocalSocket;
-		private Socket mRemoteSocket;
-		private String mHost, mPath;
-		private int mPort;
-		private boolean mUseHttps, mFinished;
-		private HeaderInspectResult mLocalHeader, mRemoteHeader;
-		private PushbackInputStream mLocalInput, mRemoteInput;
-		private OutputStream mLocalOutput, mRemoteOutput;
-
-		private HttpURLConnectionCloseFixer() throws IOException {
-			mSocketListener = new ServerSocket(0);
-			mProxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", mSocketListener.getLocalPort()));
-			mConnectionVerifier = StringTools.getRandomString(64);
-			mReceiverThread = new Thread(this);
-			mReceiverThread.start();
-		}
-
-		public HttpURLConnection getConnection(String sUrl) throws IOException {
-			boolean bHttps = sUrl.toLowerCase(Locale.ENGLISH).startsWith("https://");
-			if (bHttps)
-				sUrl = "http://" + sUrl.substring(8);
-			HttpURLConnection con = (HttpURLConnection) new URL(sUrl).openConnection(mProxy);
-			mUseHttps = bHttps;
-			con.addRequestProperty("Proxy-Authentication", mConnectionVerifier);
-			return con;
-		}
-
-		public void close() {
-			mFinished = true;
-
-			mSenderThread = StreamTools.interruptStop(mSenderThread);
-			mReceiverThread = StreamTools.interruptStop(mReceiverThread);
-
-			StreamTools.close(mRemoteInput);
-			mRemoteInput = null;
-			mRemoteOutput = StreamTools.close(mRemoteOutput);
-			mRemoteSocket = StreamTools.close(mRemoteSocket);
-
-			StreamTools.close(mLocalInput);
-			mLocalInput = null;
-			mLocalOutput = StreamTools.close(mLocalOutput);
-			mLocalSocket = StreamTools.close(mLocalSocket);
-
-			StreamTools.close(mSocketListener);
-		}
-
-
-		@Override
-		public void run() {
-			Thread.currentThread().setName("Connection " + conId + " [Receiver]");
-			try {
-				prepareLocal();
-				prepareRemote();
-				mSenderThread = new Thread() {
-					@Override
-					public void run() {
-						Thread.currentThread().setName("Connection " + conId + " [Sender]");
-						String sRemoteHeader = mLocalHeader.mMethod + " " + mPath + " HTTP/1.1\r\n" +
-								"Connection: close\r\n" +
-								mLocalHeader.getHeadersWithoutProxy() + "\r\n";
-						try {
-							mRemoteOutput.write(sRemoteHeader.getBytes());
-							StreamTools.passthroughStreams(mLocalInput, mRemoteOutput);
-						} catch (Exception e) {
-							if (!mFinished)
-								e.printStackTrace();
-						} finally {
-							close();
-						}
-					}
-				};
-				mSenderThread.start();
-
-				mRemoteHeader = new HeaderInspectResult(mRemoteInput);
-				mLocalOutput.write((mRemoteHeader.mRawHeader.substring(0, mRemoteHeader.mRawHeader.indexOf("\r\n") + 2) + mRemoteHeader.getHeadersWithoutProxy() + "\r\n").getBytes());
-				StreamTools.passthroughStreams(mRemoteInput, mLocalOutput);
-			} catch (Exception e) {
-				if (!mFinished)
-					e.printStackTrace();
-			} finally {
-				close();
-			}
-		}
-
-		private void prepareLocal() throws IOException {
-			do {
-				StreamTools.close(mLocalInput);
-				mLocalInput = null;
-				mLocalSocket = mSocketListener.accept();
-				mLocalInput = new PushbackInputStream(mLocalSocket.getInputStream(), MAX_HEADER_SIZE);
-				mLocalHeader = new HeaderInspectResult(mLocalInput);
-			} while (!mConnectionVerifier.equals(mLocalHeader.getHeader("proxy-authentication")));
-			StreamTools.close(mSocketListener);
-			mLocalOutput = mLocalSocket.getOutputStream();
-
-			mHost = mLocalHeader.getHeader("host");
-			if (!mHost.contains(":"))
-				mPort = mUseHttps ? 443 : 80;
-			else {
-				mPort = Integer.parseInt(mHost.substring(mHost.indexOf(":") + 1));
-				mHost = mHost.substring(0, mHost.indexOf(":"));
-			}
-			mPath = mLocalHeader.mLocation;
-			if (mPath.toLowerCase(Locale.ENGLISH).startsWith("http://")) {
-				mPath = mPath.substring(mPath.indexOf("://") + 3);
-				if (!mPath.contains("/"))
-					mPath = "/";
-				else
-					mPath = mPath.substring(mPath.indexOf("/"));
-			}
-		}
-
-		private void prepareRemote() throws IOException {
-
-			if (mUseHttps) {
-				mRemoteSocket = SSLCertificateSocketFactory.getDefault().createSocket(mHost, mPort);
-			} else {
-				mRemoteSocket = new Socket();
-				mRemoteSocket.connect(new InetSocketAddress(mHost, mPort));
-			}
-			mRemoteInput = new PushbackInputStream(mRemoteSocket.getInputStream(), MAX_HEADER_SIZE);
-			mRemoteOutput = mRemoteSocket.getOutputStream();
-		}
-	}
 }

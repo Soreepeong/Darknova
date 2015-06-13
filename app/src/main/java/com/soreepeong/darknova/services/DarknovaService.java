@@ -353,7 +353,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				return true;
 			}
 			case MESSAGE_STREAM_START: {
-				long user_id = (((long) msg.arg1) << 32) | (long) msg.arg2;
+				long user_id = ((msg.arg1 & 0xffffffffL) << 32) | (msg.arg2 & 0xffffffffL);
 				StreamableTwitterEngine e = TwitterEngine.get(user_id);
 				if (e != null) {
 					e.setUseStream(true);
@@ -361,7 +361,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				return true;
 			}
 			case MESSAGE_STREAM_STOP: {
-				long user_id = (((long) msg.arg1) << 32) | (long) msg.arg2;
+				long user_id = ((msg.arg1 & 0xffffffffL) << 32) | (msg.arg2 & 0xffffffffL);
 				StreamableTwitterEngine e = TwitterEngine.get(user_id);
 				if (e != null) {
 					e.setUseStream(false);
@@ -597,8 +597,10 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	}
 
 	@Override
-	public void onStreamError(StreamableTwitterEngine engine, Exception e) {
+	public void onStreamError(StreamableTwitterEngine engine, Throwable e) {
 		applyStreamIndicator(StringTools.fillStringResFormat(this, R.string.stream_error, "user", engine.getScreenName(), "error", e.getMessage()));
+		Bundle b = new Bundle();
+		b.putSerializable("e", e);
 		sendCallbackMessages(engine, MESSAGE_STREAM_CALLBACK_ERROR, null);
 	}
 
@@ -614,7 +616,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	}
 
 	@Override
-	public void onStreamUserEvent(StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target) {
+	public void onStreamUserEvent(StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, long created_at) {
 		Bundle b = new Bundle();
 		b.putString("event", event);
 		b.putParcelable("source", source);
@@ -720,8 +722,9 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				builder.setLargeIcon(mBitmap = drw.getBitmap());
 				return false;
 			}
-			imageCache.prepareBitmap(mSourceUser.getProfileImageUrl(), null, this);
-			imageCache.prepareBitmap(mSourceUser.getProfileImageUrl(), null, listener);
+			// TODO image size
+			imageCache.prepareBitmap(mSourceUser.getProfileImageUrl(), null, 384, this);
+			imageCache.prepareBitmap(mSourceUser.getProfileImageUrl(), null, 384, listener);
 			return true;
 		}
 

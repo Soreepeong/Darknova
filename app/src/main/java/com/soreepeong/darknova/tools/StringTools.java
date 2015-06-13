@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.support.annotation.StringRes;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -98,21 +99,27 @@ public class StringTools {
 	 */
 	public static String UrlDecode(String encoded) {
 		byte array[] = encoded.getBytes();
-		StringBuilder decoded = new StringBuilder(encoded.length());
+		ByteArrayOutputStream bos = new ByteArrayOutputStream(encoded.length());
 		int cursor = 0;
 		while (cursor < array.length) {
 			if (array[cursor] == '%') {
 				cursor++;
 				int val = 0;
-				for (int i = array[cursor] == 'u' ? 4 : 2; i > 0; i--, cursor++)
+				final int byteCount = array[cursor] == 'u' ? 2 : 1;
+				for (int i = 0; i < byteCount * 2; i++, cursor++)
 					val = val * 16 + (array[cursor] >= '0' && array[cursor] <= '9' ? array[cursor] - '0' : array[cursor] - 'A' + 10);
-				decoded.append((char) val);
+				if (byteCount == 1)
+					bos.write(val);
+				else {
+					bos.write(val & 0xFF);
+					bos.write((val >> 8) & 0xFF);
+				}
 			} else {
-				decoded.append((char) array[cursor]);
+				bos.write(array[cursor]);
 				cursor++;
 			}
 		}
-		return decoded.toString();
+		return new String(bos.toByteArray());
 	}
 
 	/**

@@ -63,7 +63,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	public WeakReference<List<Tweet>> mList;
 	public TimelineFragment mConnectedFragment;
 	public boolean mIsListAtTop;
-	public int mPageLastItemPosition, mPageLastOffset;
+	public int mPageLastOffset;
 	public long mPageLastItemId, mPageNewestSeenItemId;
 	private Thread mList_holdRemover;
 
@@ -394,7 +394,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	}
 
 	@Override
-	public void onStreamError(TwitterEngine.StreamableTwitterEngine engine, Exception e) {
+	public void onStreamError(TwitterEngine.StreamableTwitterEngine engine, Throwable e) {
 		if (mConnectedFragment != null)
 			mConnectedFragment.onStreamError(engine, e);
 	}
@@ -406,9 +406,9 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	}
 
 	@Override
-	public void onStreamUserEvent(TwitterEngine.StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target) {
+	public void onStreamUserEvent(TwitterEngine.StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, long created_at) {
 		if (mConnectedFragment != null)
-			mConnectedFragment.onStreamUserEvent(engine, event, source, target);
+			mConnectedFragment.onStreamUserEvent(engine, event, source, target, created_at);
 	}
 
 	@Override
@@ -676,7 +676,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		public boolean canHave(Tweet tweet) {
 			switch (function) {
 				case FUNCTION_HOME_TIMELINE:
-					return twitterEngineId == tweet.user.user_id || mTwitterEngine.getTweeter().follows(tweet.user);
+					return (tweet.perUserInfo.get(twitterEngineId) != null) && (twitterEngineId == tweet.user.user_id || mTwitterEngine.getTweeter().follows(tweet.user));
 				case FUNCTION_MENTIONS:
 					if (tweet.entities != null)
 						for (Entities.Entity e : tweet.entities.list) {

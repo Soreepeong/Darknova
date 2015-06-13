@@ -20,8 +20,7 @@
 		android:layout_height="match_parent"
 		android:layout_margin="8dp"
 		android:contentDescription="@string/new_tweet_attach"
-		android:scaleType="centerCrop"
-		android:src="?attr/ic_editor_attach_file"/>
+		android:scaleType="centerCrop"/>
 
 	<ImageView
 		android:id="@+id/type"

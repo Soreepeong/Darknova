@@ -30,7 +30,7 @@ public class StreamTools {
 					public void run() {
 						try {
 							stream.close();
-						} catch (IOException e) {
+						} catch (Exception e) {
 							// whatever
 						}
 					}
@@ -39,7 +39,7 @@ public class StreamTools {
 			}
 			try {
 				stream.close();
-			} catch (IOException e) {
+			} catch (Exception e) {
 				// whatever
 			}
 		}
@@ -60,7 +60,7 @@ public class StreamTools {
 					public void run() {
 						try {
 							stream.close();
-						} catch (IOException e) {
+						} catch (Exception e) {
 							// whatever
 						}
 					}
@@ -69,7 +69,7 @@ public class StreamTools {
 			}
 			try {
 				stream.close();
-			} catch (IOException e) {
+			} catch (Exception e) {
 				// whatever
 			}
 		}
@@ -90,7 +90,7 @@ public class StreamTools {
 					public void run() {
 						try {
 							socket.close();
-						} catch (IOException e) {
+						} catch (Exception e) {
 							// whatever
 						}
 					}
@@ -99,7 +99,7 @@ public class StreamTools {
 			}
 			try {
 				socket.close();
-			} catch (IOException e) {
+			} catch (Exception e) {
 				// whatever
 			}
 		}
@@ -121,7 +121,7 @@ public class StreamTools {
 					public void run() {
 						try {
 							socket.close();
-						} catch (IOException e) {
+						} catch (Exception e) {
 							// whatever
 						}
 					}
@@ -130,23 +130,10 @@ public class StreamTools {
 			}
 			try {
 				socket.close();
-			} catch (IOException e) {
+			} catch (Exception e) {
 				// whatever
 			}
 		}
-		return null;
-	}
-
-
-	/**
-	 * Interrupt, and stop thread
-	 *
-	 * @param t thread to interrupt
-	 * @return null
-	 */
-	public static Thread interruptStop(Thread t) {
-		if (t == null) return null;
-		t.interrupt();
 		return null;
 	}
 

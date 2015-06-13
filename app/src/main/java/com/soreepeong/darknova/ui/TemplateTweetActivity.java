@@ -10,6 +10,7 @@ import android.support.v7.widget.Toolbar;
 import android.view.MenuItem;
 
 import com.soreepeong.darknova.R;
+import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.ui.fragments.TemplateTweetEditorFragment;
 
 /**
@@ -32,6 +33,41 @@ public class TemplateTweetActivity extends AppCompatActivity implements MultiCon
 		mEditorFragment.initializeNewTweet();
 		mEditorFragment.setOnNewTweetVisibilityChangedListener(this);
 		//*/
+		Intent i = getIntent();
+		if (Intent.ACTION_VIEW.equals(i.getAction())) {
+			try {
+				String text = "", url = null, hashtags = null, via = null;
+				for (String q : i.getData().getEncodedQuery().split("&")) {
+					q = q.trim();
+					if (q.toLowerCase().startsWith("text=") && q.length() > 5)
+						text = StringTools.UrlDecode(q.substring(5));
+					else if (q.toLowerCase().startsWith("url=") && q.length() > 4)
+						url = StringTools.UrlDecode(q.substring(4));
+					else if (q.toLowerCase().startsWith("hashtags=") && q.length() > 9)
+						hashtags = "#" + StringTools.UrlDecode(q.substring(9)).replace(",", " #");
+					else if (q.toLowerCase().startsWith("via=") && q.length() > 4)
+						via = StringTools.UrlDecode(q.substring(4));
+				}
+				if (url != null) {
+					if (!text.isEmpty())
+						text = text + " ";
+					text += url;
+				}
+				if (hashtags != null) {
+					if (!text.isEmpty())
+						text = text + " ";
+					text += hashtags;
+				}
+				if (via != null) {
+					if (!text.isEmpty())
+						text = text + " ";
+					text += via;
+				}
+				mEditorFragment.setContent(text);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
 	}
 
 	@Override

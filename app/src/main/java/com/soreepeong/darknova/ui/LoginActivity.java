@@ -37,7 +37,7 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 		mViewSwiper = (SwipeRefreshLayout) findViewById(R.id.swipeRefresher);
 		mViewSwiper.setOnRefreshListener(this);
 		mViewBrowser.setWebViewClient(new LoginWebViewClient());
-		new TwitterLoginTask().execute();
+		new TwitterLoginTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
 	}
 
 	@Override
@@ -122,7 +122,7 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 						verifier = value;
 				}
 				if(token != null && verifier != null){
-					new TwitterVerifyTask().execute(token, verifier);
+					new TwitterVerifyTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, token, verifier);
 					mViewSwiper.setVisibility(View.GONE);
 					mViewBrowser.stopLoading();
 					mViewBrowser.loadUrl("about:blank");

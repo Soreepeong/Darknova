@@ -723,7 +723,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					Tweeter user = mCurrentUser.getTweeter();
 					if (mImageCache != null) {
 						mImageCache.assignImageView(mViewAvatar, user.getProfileImageUrl(), null, mImageCache.CIRCULAR_IMAGE_PREPROCESSOR);
-						mImageCache.assignImageView(mViewAccountBackground, R.drawable.wallpaper, user.getProfileBannerUrl(), null, null);
+						mImageCache.assignImageView(mViewAccountBackground, R.drawable.wallpaper, user.getProfileBannerUrl(), null, null, null);
 					}
 					mViewName.setText(user.name);
 					mViewScreenName.setText(user.screen_name);
@@ -884,6 +884,8 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 			@Override
 			public void onCheckedChanged(CompoundButton v, boolean isChecked) {
 				int usr = getAdapterPosition() - 1;
+				if (usr < 0)
+					return;
 				TwitterEngine.StreamableTwitterEngine engine = TwitterEngine.get(mListedUsers.get(usr).user_id);
 				TwitterStreamServiceReceiver.turnStreamOn(engine, isChecked);
 				mHandler.sendMessageDelayed(Message.obtain(mHandler, MESSAGE_SERVICE_TIMEOUT, isChecked ? 2 : 1, 0, engine), SERVICE_COMMUNICATION_TIMEOUT);

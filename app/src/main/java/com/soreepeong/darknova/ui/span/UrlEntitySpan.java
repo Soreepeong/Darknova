@@ -123,7 +123,7 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan, SelfInva
 
 		@Override
 		public void run() {
-			HTTPRequest req = HTTPRequest.getRequest(mEntity._expanded_url, null, false, null, false);
+			HTTPRequest req = HTTPRequest.getRequest(mEntity._expanded_url, null, false, null);
 			if (req != null)
 				try {
 					req.setMaxRedirects(4);

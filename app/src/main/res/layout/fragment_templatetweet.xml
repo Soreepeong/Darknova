@@ -21,7 +21,6 @@
 			android:gravity="start|top"
 			android:hint="@string/new_tweet_hint"
 			android:inputType="text|textMultiLine"
-			android:maxHeight="100sp"
 			android:minHeight="64sp"
 			android:paddingLeft="8dp"
 			android:paddingRight="8dp"/>

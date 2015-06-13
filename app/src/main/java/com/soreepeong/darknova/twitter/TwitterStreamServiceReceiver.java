@@ -58,7 +58,7 @@ public class TwitterStreamServiceReceiver {
 		}
 
 		@Override
-		public void onStreamError(final TwitterEngine.StreamableTwitterEngine engine, final Exception e) {
+		public void onStreamError(final TwitterEngine.StreamableTwitterEngine engine, final Throwable e) {
 			mHandler.post(new Runnable() {
 				@Override
 				public void run() {
@@ -84,13 +84,13 @@ public class TwitterStreamServiceReceiver {
 		}
 
 		@Override
-		public void onStreamUserEvent(final TwitterEngine.StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target) {
+		public void onStreamUserEvent(final TwitterEngine.StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final long created_at) {
 			mHandler.post(new Runnable() {
 				@Override
 				public void run() {
 					synchronized (mStreamCallbacks) {
 						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks)
-							c.onStreamUserEvent(engine, event, source, target);
+							c.onStreamUserEvent(engine, event, source, target, created_at);
 					}
 				}
 			});
@@ -166,13 +166,13 @@ public class TwitterStreamServiceReceiver {
 							mStreamCallback.onStreamConnected(e);
 							break;
 						case DarknovaService.MESSAGE_STREAM_CALLBACK_ERROR:
-							mStreamCallback.onStreamError(e, (Exception) b.getSerializable("e"));
+							mStreamCallback.onStreamError(e, (Throwable) b.getSerializable("e"));
 							break;
 						case DarknovaService.MESSAGE_STREAM_CALLBACK_TWEET_EVENT:
 							mStreamCallback.onStreamTweetEvent(e, b.getString("event"), (Tweeter) b.getParcelable("source"), (Tweeter) b.getParcelable("target"), (Tweet) b.getParcelable("tweet"), b.getLong("created_at"));
 							break;
 						case DarknovaService.MESSAGE_STREAM_CALLBACK_USER_EVENT:
-							mStreamCallback.onStreamUserEvent(e, b.getString("event"), (Tweeter) b.getParcelable("source"), (Tweeter) b.getParcelable("target"));
+							mStreamCallback.onStreamUserEvent(e, b.getString("event"), (Tweeter) b.getParcelable("source"), (Tweeter) b.getParcelable("target"), b.getLong("created_at"));
 							break;
 						case DarknovaService.MESSAGE_STREAM_CALLBACK_STOP:
 							mStreamCallback.onStreamStop(e);

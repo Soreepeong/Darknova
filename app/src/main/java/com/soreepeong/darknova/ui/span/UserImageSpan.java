@@ -14,16 +14,16 @@ import java.lang.ref.WeakReference;
  * @author Soreepeong
  */
 public class UserImageSpan extends ReplacementSpan implements SelfInvalidatingSpan, Drawable.Callback {
-	private final TweeterDrawable mDrawable;
 	private final Tweeter mTweeter;
+	private final ImageCache mCache;
+	private TweeterDrawable mDrawable;
 	private int mLineHeight, mActualLineHeight;
 	private WeakReference<Callback> mCallback;
 
 	public UserImageSpan(Tweeter tweeter, ImageCache imageCache, int lineHeight) {
 		mTweeter = tweeter;
-		mLineHeight = lineHeight;
-		mDrawable = new TweeterDrawable(imageCache);
-		mDrawable.setCallback(this);
+		mCache = imageCache;
+		mActualLineHeight = mLineHeight = lineHeight;
 	}
 
 	public Tweeter getTweeter() {
@@ -45,12 +45,13 @@ public class UserImageSpan extends ReplacementSpan implements SelfInvalidatingSp
 
 	@Override
 	public void draw(Canvas canvas, CharSequence text, int start, int end, float x, int top, int y, int bottom, Paint paint) {
+		if (mDrawable == null)
+			mDrawable = new TweeterDrawable(this);
 		if (mDrawable.getUrl() == null) {
 			canvas.drawText(text, start, end, x, y, paint);
 		} else {
 			canvas.save();
 			canvas.translate(x, y - mLineHeight);
-			mDrawable.setSize(mActualLineHeight);
 			mDrawable.setBounds(0, 0, mDrawable.getIntrinsicWidth(), mDrawable.getIntrinsicHeight());
 			mDrawable.setAlpha(255);
 			mDrawable.draw(canvas);
@@ -88,17 +89,17 @@ public class UserImageSpan extends ReplacementSpan implements SelfInvalidatingSp
 	}
 
 	private class TweeterDrawable extends ImageCache.AutoApplyingDrawable implements Tweeter.OnUserInformationChangedListener {
-		public ImageCache mCache;
 
-		public TweeterDrawable(ImageCache cache) {
-			mCache = cache;
+		public TweeterDrawable(Callback c) {
+			super(mActualLineHeight, mActualLineHeight);
 			mTweeter.addOnChangeListener(this);
-			updateUrl(mTweeter.getProfileImageUrl(), mCache);
+			updateUrl(mTweeter.getProfileImageUrl(), null, mCache);
+			setCallback(c);
 		}
 
 		@Override
 		public void onUserInformationChanged(Tweeter tweeter) {
-			updateUrl(tweeter.getProfileImageUrl(), mCache);
+			updateUrl(tweeter.getProfileImageUrl(), null, mCache);
 		}
 	}
 }

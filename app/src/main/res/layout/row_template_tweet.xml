@@ -81,6 +81,23 @@
 		android:layout_height="wrap_content"
 		android:layout_below="@+id/template_area"
 		android:layout_marginLeft="6dp"
+		android:layout_marginStart="6dp"
 		android:layout_marginTop="3sp"
 		android:text="@string/placeholder"/>
+
+	<LinearLayout
+		android:id="@+id/attachments"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_below="@+id/reply_info"
+		android:gravity="end">
+
+		<include layout="@layout/col_templatetweet_attachment"/>
+
+		<include layout="@layout/col_templatetweet_attachment"/>
+
+		<include layout="@layout/col_templatetweet_attachment"/>
+
+		<include layout="@layout/col_templatetweet_attachment"/>
+	</LinearLayout>
 </RelativeLayout>

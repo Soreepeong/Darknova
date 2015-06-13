@@ -75,6 +75,45 @@ public class TemplateTweet implements Parcelable {
 		}
 	}
 
+	public TemplateTweet(long id, ContentResolver resolver) {
+		Cursor c = resolver.query(TemplateTweetProvider.URI_TEMPLATES, null, "id=?", new String[]{Long.toString(id)}, null);
+		if (!c.moveToFirst())
+			throw new RuntimeException("No such ID exists");
+		this.id = id;
+		type = c.getInt(c.getColumnIndex("type"));
+		created_at = c.getLong(c.getColumnIndex("created_at"));
+		enabled = c.getInt(c.getColumnIndex("enabled")) != 0;
+		remove_after = c.getInt(c.getColumnIndex("remove_after")) != 0;
+		interval = c.getInt(c.getColumnIndex("interval"));
+		selection_start = c.getInt(c.getColumnIndex("selection_start"));
+		selection_end = c.getInt(c.getColumnIndex("selection_end"));
+		time_start = c.getLong(c.getColumnIndex("start_time"));
+		time_end = c.getLong(c.getColumnIndex("end_time"));
+		trigger_pattern = c.getString(c.getColumnIndex("trigger_pattern"));
+		trigger_use_regex = c.getInt(c.getColumnIndex("use_regex")) != 0;
+		text = c.getString(c.getColumnIndex("text"));
+		in_reply_to_id = c.getLong(c.getColumnIndex("in_reply_to"));
+		latitude = c.getFloat(c.getColumnIndex("latitude"));
+		longitude = c.getFloat(c.getColumnIndex("longitude"));
+		use_coordinates = c.getInt(c.getColumnIndex("use_coordinates")) != 0;
+		autoresolve_coordinates = c.getInt(c.getColumnIndex("autoresolve_coordinates")) != 0;
+		c.close();
+
+		c = resolver.query(TemplateTweetProvider.URI_FROM_USERS, null, "template_id=?", new String[]{Long.toString(id)}, null);
+		if (c.moveToFirst())
+			do {
+				mUserIdList.add(c.getLong(c.getColumnIndex("user_id")));
+			} while (c.moveToNext());
+		c.close();
+
+		c = resolver.query(TemplateTweetProvider.URI_ATTACHMENTS, null, "template_id=?", new String[]{Long.toString(id)}, null);
+		if (c.moveToFirst())
+			do {
+				mAttachments.add(new TemplateTweetAttachment(c, resolver));
+			} while (c.moveToNext());
+		c.close();
+	}
+
 	public TemplateTweet(Cursor c, ContentResolver resolver) {
 		id = c.getLong(c.getColumnIndex("_id"));
 		type = c.getInt(c.getColumnIndex("type"));

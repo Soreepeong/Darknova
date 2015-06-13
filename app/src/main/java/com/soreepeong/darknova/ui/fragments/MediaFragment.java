@@ -188,14 +188,21 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		mViewSurface = null;
 	}
 
+	private void startLoaderTask(boolean bUpgradeQuality) {
+		mLoadOriginalMedia |= bUpgradeQuality;
+		if (mImageLoader != null)
+			mImageLoader.cancel(true);
+		mImageLoader = new ImageLoaderTask();
+		mImageLoader.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, mLoadOriginalMedia ? mImage.mOriginalUrl : mImage.mResizedUrl);
+		mLoadInfoVisible = true;
+		applyInfoVisibility(false);
+	}
+
 	@Override
 	public void onClick(View v) {
 		if (v.equals(mViewCancelButton)) {
 			if (mImageLoader == null) {
-				mImageLoader = new ImageLoaderTask();
-				mImageLoader.execute(mImage.mOriginalUrl);
-				mLoadInfoVisible = true;
-				applyInfoVisibility(false);
+				startLoaderTask(true);
 			} else {
 				mImageLoader.cancel(true);
 				if (mViewImageViewer.isLoaded()) {
@@ -221,10 +228,10 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		}
 		if (getView() == null)
 			return;
-		mLoadInfoVisible = false;
-		applyInfoVisibility(false);
 		((MediaPreviewActivity) getActivity()).hideActionBarDelayed(mImage);
 		mViewImageViewer.loadEmptyArea(mp.getVideoWidth(), mp.getVideoHeight());
+		mLoadInfoVisible = false;
+		applyInfoVisibility(false);
 		mp.start();
 		mMediaPlayerStatus = STATE_PLAYING;
 	}
@@ -405,10 +412,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			case R.id.reload: {
 				if (mImageLoader != null)
 					break;
-				mImageLoader = new ImageLoaderTask();
-				mImageLoader.execute(mLoadOriginalMedia ? mImage.mOriginalUrl : mImage.mResizedUrl);
-				mLoadInfoVisible = true;
-				applyInfoVisibility(false);
+				startLoaderTask(false);
 				break;
 			}
 			case R.id.share: {
@@ -453,8 +457,6 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 	@Override
 	public void onImageViewLoadFinished(LargeImageView v) {
-		if (mImageLoader != null)
-			return;
 		if (getView() != null) {
 			mLoadInfoVisible = false;
 			applyInfoVisibility(false);
@@ -518,14 +520,12 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 				}
 			}
 		}
-		if ((mImage.mOriginalContentType != null && mImage.mOriginalContentType.toLowerCase().startsWith("video/") && !mLoadOriginalMedia) || mImage.mResizedUrl == null) {
-			mLoadOriginalMedia = true;
-			mImageLoader = new ImageLoaderTask();
-			mImageLoader.execute(mImage.mOriginalUrl);
-		} else if (!resizedExists && !mLoadOriginalMedia) {
-			mImageLoader = new ImageLoaderTask();
-			mImageLoader.execute(mImage.mResizedUrl);
-		}
+		if ((mImage.mOriginalContentType != null && mImage.mOriginalContentType.toLowerCase().startsWith("video/") && !mLoadOriginalMedia) || mImage.mResizedUrl == null)
+			startLoaderTask(true);
+		else if (!resizedExists && !mLoadOriginalMedia)
+			startLoaderTask(false);
+		else
+			applyInfoVisibility(true);
 	}
 
 	@Override
@@ -563,11 +563,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		mViewSurface.requestLayout();
 		mViewPageZoom.setText(String.format(getString(R.string.mediapreview_zoom_display), zoom));
 		if (zoom > 4 && !mLoadOriginalMedia && mImageLoader == null) {
-			mLoadOriginalMedia = true;
-			mImageLoader = new ImageLoaderTask();
-			mImageLoader.execute(mImage.mOriginalUrl);
-			mLoadInfoVisible = true;
-			applyInfoVisibility(false);
+			startLoaderTask(true);
 		}
 	}
 
@@ -589,7 +585,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			int read;
 			byte buffer[] = new byte[65536];
 			try {
-				mDownloader = HTTPRequest.getRequest(params[0], mImage.mAuthInfo, false, null, true);
+				mDownloader = HTTPRequest.getRequest(params[0], mImage.mAuthInfo, false, null);
 				mTempFile = File.createTempFile("downloader", null, mImageCache.getCacheFile());
 				publishProgress();
 				Thread.sleep(50);

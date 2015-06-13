@@ -76,6 +76,8 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 	private SearchView mSearchView;
 	private MenuItem mMenuItem;
 	private Pattern mSearchOptimizedPattern;
+	private ListCreator mTaskListCreator;
+	private UserSearcher mTaskUserSearcher;
 
 	@Nullable
 	@Override
@@ -134,7 +136,10 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		mInputText = newText;
 		if(!mQuickSearchMode){
 			mSearchOptimizedPattern = StringTools.getMaybePatternSearcher(newText);
-			new ListCreator().execute(newText);
+			if (mTaskListCreator != null)
+				mTaskListCreator.cancel(true);
+			mTaskListCreator = new ListCreator();
+			mTaskListCreator.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, newText);
 		}else{
 			PageFragment page = ((MainActivity) getActivity()).getCurrentPage();
 			page.setQuickFilter(newText);
@@ -338,10 +343,13 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			if(s.user == null){
 				s.inProgress = true;
 				mUserAdapter.notifyDataSetChanged();
+				if (mTaskUserSearcher != null)
+					mTaskUserSearcher.cancel(true);
+				mTaskUserSearcher = new UserSearcher();
 				if (position == 0)
-					new UserSearcher().execute(s.name, s.distanceString);
+					mTaskUserSearcher.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, s.name, s.distanceString);
 				else
-					new UserSearcher().execute(s.name);
+					mTaskUserSearcher.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, s.name);
 				return;
 			}
 			openUser(s.user.user_id, s.user.screen_name);
@@ -415,7 +423,10 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				openUser(u.get(0).user_id, u.get(0).screen_name);
 				return;
 			}
-			new ListCreator().execute(query);
+			if (mTaskListCreator != null)
+				mTaskListCreator.cancel(true);
+			mTaskListCreator = new ListCreator();
+			mTaskListCreator.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, query);
 			super.onPostExecute(tweeters);
 		}
 	}

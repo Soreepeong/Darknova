@@ -42,6 +42,9 @@
 	<string name="tweet_description_retweet_user_counts" formatted="false">${count} users</string>
 
 	<string name="new_tweet">New tweet</string>
+	<string name="new_tweet_add_to_new">Add to new tweet</string>
+	<string name="new_tweet_open_composer">Open composer?</string>
+	<string name="new_tweet_in_main">In main app</string>
 	<string name="new_tweet_select_user">Select user</string>
 	<string name="new_tweet_geo">Location</string>
 	<string name="new_tweet_geo_use">Use location</string>

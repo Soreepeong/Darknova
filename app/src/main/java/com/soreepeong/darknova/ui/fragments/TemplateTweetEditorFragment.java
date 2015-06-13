@@ -31,7 +31,6 @@ import android.support.v7.widget.RecyclerView;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.text.format.DateFormat;
-import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -58,7 +57,6 @@ import android.widget.ToggleButton;
 import com.soreepeong.darknova.DarknovaApplication;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
-import com.soreepeong.darknova.drawable.SquarePatchDrawable;
 import com.soreepeong.darknova.services.TemplateTweetProvider;
 import com.soreepeong.darknova.settings.TemplateTweet;
 import com.soreepeong.darknova.settings.TemplateTweetAttachment;
@@ -68,6 +66,7 @@ import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.ui.MultiContentFragmentActivity;
+import com.soreepeong.darknova.ui.adapters.TemplateAdapter;
 
 import org.apmem.tools.layouts.FlowLayout;
 
@@ -86,12 +85,11 @@ import java.util.Locale;
  *
  * @author Soreepeong
  */
-public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnUserInformationChangedListener, ImageCache.OnImageCacheReadyListener, CompoundButton.OnCheckedChangeListener, View.OnClickListener, TwitterEngine.OnUserlistChangedListener, TextWatcher, AdapterView.OnItemSelectedListener {
+public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnUserInformationChangedListener, ImageCache.OnImageCacheReadyListener, CompoundButton.OnCheckedChangeListener, View.OnClickListener, TwitterEngine.OnUserlistChangedListener, TextWatcher, AdapterView.OnItemSelectedListener, TemplateAdapter.OnTemplateTweetSelectedListener {
 
+	public static final String PREF_LAST_WORKING_TEMPLATE_ID = "last_working_template_id";
 	private static final int PICK_MEDIA = 1;
 	private static final int REQUEST_EXTSDCARD_PERMISSION = 2;
-	private static final String PREF_LAST_WORKING_TEMPLATE_ID = "last_working_template_id";
-
 	private static final String PREF_EXT_MEDIA_STORAGE = "external_media_storage";
 	private final HashMap<Tweeter, ToggleButton> mUserMaps = new HashMap<>();
 	private SharedPreferences mDefaultPreference, mEditorPreference;
@@ -132,6 +130,8 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	private File mCurrentPhotoPath;
 
 	private ViewStub mViewStub;
+
+	private boolean mNoReloadLastWorking;
 
 	private File createImageFile() {
 		String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ENGLISH).format(new Date());
@@ -274,7 +274,8 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	@Override
 	public void onResume() {
 		super.onResume();
-		loadTemplateTweet(mDefaultPreference.getLong(PREF_LAST_WORKING_TEMPLATE_ID, -1));
+		if (!mNoReloadLastWorking)
+			loadTemplateTweet(mDefaultPreference.getLong(PREF_LAST_WORKING_TEMPLATE_ID, -1));
 	}
 
 	private void loadTemplateTweet(long id) {
@@ -317,8 +318,9 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			assignTimeValue(mViewTimeStart, mTemplateTweet.time_start);
 			assignTimeValue(mViewTimeEnd, mTemplateTweet.time_end);
 			applyTweetType();
-			if (mTemplateAdapter != null)
-				mTemplateAdapter.refill();
+			if (mTemplateAdapter != null) {
+				mTemplateAdapter.setExcludedId(mTemplateTweet.id);
+			}
 		}
 
 	}
@@ -439,6 +441,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		mIsShown = true;
 		if (!mIsActionbarShown)
 			return;
+		mNoReloadLastWorking = true;
 		if (mViewTemplateTweetEditor.getVisibility() == View.VISIBLE) return;
 		loadTemplateTweet(mDefaultPreference.getLong(PREF_LAST_WORKING_TEMPLATE_ID, -1));
 		mViewTemplateTweetEditor.setVisibility(View.VISIBLE);
@@ -620,6 +623,14 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		return mTemplateTweet == null || (mViewEditor.getText().length() == 0 && mTemplateTweet.mAttachments.isEmpty());
 	}
 
+	public void setContent(String text) {
+		if (!isEmpty()) {
+			saveTemplateTweet();
+			loadTemplateTweet(-1);
+		}
+		mViewEditor.setText(mTemplateTweet.text = text);
+	}
+
 	@Override
 	public void onClick(View v) {
 		if (v.equals(mViewWriteBtn)) {
@@ -730,8 +741,10 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			}
 			if (mViewMediaList.getVisibility() == View.VISIBLE && mMediaAdapter == null) {
 				mViewMediaList.setAdapter(mMediaAdapter = new MediaAdapter());
-			} else if (mViewTemplateList.getVisibility() == View.VISIBLE && mTemplateAdapter == null)
-				mViewTemplateList.setAdapter(mTemplateAdapter = new TemplateAdapter());
+			} else if (mViewTemplateList.getVisibility() == View.VISIBLE && mTemplateAdapter == null) {
+				mViewTemplateList.setAdapter(mTemplateAdapter = new TemplateAdapter(getActivity(), this));
+				mTemplateAdapter.setExcludedId(mTemplateTweet.id);
+			}
 		}
 		if (v == null) {
 			mViewEditorContainer.setVisibility(View.VISIBLE);
@@ -830,6 +843,17 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	@Override
 	public void onNothingSelected(AdapterView<?> parent) {
 
+	}
+
+	@Override
+	public void onTemplateTweetSelected(TemplateAdapter adapter, TemplateTweet t) {
+		if (isEmpty())
+			mTemplateTweet.removeSelf(getActivity().getContentResolver());
+		else
+			saveTemplateTweet();
+		loadTemplateTweet(t.id);
+		switchViews(null);
+		mViewEditor.requestFocus();
 	}
 
 	public interface OnNewTweetVisibilityChangedListener {
@@ -981,7 +1005,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 					mTypeView.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), R.attr.ic_av_videocam));
 				else
 					mTypeView.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), R.attr.ic_image_image));
-				mImageCache.prepareBitmap(mCursor.getString(2), null, new ImageCache.OnImageAvailableListener() {
+				mImageCache.assignImageView(mImageView, null, mCursor.getString(2), null, null, new ImageCache.OnImageAvailableListener() {
 					@Override
 					public void onImageAvailable(String url, BitmapDrawable bmp) {
 					}
@@ -994,7 +1018,6 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 						}
 					}
 				});
-				mImageCache.assignImageView(mImageView, mCursor.getString(2), null);
 				mImageCache.assignStatusIndicator(mProgressView, mCursor.getString(2), null);
 			}
 
@@ -1090,174 +1113,6 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 									mNoIds.add(id);
 									refill();
 								}
-							}
-						})
-						.show();
-				return true;
-			}
-		}
-	}
-
-	private class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHolder> {
-		private final ContentResolver mResolver;
-		private final SparseArray<TemplateTweet> mTemplates = new SparseArray<>();
-		private Cursor mCursor;
-		private final ContentObserver mObserver = new ContentObserver(new Handler()) {
-			@Override
-			public void onChange(boolean selfChange) {
-				refill();
-			}
-		};
-
-		public TemplateAdapter() {
-			setHasStableIds(true);
-			mResolver = getActivity().getContentResolver();
-			mResolver.registerContentObserver(TemplateTweetProvider.URI_BASE, true, mObserver);
-			refill();
-		}
-
-		public void refill() {
-			mTemplates.clear();
-			if (mCursor != null)
-				mCursor.close();
-			mCursor = mResolver.query(TemplateTweetProvider.URI_TEMPLATES, null, "_id!=?", new String[]{Long.toString(mTemplateTweet.id)}, null);
-			notifyDataSetChanged();
-		}
-
-		public void done() {
-			if (mCursor != null)
-				mCursor.close();
-			mResolver.unregisterContentObserver(mObserver);
-		}
-
-		@Override
-		public TemplateAdapter.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-			return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.row_template_tweet, parent, false));
-		}
-
-		public TemplateTweet getItem(int position) {
-			TemplateTweet t = mTemplates.get(position);
-			if (t == null) {
-				mCursor.moveToPosition(position);
-				mTemplates.put(position, t = new TemplateTweet(mCursor, mResolver));
-			}
-			return t;
-		}
-
-		@Override
-		public void onBindViewHolder(TemplateAdapter.ViewHolder holder, int position) {
-			TemplateTweet t = getItem(position);
-			if (t == null) {
-				mCursor.moveToPosition(position);
-				mTemplates.put(position, t = new TemplateTweet(mCursor, mResolver));
-			}
-			StringBuilder sb;
-			String[] types = getResources().getStringArray(R.array.new_tweet_type_array);
-			sb = new StringBuilder();
-			switch (t.type) {
-				case TemplateTweetProvider.TEMPLATE_TYPE_ONESHOT:
-					sb.append(types[0]);
-					break;
-				case TemplateTweetProvider.TEMPLATE_TYPE_SCHEDULED:
-					sb.append(types[1]);
-					break;
-				case TemplateTweetProvider.TEMPLATE_TYPE_PERIODIC:
-					sb.append(types[2]);
-					break;
-				case TemplateTweetProvider.TEMPLATE_TYPE_REPLY:
-					sb.append(types[3]);
-					break;
-			}
-			sb.append(" / ").append(t.enabled ? getString(R.string.new_tweet_enabled) : getString(R.string.new_tweet_disabled));
-			if (t.remove_after)
-				sb.append(" / ").append(getString(R.string.new_tweet_remove_after));
-			holder.type.setText(sb.toString());
-			sb = new StringBuilder();
-			SquarePatchDrawable dr = new SquarePatchDrawable();
-			for (long user_id : t.mUserIdList) {
-				TwitterEngine e = TwitterEngine.get(user_id);
-				if (sb.length() > 0)
-					sb.append(", ");
-				if (e == null) {
-					sb.append("(").append(user_id).append(")");
-					dr.addDrawable(ResTools.getDrawableByAttribute(getActivity(), R.attr.ic_content_clear));
-				} else {
-					sb.append(e.getScreenName());
-					if (mImageCache != null)
-						dr.addDrawable(mImageCache.getDrawable(e.getTweeter().getProfileImageUrl(), holder.picture.getLayoutParams().width, holder.picture.getLayoutParams().height, null));
-				}
-			}
-			holder.picture.setImageDrawable(dr);
-			holder.username.setText(sb.toString());
-			holder.data.setText(t.text);
-			switch (t.type) {
-				case TemplateTweetProvider.TEMPLATE_TYPE_ONESHOT:
-					holder.reply_info.setVisibility(View.GONE);
-					holder.description.setVisibility(View.GONE);
-					break;
-				case TemplateTweetProvider.TEMPLATE_TYPE_SCHEDULED:
-					holder.reply_info.setVisibility(View.GONE);
-					holder.description.setVisibility(View.VISIBLE);
-					break;
-				case TemplateTweetProvider.TEMPLATE_TYPE_PERIODIC:
-					holder.reply_info.setVisibility(View.GONE);
-					holder.description.setVisibility(View.VISIBLE);
-					break;
-				case TemplateTweetProvider.TEMPLATE_TYPE_REPLY:
-					holder.reply_info.setVisibility(View.VISIBLE);
-					holder.description.setVisibility(View.VISIBLE);
-					break;
-			}
-		}
-
-		@Override
-		public long getItemId(int position) {
-			return getItem(position).id;
-		}
-
-		@Override
-		public int getItemCount() {
-			return mCursor.getCount();
-		}
-
-		public class ViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener, View.OnLongClickListener {
-			TextView type, username, data, description, reply_info;
-			ImageView picture;
-
-			public ViewHolder(View itemView) {
-				super(itemView);
-				itemView.setOnClickListener(this);
-				itemView.setOnLongClickListener(this);
-				type = (TextView) itemView.findViewById(R.id.type);
-				picture = (ImageView) itemView.findViewById(R.id.imgUserPictureFull);
-				username = (TextView) itemView.findViewById(R.id.lblUserName);
-				data = (TextView) itemView.findViewById(R.id.lblData);
-				description = (TextView) itemView.findViewById(R.id.lblDescription);
-				reply_info = (TextView) itemView.findViewById(R.id.reply_info);
-			}
-
-			@Override
-			public void onClick(View v) {
-				TemplateTweet t = getItem(getAdapterPosition());
-				if (isEmpty())
-					mTemplateTweet.removeSelf(mResolver);
-				else
-					saveTemplateTweet();
-				loadTemplateTweet(t.id);
-				switchViews(null);
-				mViewEditor.requestFocus();
-			}
-
-			@Override
-			public boolean onLongClick(View v) {
-				new AlertDialog.Builder(v.getContext())
-						.setMessage(R.string.new_tweet_remove)
-						.setNegativeButton(android.R.string.no, null)
-						.setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
-							@Override
-							public void onClick(DialogInterface dialog, int which) {
-								TemplateTweet t = getItem(getAdapterPosition());
-								t.removeSelf(mResolver);
 							}
 						})
 						.show();
@@ -1449,6 +1304,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			ImageView mTypeView;
 			View mProgressView;
 
+
 			public ViewHolder(View itemView) {
 				super(itemView);
 				itemView.setOnClickListener(this);
@@ -1478,9 +1334,9 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 						default:
 							mTypeView.setImageDrawable(null);
 					}
-					if (mTemplateTweet.mAttachments.get(position).mLocalFileExists) {
-						mImageCache.assignImageView(mImageView, mTemplateTweet.mAttachments.get(position).mLocalFile.getAbsolutePath(), null);
-						mImageCache.assignStatusIndicator(mProgressView, mTemplateTweet.mAttachments.get(position).mLocalFile.getAbsolutePath(), null);
+					if (a.mLocalFileExists) {
+						mImageCache.assignImageView(mImageView, a.mLocalFile.getAbsolutePath(), null);
+						mImageCache.assignStatusIndicator(mProgressView, a.mLocalFile.getAbsolutePath(), null);
 					} else {
 						mImageCache.assignImageView(mImageView, null, null);
 						mImageCache.assignStatusIndicator(mProgressView, null, null);
