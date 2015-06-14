@@ -177,16 +177,16 @@ public class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHo
 				}
 				if (a.mLocalFileExists) {
 					mImageCache.assignImageView(holder.mImageView[i], a.mLocalFile.getAbsolutePath(), null);
-					mImageCache.assignStatusIndicator(holder.mProgressView[i], a.mLocalFile.getAbsolutePath(), null);
+					mImageCache.assignStatusIndicator(holder.mProgressView[i], a.mLocalFile.getAbsolutePath());
 				} else {
 					mImageCache.assignImageView(holder.mImageView[i], null, null);
-					mImageCache.assignStatusIndicator(holder.mProgressView[i], null, null);
+					mImageCache.assignStatusIndicator(holder.mProgressView[i], null);
 				}
 			}
 			for (; i < holder.mImageView.length; i++) {
 				holder.mAttachmentView.getChildAt(i).setVisibility(View.GONE);
 				mImageCache.assignImageView(holder.mImageView[i], null, null);
-				mImageCache.assignStatusIndicator(holder.mProgressView[i], null, null);
+				mImageCache.assignStatusIndicator(holder.mProgressView[i], null);
 			}
 		}
 	}

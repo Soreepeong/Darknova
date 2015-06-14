@@ -12,6 +12,7 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -460,7 +461,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	}
 
 	@Override
-	public void onImageAvailable(String url, BitmapDrawable bmp) {
+	public void onImageAvailable(String url, BitmapDrawable bmp, Drawable d, int originalWidth, int originalHeight) {
 		showNotification();
 	}
 
@@ -760,7 +761,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 		}
 
 		@Override
-		public void onImageAvailable(String url, BitmapDrawable bmp) {
+		public void onImageAvailable(String url, BitmapDrawable bmp, Drawable d, int originalWidth, int originalHeight) {
 			mBitmap = bmp.getBitmap();
 		}
 

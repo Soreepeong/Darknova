@@ -49,7 +49,9 @@ public class FileTools {
 	}
 
 	public static void resizeImage(File file, long targetLength) throws IOException {
-		Bitmap decoded = ImageCache.decodeFile(file.getAbsolutePath(), 8192, 8192);
+		Bitmap decoded = ImageCache.decodeFile(file.getAbsolutePath(), 8192, 8192, null);
+		if (decoded == null)
+			throw new RuntimeException("bad file");
 		File tempFile = new File(file.getAbsolutePath() + "_resizing");
 		OutputStream out = null;
 		InputStream in = null;
@@ -73,7 +75,6 @@ public class FileTools {
 				StreamTools.passthroughStreams(in, out);
 			}
 		} finally {
-			decoded.recycle();
 			StreamTools.close(in);
 			StreamTools.close(out);
 			if (tempFile.exists() && !tempFile.delete())

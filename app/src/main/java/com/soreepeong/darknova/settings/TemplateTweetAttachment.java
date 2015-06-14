@@ -139,8 +139,9 @@ public class TemplateTweetAttachment implements Parcelable {
 							throw new IOException("File too big");
 						}
 					} else {
-						if (mLocalFile.length() > TwitterEngine.MAX_IMAGE_MEDIA_SIZE) {
-							FileTools.resizeImage(mLocalFile, TwitterEngine.MAX_IMAGE_MEDIA_SIZE);
+						long maxMediaSize = TwitterEngine.getConfigurationLong("photo_size_limit", 3145728);
+						if (mLocalFile.length() > maxMediaSize) {
+							FileTools.resizeImage(mLocalFile, maxMediaSize);
 						}
 					}
 					mLocalFileExists = true;

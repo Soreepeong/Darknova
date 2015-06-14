@@ -97,6 +97,9 @@ public class ImageCacheProvider extends ContentProvider {
 	public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
 		if (selection.equals("url=?"))
 			selectionArgs[0] = selectionArgs[0].substring(selectionArgs[0].indexOf(":")+1);
+		ContentValues cv = new ContentValues();
+		cv.put("created", System.currentTimeMillis());
+		mDb.update(KEY_TABLE_NAME, cv, selection, selectionArgs);
 		return mDb.query(KEY_TABLE_NAME, projection, selection, selectionArgs, null, null, sortOrder);
 	}
 
@@ -112,6 +115,7 @@ public class ImageCacheProvider extends ContentProvider {
 			url = url.substring(url.indexOf(":") + 1);
 			values.put("url", url);
 		}
+		values.put("created", System.currentTimeMillis());
 		return Uri.parse("file://" + new File(mCachePath, Long.toString(mDb.insert(KEY_TABLE_NAME, null, values))).getAbsolutePath());
 	}
 
@@ -131,6 +135,7 @@ public class ImageCacheProvider extends ContentProvider {
 			url = url.substring(url.indexOf(":") + 1);
 			values.put("url", url);
 		}
+		values.put("created", System.currentTimeMillis());
 		return mDb.update(KEY_TABLE_NAME, values, selection, selectionArgs);
 	}
 }

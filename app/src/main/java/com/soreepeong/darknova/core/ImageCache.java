@@ -14,6 +14,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.media.ExifInterface;
+import android.media.MediaMetadataRetriever;
 import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.os.Build;
@@ -61,7 +62,6 @@ import pl.droidsonroids.gif.GifDrawable;
  */
 public class ImageCache {
 	private static final int MAX_SIZE = 4 * 1048576;
-	private static final int DEFAULT_IMAGE_LOADERS = 4;
 	private static final int REVEAL_ANIMATION_LENGTH = 300;
 	private static final String[] COLUMN_ID_ONLY = new String[]{"_id"};
 	private static final AccelerateDecelerateInterpolator REVEAL_ANIMATION_INTERPOLATOR = new AccelerateDecelerateInterpolator();
@@ -96,10 +96,8 @@ public class ImageCache {
 	};
 	private static ImageCache mCurrentCache;
 	private static CacheLoader mCacheLoader;
-	private final LinkedList<ImageLoader> mPendingImages;
 	private final ConcurrentHashMap<String, ImageLoader> mLoaderMap;
-	private final List<ImageLoader> mWorkingImageLoaders;
-	private final ImageLoaderScheduler mScheduler;
+	private final ImageLoaderScheduler mSchedulerLocal, mSchedulerRemote;
 	private final Resources mResources;
 	public final OnDrawablePreprocessListener CIRCULAR_IMAGE_PREPROCESSOR = new OnDrawablePreprocessListener() {
 		@Override
@@ -120,28 +118,32 @@ public class ImageCache {
 	private final WeakHashMap<WeakReference<BitmapDrawable>, Integer> mSizeCache;
 	private final WeakHashMap<Bitmap, GifDrawable> mGifPaths;
 	private final WeakHashMap<BitmapDrawable, Integer> mBitmapMaxSizes;
-	private final ContentResolver mDb;
+	private final WeakHashMap<BitmapDrawable, Integer> mBitmapWidth;
+	private final WeakHashMap<BitmapDrawable, Integer> mBitmapHeight;
+	private final ContentResolver mResolver;
 	private final SparseArray<BitmapDrawable> mNullResourceBitmaps = new SparseArray<>();
 	private File mCacheFile;
 
 	private ImageCache(ContentResolver resolver, Resources res) throws IOException {
-		mPendingImages = new LinkedList<>();
-		mDb = resolver;
+		mResolver = resolver;
 
 		mResources = res;
-		mWorkingImageLoaders = Collections.synchronizedList(new ArrayList<ImageLoader>());
 		mLoaderMap = new ConcurrentHashMap<>();
-		mScheduler = new ImageLoaderScheduler();
+		mSchedulerLocal = new ImageLoaderScheduler(false, 2);
+		mSchedulerRemote = new ImageLoaderScheduler(true, 4);
 		mSizeCache = new WeakHashMap<>();
 		mGifPaths = new WeakHashMap<>();
 		mBitmapMaxSizes = new WeakHashMap<>();
+		mBitmapHeight = new WeakHashMap<>();
+		mBitmapWidth = new WeakHashMap<>();
 		mMemoryCache = new LruCache<String, WeakReference<BitmapDrawable>>(MAX_SIZE) {
 			@Override
 			protected int sizeOf(String key, WeakReference<BitmapDrawable> bitmap) {
 				return mSizeCache.get(bitmap);
 			}
 		};
-		mScheduler.start();
+		mSchedulerLocal.start();
+		mSchedulerRemote.start();
 	}
 
 	/**
@@ -173,14 +175,16 @@ public class ImageCache {
 		}
 	}
 
-	public static Bitmap decodeFile(String sPath, float nMaxWidth, float nMaxHeight) throws IOException {
-		BitmapFactory.Options o = new BitmapFactory.Options();
+	public static Bitmap decodeFile(String sPath, float nMaxWidth, float nMaxHeight, BitmapFactory.Options o) throws IOException {
 		ExifInterface exif = new ExifInterface(sPath);
+		if (o == null)
+			o = new BitmapFactory.Options();
 		o.inJustDecodeBounds = true;
-		o.inSampleSize = 1;
+		o.inDither = true;
 		BitmapFactory.decodeFile(sPath, o);
-		o.inSampleSize = (int) Math.max(Math.ceil(o.outWidth / nMaxWidth / 2), o.inSampleSize);
-		o.inSampleSize = (int) Math.max(Math.ceil(o.outHeight / nMaxHeight / 2), o.inSampleSize);
+		if (o.outMimeType == null)
+			return null;
+		o.inSampleSize = (int) Math.max(1, Math.min(Math.ceil(o.outWidth / nMaxWidth / 2), Math.ceil(o.outHeight / nMaxHeight / 2)));
 
 		while (o.inSampleSize < 256) {
 			o.inDither = true;
@@ -217,11 +221,10 @@ public class ImageCache {
 						if (sourceBitmap.getWidth() <= nMaxWidth && sourceBitmap.getHeight() <= nMaxHeight)
 							return sourceBitmap;
 				}
-				float scale = Math.min(nMaxWidth / (float) sourceBitmap.getWidth(), nMaxHeight / (float) sourceBitmap.getHeight());
+				float scale = Math.max(nMaxWidth / (float) sourceBitmap.getWidth(), nMaxHeight / (float) sourceBitmap.getHeight());
 				if (scale < 1)
 					matrix.postScale(scale, scale);
 				Bitmap newBitmap = Bitmap.createBitmap(sourceBitmap, 0, 0, sourceBitmap.getWidth(), sourceBitmap.getHeight(), matrix, true);
-				sourceBitmap.recycle();
 				return newBitmap;
 			} catch (Error e) {
 				o.inSampleSize *= 2;
@@ -247,7 +250,7 @@ public class ImageCache {
 	 */
 	public File getCacheFile() {
 		if (mCacheFile == null)
-			mCacheFile = new File(mDb.getType(ImageCacheProvider.PROVIDER_URI));
+			mCacheFile = new File(mResolver.getType(ImageCacheProvider.PROVIDER_URI));
 		return mCacheFile;
 	}
 
@@ -289,7 +292,7 @@ public class ImageCache {
 	 *
 	 * @param url      URL
 	 * @param auth     Authentication, null if unused
-	 *                 @param minSize Minimum size in pixels
+	 * @param minSize  Minimum size in pixels
 	 * @param callback Callback to call after load
 	 */
 	public void prepareBitmap(String url, @Nullable OAuth auth, int minSize, OnImageAvailableListener callback) {
@@ -297,24 +300,26 @@ public class ImageCache {
 		WeakReference<BitmapDrawable> ref = mMemoryCache.get(url);
 		BitmapDrawable drawable = ref == null ? null : ref.get();
 		if (drawable != null && mBitmapMaxSizes.get(drawable) != null && mBitmapMaxSizes.get(drawable) >= minSize) {
-			if (callback != null)
-				callback.onImageAvailable(url, drawable);
+			if (callback != null) {
+				GifDrawable gif = mGifPaths.get(drawable.getBitmap());
+				callback.onImageAvailable(url, drawable, gif == null ? drawable : gif, mBitmapWidth.get(drawable), mBitmapHeight.get(drawable));
+			}
 			return;
 		}
-		synchronized (mScheduler) {
+		synchronized (mSchedulerLocal) {
 			ImageLoader loader = mLoaderMap.get(url);
 			newObject = loader == null;
 			if (newObject) {
 				loader = new ImageLoader(url, auth, minSize);
 				mLoaderMap.put(url, loader);
-				mPendingImages.addFirst(loader);
-			} else if (mPendingImages.remove(loader)) { // move to first, if exists
+				mSchedulerLocal.mPending.addFirst(loader);
+			} else if (mSchedulerLocal.mPending.remove(loader)) { // move to first, if exists
 				loader.updateRequiredSize(minSize);
-				mPendingImages.addFirst(loader);
+				mSchedulerLocal.mPending.addFirst(loader);
 			}
 			if (callback != null)
 				loader.addListener(callback);
-			mScheduler.notify();
+			mSchedulerLocal.notify();
 		}
 	}
 
@@ -364,10 +369,27 @@ public class ImageCache {
 			return;
 		if (view.getTag(R.id.IMAGEVIEW_URL) instanceof String) {
 			String prevUrl = (String) view.getTag(R.id.IMAGEVIEW_URL);
-			if ((url == null && prevUrl == null) || (url != null && url.equals(prevUrl)))
+			if (url != null && url.equals(prevUrl)) {
+				BitmapDrawable drawable = getBitmapFromMemCache(url);
+				if (drawable != null) {
+					GifDrawable gif = mGifPaths.get(drawable.getBitmap());
+					if (listener != null)
+						listener.onImageAvailable(url, drawable, gif != null ? gif : drawable, mBitmapWidth.get(drawable), mBitmapHeight.get(drawable));
+				}
 				return;
-			synchronized (mScheduler) {
-				for (ImageLoader loader : mWorkingImageLoaders)
+			} else if ((url == null && prevUrl == null)) {
+				return;
+			}
+			synchronized (mSchedulerLocal) {
+				for (ImageLoader loader : mSchedulerLocal.mWorking)
+					if (loader.mUrl.equals(prevUrl)) {
+						synchronized (loader.mTargetViews) {
+							loader.mTargetViews.remove(view);
+						}
+					}
+			}
+			synchronized (mSchedulerRemote) {
+				for (ImageLoader loader : mSchedulerRemote.mWorking)
 					if (loader.mUrl.equals(prevUrl)) {
 						synchronized (loader.mTargetViews) {
 							loader.mTargetViews.remove(view);
@@ -411,10 +433,12 @@ public class ImageCache {
 			else
 				view.setImageDrawable(getResourceDrawable((int) nullDrawable));
 		} else {
-			if (mBitmapMaxSizes.get(drawable) == null || mBitmapMaxSizes.get(drawable) < size)
+			if (mBitmapMaxSizes.get(drawable) == null || mBitmapWidth.get(drawable) == null || mBitmapHeight.get(drawable) == null || mBitmapMaxSizes.get(drawable) < size)
 				drawable = null;
 			if (drawable != null) {
 				GifDrawable gif = mGifPaths.get(((BitmapDrawable) drawable).getBitmap());
+				if (listener != null)
+					listener.onImageAvailable(url, (BitmapDrawable) drawable, gif != null ? gif : drawable, mBitmapWidth.get(drawable), mBitmapHeight.get(drawable));
 				if (gif != null)
 					drawable = makeGifDrawableWrapper(gif);
 				view.setImageDrawable(preprocessor != null ? preprocessor.onDrawablePreprocess(drawable) : drawable);
@@ -422,23 +446,23 @@ public class ImageCache {
 		}
 		if (drawable == null) {
 			boolean newObject;
-			synchronized (mScheduler) {
+			synchronized (mSchedulerLocal) {
 				ImageLoader loader = mLoaderMap.get(url);
 				newObject = loader == null;
 				if (newObject) {
 					loader = new ImageLoader(url, auth, size);
 					mLoaderMap.put(url, loader);
-					mPendingImages.addFirst(loader);
-				} else if (mPendingImages.remove(loader)) { // move to first, if exists
+					mSchedulerLocal.mPending.addFirst(loader);
+				} else if (mSchedulerLocal.mPending.remove(loader)) { // move to first, if exists
 					loader.updateRequiredSize(size);
-					mPendingImages.addFirst(loader);
+					mSchedulerLocal.mPending.addFirst(loader);
 				}
 				loader.mTargetViews.add(view);
 				if (listener != null)
 					loader.mAvailableListener.add(listener);
 				if (nullDrawable == null)
 					view.setImageDrawable(preprocessor == null ? new ImageLoadDrawable(loader) : preprocessor.onDrawablePreprocess(new ImageLoadDrawable(loader)));
-				mScheduler.notify();
+				mSchedulerLocal.notify();
 			}
 		}
 	}
@@ -448,17 +472,24 @@ public class ImageCache {
 	 *
 	 * @param view Indicating view
 	 * @param url  URL
-	 * @param auth auth
 	 */
-	public void assignStatusIndicator(View view, String url, @Nullable OAuth auth) {
+	public void assignStatusIndicator(final View view, final String url) {
 		if (view == null)
 			return;
 		if (view.getTag(R.id.IMAGEVIEW_URL) instanceof String) {
 			String prevUrl = (String) view.getTag(R.id.IMAGEVIEW_URL);
 			if ((url == null && prevUrl == null) || (url != null && url.equals(prevUrl)))
 				return;
-			synchronized (mScheduler) {
-				for (ImageLoader loader : mWorkingImageLoaders)
+			synchronized (mSchedulerLocal) {
+				for (ImageLoader loader : mSchedulerLocal.mWorking)
+					if (loader.mUrl.equals(prevUrl)) {
+						synchronized (loader.mTargetStatusIndicaters) {
+							loader.mTargetStatusIndicaters.remove(view);
+						}
+					}
+			}
+			synchronized (mSchedulerRemote) {
+				for (ImageLoader loader : mSchedulerRemote.mWorking)
 					if (loader.mUrl.equals(prevUrl)) {
 						synchronized (loader.mTargetStatusIndicaters) {
 							loader.mTargetStatusIndicaters.remove(view);
@@ -472,20 +503,34 @@ public class ImageCache {
 			view.setVisibility(View.VISIBLE);
 			return;
 		}
+		if (view.getMeasuredHeight() == 0)
+			view.post(new Runnable() {
+				@Override
+				public void run() {
+					String prevUrl = (String) view.getTag(R.id.IMAGEVIEW_URL);
+					if (url.equals(prevUrl))
+						assignStatusIndicatorAfter(view, url);
+				}
+			});
+		else
+			assignStatusIndicatorAfter(view, url);
+	}
+
+	public void assignStatusIndicatorAfter(View view, String url) {
 		BitmapDrawable drawable = getBitmapFromMemCache(url);
 		view.clearAnimation();
 		view.setVisibility(drawable == null ? View.VISIBLE : View.GONE);
 		if (drawable == null) {
 			boolean newObject;
-			synchronized (mScheduler) {
+			synchronized (mSchedulerLocal) {
 				ImageLoader loader = mLoaderMap.get(url);
 				newObject = loader == null;
 				if (newObject) {
 					return;
-				} else if (mPendingImages.remove(loader)) // move to first, if exists
-					mPendingImages.addFirst(loader);
+				} else if (mSchedulerLocal.mPending.remove(loader)) // move to first, if exists
+					mSchedulerLocal.mPending.addFirst(loader);
 				loader.mTargetStatusIndicaters.add(view);
-				mScheduler.notify();
+				mSchedulerLocal.notify();
 			}
 		}
 	}
@@ -500,7 +545,7 @@ public class ImageCache {
 	public String getCachedImagePath(String url) {
 		if (url == null)
 			return null;
-		Cursor cursor = mDb.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_ONLY, "url=?", new String[]{url}, null);
+		Cursor cursor = mResolver.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_ONLY, "url=?", new String[]{url}, null);
 		String res = null;
 		if (cursor.moveToFirst()) {
 			do {
@@ -508,7 +553,7 @@ public class ImageCache {
 				if (f.exists())
 					res = f.getAbsolutePath();
 				else
-					mDb.delete(ImageCacheProvider.PROVIDER_URI, "_id=?", new String[]{cursor.getString(0)});
+					mResolver.delete(ImageCacheProvider.PROVIDER_URI, "_id=?", new String[]{cursor.getString(0)});
 			} while (res == null && cursor.moveToNext());
 		}
 		cursor.close();
@@ -523,9 +568,8 @@ public class ImageCache {
 	 */
 	public String makeTempPath(String url) {
 		ContentValues values = new ContentValues();
-		values.put("created", System.currentTimeMillis());
 		values.put("url", url);
-		return mDb.insert(ImageCacheProvider.PROVIDER_URI, values).getPath();
+		return mResolver.insert(ImageCacheProvider.PROVIDER_URI, values).getPath();
 	}
 
 	/**
@@ -536,7 +580,7 @@ public class ImageCache {
 	public void applySize(File file) {
 		ContentValues values = new ContentValues();
 		values.put("size", file.length());
-		mDb.update(ImageCacheProvider.PROVIDER_URI, values, "_id=?", new String[]{file.getName()});
+		mResolver.update(ImageCacheProvider.PROVIDER_URI, values, "_id=?", new String[]{file.getName()});
 	}
 
 	/**
@@ -564,12 +608,8 @@ public class ImageCache {
 	public Drawable getDrawable(String url, int width, int height, OAuth auth) {
 		if (url == null)
 			return null;
-		BitmapDrawable bd = getBitmapFromMemCache(url);
-		if (bd != null && mBitmapMaxSizes.get(bd) != null && mBitmapMaxSizes.get(bd) > width && mBitmapMaxSizes.get(bd) > height)
-			return bd.getConstantState().newDrawable().mutate();
 		AutoApplyingDrawable dr = new AutoApplyingDrawable(width, height);
-		dr.mUrl = url;
-		dr.updateUrl(url, auth, this);
+		dr.updateUrlImmediate(url, auth, this);
 		return dr;
 	}
 
@@ -578,7 +618,7 @@ public class ImageCache {
 		int UNAVAILABLE_FILESYSTEM_ERROR = 2;
 		int UNAVAILABLE_MEMORY_ERROR = 3;
 
-		void onImageAvailable(String url, BitmapDrawable bmp);
+		void onImageAvailable(String url, BitmapDrawable bmp, Drawable d, int originalWidth, int originalHeight);
 
 		void onImageUnavailable(String url, int reason);
 	}
@@ -616,16 +656,35 @@ public class ImageCache {
 		}
 	}
 
-	public static class AutoApplyingDrawable extends WaveProgressDrawable implements OnImageAvailableListener {
+	public static class AutoApplyingDrawable extends WaveProgressDrawable implements OnImageAvailableListener, Drawable.Callback {
 		private final int mWidth, mHeight;
 		private Drawable mDrawable;
 		private String mUrl;
 		private long mAnimationEndTime = 0;
 		private boolean mIsLoading;
+		private Rect mRect = new Rect();
 
 		protected AutoApplyingDrawable(int width, int height) {
 			mWidth = width;
 			mHeight = height;
+		}
+
+		public static void refineRect(Rect rct, int bitmapWidth, int bitmapHeight) {
+			if (bitmapWidth / bitmapHeight < (rct.right - rct.left) / (rct.bottom - rct.top)) {
+				int newHeight = rct.bottom - rct.top;
+				int newWidth = bitmapWidth * newHeight / bitmapHeight;
+				int newLeft = rct.left + (rct.right - rct.left - newWidth) / 2;
+				rct.left = newLeft;
+				rct.right = newLeft + newWidth;
+				rct.bottom = rct.top + newHeight;
+			} else {
+				int newWidth = rct.right - rct.left;
+				int newHeight = bitmapHeight * newWidth / bitmapWidth;
+				int newTop = rct.top + (rct.bottom - rct.top - newHeight) / 2;
+				rct.right = rct.left + newWidth;
+				rct.top = newTop;
+				rct.bottom = newTop + newHeight;
+			}
 		}
 
 		public boolean isPreparing() {
@@ -648,6 +707,20 @@ public class ImageCache {
 			mCache.prepareBitmap(mUrl, auth, Math.max(mWidth, mHeight), this);
 		}
 
+		public void updateUrlImmediate(String newurl, OAuth auth, ImageCache mCache) {
+			if (mUrl == null ? newurl == null : mUrl.equals(newurl))
+				return;
+
+			WeakReference<BitmapDrawable> ref = mCache.mMemoryCache.get(newurl);
+			BitmapDrawable drawable = ref == null ? null : ref.get();
+			if (drawable != null && mCache.mBitmapMaxSizes.get(drawable) != null && mCache.mBitmapMaxSizes.get(drawable) >= Math.max(mWidth, mHeight)) {
+				mUrl = newurl;
+				GifDrawable gif = mCache.mGifPaths.get(drawable.getBitmap());
+				setDrawable(gif == null ? drawable : gif, 0);
+			} else
+				updateUrl(newurl, auth, mCache);
+		}
+
 		@Override
 		public int getIntrinsicHeight() {
 			return mHeight;
@@ -665,7 +738,9 @@ public class ImageCache {
 				int myAlpha = getOpacity();
 				int prevAlpha = mDrawable.getOpacity();
 				Rect prevBounds = mDrawable.getBounds();
-				mDrawable.setBounds(getBounds());
+				mRect.set(getBounds());
+				refineRect(mRect, mDrawable.getIntrinsicWidth(), mDrawable.getIntrinsicHeight());
+				mDrawable.setBounds(mRect);
 				if (mAnimationEndTime < now) {
 					mDrawable.setAlpha(myAlpha);
 				} else {
@@ -693,26 +768,51 @@ public class ImageCache {
 		public void setColorFilter(ColorFilter cf) {
 		}
 
-		@Override
-		public void onImageAvailable(String url, BitmapDrawable bmp) {
-			mDrawable = bmp.getConstantState().newDrawable().mutate();
+		private void setDrawable(Drawable d, long animationEndTime) {
+			if (mDrawable != null)
+				mDrawable.setCallback(null);
+			mDrawable = d instanceof GifDrawable ? makeGifDrawableWrapper((GifDrawable) d) : d.getConstantState().newDrawable().mutate();
 			mDrawable.setDither(true);
 			mDrawable.setFilterBitmap(true);
-			mAnimationEndTime = System.currentTimeMillis() + REVEAL_ANIMATION_LENGTH;
+			mDrawable.setCallback(this);
+			mAnimationEndTime = animationEndTime;
 			mIsLoading = false;
 			invalidateSelf();
+		}
+
+		@Override
+		public void onImageAvailable(String url, BitmapDrawable bmp, Drawable d, int originalWidth, int originalHeight) {
+			setDrawable(d, System.currentTimeMillis() + REVEAL_ANIMATION_LENGTH);
 		}
 
 		@Override
 		public void onImageUnavailable(String url, int reason) {
 			mIsLoading = false;
 		}
+
+		@Override
+		public void invalidateDrawable(Drawable who) {
+			if (who == mDrawable)
+				invalidateSelf();
+		}
+
+		@Override
+		public void scheduleDrawable(Drawable who, Runnable what, long when) {
+			if (who == mDrawable)
+				scheduleSelf(what, when);
+		}
+
+		@Override
+		public void unscheduleDrawable(Drawable who, Runnable what) {
+			if (who == mDrawable)
+				unscheduleSelf(what);
+		}
 	}
 
-	private static class ImageLoadDrawable extends WaveProgressDrawable {
+	private static class ImageLoadDrawable extends WaveProgressDrawable implements Drawable.Callback {
 		final ImageLoader mLoader;
 		boolean replacing;
-		Drawable replacement, replacingDrawable;
+		Drawable replacement;
 		ImageView replaceTarget;
 		long mReplaceEndTime;
 
@@ -739,7 +839,7 @@ public class ImageCache {
 				return;
 			replacing = true;
 			replacement = result;
-			replacingDrawable = result;
+			replacement.setCallback(this);
 			replaceTarget = v;
 			mReplaceEndTime = System.currentTimeMillis() + REVEAL_ANIMATION_LENGTH;
 			v.setImageDrawable(null);
@@ -761,11 +861,12 @@ public class ImageCache {
 			if (replacing && replaceTarget != null) {
 				long now = System.currentTimeMillis();
 				int myAlpha = getOpacity();
-				int prevAlpha = replacingDrawable.getOpacity();
-				Rect prevBounds = replacingDrawable.getBounds();
+				int prevAlpha = replacement.getOpacity();
+				Rect prevBounds = replacement.getBounds();
 				float interpolation = Math.max(0, 1 - (float) (mReplaceEndTime - now) / REVEAL_ANIMATION_LENGTH);
 				if (interpolation > 1) {
 					replacement.setAlpha(255);
+					replacement.setCallback(null);
 					replaceTarget.setImageDrawable(replacement);
 					replaceTarget.setAlpha(1f);
 					interpolation = 1;
@@ -777,14 +878,32 @@ public class ImageCache {
 				super.draw(canvas);
 				super.setAlpha(myAlpha);
 
-				replacingDrawable.setAlpha((int) (255 * interpolation));
-				replacingDrawable.setBounds(getBounds());
-				replacingDrawable.draw(canvas);
-				replacingDrawable.setAlpha(prevAlpha);
-				replacingDrawable.setBounds(prevBounds);
+				replacement.setAlpha((int) (255 * interpolation));
+				replacement.setBounds(getBounds());
+				replacement.draw(canvas);
+				replacement.setAlpha(prevAlpha);
+				replacement.setBounds(prevBounds);
 			} else {
 				super.draw(canvas);
 			}
+		}
+
+		@Override
+		public void invalidateDrawable(Drawable who) {
+			if (who == replacement)
+				invalidateSelf();
+		}
+
+		@Override
+		public void scheduleDrawable(Drawable who, Runnable what, long when) {
+			if (who == replacement)
+				scheduleSelf(what, when);
+		}
+
+		@Override
+		public void unscheduleDrawable(Drawable who, Runnable what) {
+			if (who == replacement)
+				unscheduleSelf(what);
 		}
 	}
 
@@ -848,6 +967,15 @@ public class ImageCache {
 	}
 
 	private class ImageLoaderScheduler extends Thread {
+		private final int mConcurrentActiveLoaders;
+		private final LinkedList<ImageLoader> mPending = new LinkedList<>();
+		private final List<ImageLoader> mWorking = Collections.synchronizedList(new ArrayList<ImageLoader>());
+		private final boolean mUseNetwork;
+
+		ImageLoaderScheduler(boolean network, int loaderCount) {
+			mUseNetwork = network;
+			mConcurrentActiveLoaders = loaderCount;
+		}
 
 		@Override
 		public void run() {
@@ -855,13 +983,12 @@ public class ImageCache {
 				while (!Thread.interrupted()) {
 					ImageLoader newLoader;
 					synchronized (this) {
-						while (mWorkingImageLoaders.size() >= DEFAULT_IMAGE_LOADERS || mPendingImages.isEmpty())
+						while (mWorking.size() >= mConcurrentActiveLoaders || mPending.isEmpty())
 							wait();
-						newLoader = mPendingImages.removeFirst();
-						newLoader.setPriority(Thread.MIN_PRIORITY);
-						mWorkingImageLoaders.add(newLoader);
+						newLoader = mPending.removeFirst();
+						mWorking.add(newLoader);
 					}
-					newLoader.start();
+					newLoader.start(this);
 				}
 			} catch (InterruptedException ie) {
 				// finished
@@ -869,7 +996,7 @@ public class ImageCache {
 		}
 	}
 
-	private class ImageLoader extends Thread {
+	private class ImageLoader implements Runnable {
 		final String mUrl;
 		final OAuth mAuth;
 		final CopyOnWriteArrayList<OnImageAvailableListener> mAvailableListener = new CopyOnWriteArrayList<>();
@@ -882,6 +1009,9 @@ public class ImageCache {
 		String mFilePath;
 		int mLoadProgress;
 		int mRequiredSize;
+		int mOriginalWidth, mOriginalHeight;
+		Thread mThread;
+		ImageLoaderScheduler mScheduler;
 
 		public ImageLoader(String url, OAuth auth, int requiredSize) {
 			mUrl = url;
@@ -904,16 +1034,26 @@ public class ImageCache {
 			return o instanceof ImageLoader && mUrl.equals(((ImageLoader) o).mUrl);
 		}
 
+		public void start(ImageLoaderScheduler scheduler) {
+			if (mThread != null)
+				return;
+			mScheduler = scheduler;
+			mThread = new Thread(this);
+			mThread.setPriority(Thread.MIN_PRIORITY);
+			mThread.start();
+		}
+
 		public void addListener(OnImageAvailableListener listener) {
 			mAvailableListener.add(listener);
 		}
 
 		private int download() {
+			if (!mScheduler.mUseNetwork)
+				return -2;
 			int error;
 			FileOutputStream out = null;
 			InputStream in = null;
 			ContentValues values = new ContentValues();
-			values.put("created", System.currentTimeMillis());
 			values.put("url", mUrl);
 			HTTPRequest request = HTTPRequest.getRequest(mUrl, mAuth, false, null);
 			if (request == null)
@@ -929,7 +1069,7 @@ public class ImageCache {
 					try {
 						long size = request.getInputLength(), current = 0;
 						in = request.getInputStream();
-						Uri inserted = mDb.insert(ImageCacheProvider.PROVIDER_URI, values);
+						Uri inserted = mResolver.insert(ImageCacheProvider.PROVIDER_URI, values);
 						mId = inserted.getLastPathSegment();
 						f = new File(inserted.getPath());
 						mFilePath = f.getAbsolutePath();
@@ -944,7 +1084,7 @@ public class ImageCache {
 						mLoadProgress = 1000;
 						values.clear();
 						values.put("size", size);
-						mDb.update(ImageCacheProvider.PROVIDER_URI, values, "_id=?", new String[]{mId});
+						mResolver.update(ImageCacheProvider.PROVIDER_URI, values, "_id=?", new String[]{mId});
 					} catch (Exception e) {
 						error = OnImageAvailableListener.UNAVAILABLE_NETWORK_ERROR;
 						if (f != null && !f.delete())
@@ -973,6 +1113,8 @@ public class ImageCache {
 						mGifDrawable = new GifDrawable(mFilePath);
 						mGifDrawable.setCallback(mWrapperCallback);
 						mGifDrawable.setLoopCount(0);
+						mOriginalWidth = mGifDrawable.getIntrinsicWidth();
+						mOriginalHeight = mGifDrawable.getIntrinsicHeight();
 						mExistingWrappedDrawables.put(mGifDrawable, mFilePath);
 					}
 				}
@@ -981,21 +1123,47 @@ public class ImageCache {
 				mIsGif = false;
 			}
 			try {
-				b = decodeFile(mFilePath, mRequiredSize, mRequiredSize);
+				BitmapFactory.Options o = new BitmapFactory.Options();
+				b = decodeFile(mFilePath, mRequiredSize, mRequiredSize, o);
+				mOriginalWidth = o.outWidth;
+				mOriginalHeight = o.outHeight;
 			} catch (IOException e) {
 				e.printStackTrace();
 			} catch (OutOfMemoryError oom) {
 				return OnImageAvailableListener.UNAVAILABLE_MEMORY_ERROR;
 			}
-			if (b == null)
+			if (b == null) {
 				b = ThumbnailUtils.createVideoThumbnail(mFilePath, MediaStore.Video.Thumbnails.MICRO_KIND);
+				if (b != null) {
+					MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever();
+					metaRetriever.setDataSource(mFilePath);
+					mOriginalHeight = Integer.parseInt(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+					mOriginalWidth = Integer.parseInt(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+				}
+			}
 			if (b != null) {
 				mBitmapDrawable = new BitmapDrawable(mResources, b);
 				mBitmapMaxSizes.put(mBitmapDrawable, mRequiredSize);
+				mBitmapWidth.put(mBitmapDrawable, mOriginalWidth);
+				mBitmapHeight.put(mBitmapDrawable, mOriginalHeight);
 			}
 			if (mIsGif)
 				mGifPaths.put(b, mGifDrawable);
 			return 0;
+		}
+
+		private void rescheduleNetwork() {
+			synchronized (mSchedulerLocal) {
+				mThread = null;
+				mSchedulerLocal.mPending.remove(this);
+				mSchedulerLocal.mWorking.remove(this);
+				mSchedulerLocal.notify();
+			}
+			synchronized (mSchedulerRemote) {
+				mSchedulerRemote.mPending.remove(this);
+				mSchedulerRemote.mPending.addFirst(this);
+				mSchedulerRemote.notify();
+			}
 		}
 
 		@Override
@@ -1005,7 +1173,7 @@ public class ImageCache {
 				int error = 0;
 				Matcher m = LOCAL_FILE_MATCHER.matcher(mUrl);
 				if (!m.matches()) {
-					Cursor cursor = mDb.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_ONLY, "url=?", new String[]{mUrl}, null);
+					Cursor cursor = mResolver.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_ONLY, "url=?", new String[]{mUrl}, null);
 					mId = null;
 					if (cursor.moveToFirst())
 						do {
@@ -1014,19 +1182,29 @@ public class ImageCache {
 								mId = cursor.getString(0);
 								mFilePath = f.getAbsolutePath();
 							} else {
-								mDb.delete(ImageCacheProvider.PROVIDER_URI, "_id=?", new String[]{cursor.getString(0)});
+								mResolver.delete(ImageCacheProvider.PROVIDER_URI, "_id=?", new String[]{cursor.getString(0)});
 							}
 						} while (mId == null && cursor.moveToNext());
 					if (mId == null) { // download
 						downloaded = true;
 						error = download();
+						if (error == -2) {
+							rescheduleNetwork();
+							return;
+						}
 					}
 					cursor.close();
 					if (error == 0)
 						error = read();
-					if (error != 0 && !downloaded && (error = download()) == 0) {
-						mFilePath = new File(getCacheFile(), mId).getAbsolutePath();
-						error = read();
+					if (error != 0 && !downloaded) {
+						error = download();
+						if (error == -2) {
+							rescheduleNetwork();
+							return;
+						} else if (error == 0) {
+							mFilePath = new File(getCacheFile(), mId).getAbsolutePath();
+							error = read();
+						}
 					}
 				} else {
 					mFilePath = m.group(1);
@@ -1036,7 +1214,7 @@ public class ImageCache {
 					addBitmapToMemoryCache(mUrl, mBitmapDrawable);
 				synchronized (mScheduler) {
 					mLoaderMap.remove(mUrl);
-					mWorkingImageLoaders.remove(this);
+					mScheduler.mWorking.remove(this);
 					mScheduler.notify();
 				}
 				if (Thread.interrupted())
@@ -1047,26 +1225,26 @@ public class ImageCache {
 					public void run() {
 						for (OnImageAvailableListener listener : mAvailableListener)
 							if (finalError == 0)
-								listener.onImageAvailable(mUrl, mBitmapDrawable);
+								listener.onImageAvailable(mUrl, mBitmapDrawable, mIsGif ? mGifDrawable : mBitmapDrawable, mOriginalWidth, mOriginalHeight);
 							else
 								listener.onImageUnavailable(mUrl, finalError);
 						for (ImageView view : mTargetViews) {
 							if (mUrl.equals(view.getTag(R.id.IMAGEVIEW_URL))) {
 								if (finalError == 0) {
-									Drawable newDrawable = null;
+									Drawable newDrawable;
 									if (mIsGif)
 										newDrawable = makeGifDrawableWrapper(mGifDrawable);
-									if (newDrawable == null)
-										newDrawable = mBitmapDrawable;
+									else
+										newDrawable = mBitmapDrawable.getConstantState().newDrawable().mutate();
 									if (view.getTag(R.id.IMAGEVIEW_PREPROCESSOR) instanceof OnDrawablePreprocessListener)
 										newDrawable = ((OnDrawablePreprocessListener) view.getTag(R.id.IMAGEVIEW_PREPROCESSOR)).onDrawablePreprocess(newDrawable);
 									if (view.getDrawable() instanceof ImageLoadDrawable)
 										((ImageLoadDrawable) view.getDrawable()).replace(view, newDrawable);
 									else {
-										view.setImageDrawable(mBitmapDrawable);
+										view.setImageDrawable(newDrawable);
 										if (view.getVisibility() == View.VISIBLE) {
 											AlphaAnimation anim = new AlphaAnimation(0, 1);
-											anim.setInterpolator(view.getContext(), android.R.anim.accelerate_decelerate_interpolator);
+											anim.setInterpolator(REVEAL_ANIMATION_INTERPOLATOR);
 											anim.setDuration(REVEAL_ANIMATION_LENGTH);
 											view.clearAnimation();
 											view.startAnimation(anim);

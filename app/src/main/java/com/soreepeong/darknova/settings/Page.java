@@ -67,11 +67,11 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	public long mPageLastItemId, mPageNewestSeenItemId;
 	private Thread mList_holdRemover;
 
-	protected Page(String name, int iconResId, List<Element> elements, Page parentPage) {
+	protected Page(String name, int iconResId, List<Element> elements, Page parentPage, long id) {
 		this.name = name;
 		this.iconResId = iconResId;
 		this.elements = Collections.unmodifiableList(elements);
-		mId = DarknovaApplication.uniqid();
+		mId = id;
 		if (parentPage == null) {
 			mParentPage = null;
 			return;
@@ -88,6 +88,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	}
 
 	protected Page(Parcel in) {
+		mId = in.readLong();
 		name = in.readString();
 		iconResId = in.readInt();
 		ArrayList<Element> newElements = new ArrayList<>();
@@ -97,11 +98,11 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 				i.remove();
 		}
 		elements = Collections.unmodifiableList(newElements);
-		mId = DarknovaApplication.uniqid();
 		mParentPage = null;
 	}
 
 	protected Page(String key, SharedPreferences in) {
+		mId = in.getLong(key + ".id", DarknovaApplication.uniqid());
 		name = in.getString(key + ".name", null);
 		iconResId = in.getInt(key + ".iconResId", 0);
 		ArrayList<Element> newElements = new ArrayList<>();
@@ -111,7 +112,6 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 				newElements.add(e);
 		}
 		elements = Collections.unmodifiableList(newElements);
-		mId = DarknovaApplication.uniqid();
 		mParentPage = null;
 	}
 
@@ -480,6 +480,8 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		if (!(o instanceof Page))
 			return false;
 		Page p2 = (Page) o;
+		if (p2.mId == mId)
+			return true;
 		if (p2.elements.size() != elements.size())
 			return false;
 		ArrayList<Element> e = new ArrayList<>(p2.elements);
@@ -503,12 +505,14 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 
 	@Override
 	public void writeToParcel(Parcel dest, int flags) {
+		dest.writeLong(mId);
 		dest.writeString(name);
 		dest.writeInt(iconResId);
 		dest.writeList(elements);
 	}
 
 	public void writeToPreferences(String key, SharedPreferences.Editor dest) {
+		dest.putLong(key + ".id", mId);
 		dest.putString(key + ".name", name);
 		dest.putInt(key + ".iconResId", iconResId);
 		dest.putInt(key + ".elements.length", elements.size());
@@ -802,7 +806,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 					if (e.isOnlyElement())
 						throw new RuntimeException("only one element allowed");
 			Collections.sort(mElements, elementComparator);
-			Page p = new Page(mName, mResId, mElements, mParentPage);
+			Page p = new Page(mName, mResId, mElements, mParentPage, DarknovaApplication.uniqid());
 			mElements = null;
 			return p;
 		}

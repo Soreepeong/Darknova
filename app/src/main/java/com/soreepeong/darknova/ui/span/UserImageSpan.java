@@ -93,7 +93,7 @@ public class UserImageSpan extends ReplacementSpan implements SelfInvalidatingSp
 		public TweeterDrawable(Callback c) {
 			super(mActualLineHeight, mActualLineHeight);
 			mTweeter.addOnChangeListener(this);
-			updateUrl(mTweeter.getProfileImageUrl(), null, mCache);
+			updateUrlImmediate(mTweeter.getProfileImageUrl(), null, mCache);
 			setCallback(c);
 		}
 

@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.opengl.GLES10;
 import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.NonNull;
@@ -21,6 +22,8 @@ import android.widget.OverScroller;
 import com.soreepeong.darknova.core.ImageCache;
 
 import java.util.Arrays;
+
+import javax.microedition.khronos.opengles.GL10;
 
 import pl.droidsonroids.gif.GifDrawable;
 
@@ -629,7 +632,11 @@ public class LargeImageView extends View implements Runnable, Handler.Callback {
 				}
 			if (mGifDrawable == null) {
 				Canvas c = new Canvas();
-				mDrawable = new BitmapDrawable(getResources(), ImageCache.decodeFile(mImgPath, c.getMaximumBitmapWidth(), c.getMaximumBitmapHeight()));
+				int[] maxSize = new int[1];
+				GLES10.glGetIntegerv(GL10.GL_MAX_TEXTURE_SIZE, maxSize, 0);
+				if (maxSize[0] == 0)
+					maxSize[0] = c.getMaximumBitmapWidth();
+				mDrawable = new BitmapDrawable(getResources(), ImageCache.decodeFile(mImgPath, maxSize[0], maxSize[0], null));
 			}
 			int oldWidth = getImageWidth();
 			mWidth = o.outWidth;

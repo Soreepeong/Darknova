@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Message;
+import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.view.PagerAdapter;
@@ -21,7 +22,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.AnimationUtils;
 import android.widget.Button;
-import android.widget.Toast;
 
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.services.DarknovaService;
@@ -58,6 +58,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	private int mLastViewPagerPage;
 	private Button mViewOpenDrawerDragTargetButton;
 
+	private boolean mDataRestored;
 	private SparseArray<MenuItem> mMenuItems;
 
 	@Override
@@ -83,17 +84,17 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		mViewOpenDrawerDragTargetButton.setOnClickListener(this);
 		mToolbar.setOnClickListener(this);
 
+
 		mPagerAdapter = new TimelineFragmentPagerAdapter(getSupportFragmentManager());
 		mPager = (ViewPager) findViewById(R.id.pager);
 		mPager.setAdapter(mPagerAdapter);
 		mPager.addOnPageChangeListener(this);
-		mPager.setOffscreenPageLimit(6);
+		mPager.setOffscreenPageLimit(2);
 
 		mNavigationDrawerFragment = (NavigationDrawerFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_drawer);
 		mTemplateTweetEditorFragment = (TemplateTweetEditorFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_template_tweet);
 		mSuggestionFragment = (SearchSuggestionFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_search_suggestions);
 
-		mNavigationDrawerFragment.setup(R.id.fragment_drawer, (DrawerLayout) findViewById(R.id.drawer_layout), mToolbar);
 		mTemplateTweetEditorFragment.setOnNewTweetVisibilityChangedListener(this);
 		if (mTemplateTweetEditorFragment.isNewTweetVisible())
 			mNewTweetOpener.setVisibility(View.GONE);
@@ -109,8 +110,24 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 
 		if (TwitterEngine.getAll().isEmpty())
 			AccountManager.get(this).addAccount(getString(R.string.account_type), "default", null, null, this, null, null);
+	}
 
+	/**
+	 *
+	 */
+	@Override
+	protected void onPostCreate(Bundle savedInstanceState) {
+		mDataRestored = true;
+		super.onPostCreate(savedInstanceState);
+		mNavigationDrawerFragment.setup(R.id.fragment_drawer, (DrawerLayout) findViewById(R.id.drawer_layout), mToolbar);
+		if (Page.size() > 0)
+			onPageSelected(mNavigationDrawerFragment.getCurrentPage());
+	}
 
+	@Override
+	protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+		mDataRestored = true;
+		super.onRestoreInstanceState(savedInstanceState);
 	}
 
 	@Override
@@ -121,27 +138,6 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 
 	private void handleIntent(Intent intent) {
 		// TODO Handle Twitter links
-	}
-
-	@Override
-	protected void onStart() {
-		super.onStart();
-		if (Page.size() > 0)
-			onPageSelected(mNavigationDrawerFragment.getCurrentPage());
-	}
-
-	@Override
-	protected void onResume() {
-		try {
-			super.onResume();
-		} catch (Exception e) {
-			Intent i = new Intent();
-			i.setClass(getApplicationContext(), MainActivity.class);
-			i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-			startActivity(i);
-			// Show toast to the user
-			Toast.makeText(getApplicationContext(), "Data lost due to excess use of other apps", Toast.LENGTH_LONG).show();
-		}
 	}
 
 	@Override
@@ -211,12 +207,12 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 			}
 			case R.id.action_clean: {
 				if (Page.size() > 0)
-					getFragmentAt(mPager.getCurrentItem()).onCompleteRefresh();
+					getCurrentPage().onCompleteRefresh();
 				return true;
 			}
 			case R.id.action_clear_selection: {
 				if (Page.size() > 0)
-					getFragmentAt(mPager.getCurrentItem()).clearSelection();
+					getCurrentPage().clearSelection();
 				return true;
 			}
 			case R.id.action_search: {
@@ -354,6 +350,8 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	}
 
 	public PageFragment getFragmentAt(int position) {
+		if (!mDataRestored)
+			throw new RuntimeException("this function must be called AFTER onPostCreate");
 		if (position >= Page.size())
 			return null;
 		return (PageFragment) mPagerAdapter.instantiateItem(mPager, position);

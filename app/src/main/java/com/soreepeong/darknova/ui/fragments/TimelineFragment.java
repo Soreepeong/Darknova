@@ -353,6 +353,8 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 			android.util.Log.d("Darknova", "MESSAGE_SAVE_LIST onDestroyView");
 		}
 
+		mIsPagePrepared = false;
+
 		mHandler.removeCallbacksAndMessages(null);
 
 		mQuickFilterOriginalString = null;
@@ -376,8 +378,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 			((ViewGroup) mViewFragmentRoot.getParent()).removeView(mViewFragmentRoot);
 		releasePageView(R.layout.fragment_timeline, mViewFragmentRoot);
 		mViewFragmentRoot = null;
-
-		mIsPagePrepared = false;
 
 		mPage.setFragment(null);
 		super.onDestroyView();
@@ -1551,7 +1551,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 			int size = mNonElementHeaders.size();
 			if (mQuickFilteredList != null)
 				size += mQuickFilteredList.size();
-			else
+			else if (mList != null)
 				size += mElementHeaders.size() + mList.size();
 			return size;
 		}
@@ -1808,6 +1808,8 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 			@Override
 			public void updateView() {
 				int position = adapterPositionToListIndex(getLayoutPosition());
+				if (position < 0 || position >= (mQuickFilteredList != null ? mQuickFilteredList.size() : mList.size()))
+					return;
 				FilteredTweet filtered = mQuickFilteredList != null ? mQuickFilteredList.get(position) : null;
 				Tweet tweet = mQuickFilteredList != null ? filtered.tweet : mList.get(position);
 				if (tweet != mLastBoundTweet)
@@ -1901,6 +1903,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 							.setNegativeButton(android.R.string.no, null)
 							.show();
 				} else if (v.equals(tweetActionReply)) {
+					((MainActivity) getActivity()).showActionBar();
 					((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
 					((MainActivity) getActivity()).getNewTweetFragment().insertText("@" + t.user.screen_name + " ");
 					((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();

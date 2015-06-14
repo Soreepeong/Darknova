@@ -31,11 +31,14 @@ import android.support.v7.widget.RecyclerView;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.text.format.DateFormat;
+import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStub;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AnimationUtils;
+import android.view.animation.Interpolator;
 import android.view.animation.RotateAnimation;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
@@ -62,6 +65,7 @@ import com.soreepeong.darknova.settings.TemplateTweet;
 import com.soreepeong.darknova.settings.TemplateTweetAttachment;
 import com.soreepeong.darknova.tools.FileTools;
 import com.soreepeong.darknova.tools.ResTools;
+import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
@@ -80,6 +84,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
+import pl.droidsonroids.gif.GifDrawable;
+
 /**
  * New template tweet maker.
  *
@@ -91,6 +97,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	private static final int PICK_MEDIA = 1;
 	private static final int REQUEST_EXTSDCARD_PERMISSION = 2;
 	private static final String PREF_EXT_MEDIA_STORAGE = "external_media_storage";
+	private static final Interpolator INTERPOLATOR = new AccelerateDecelerateInterpolator();
 	private final HashMap<Tweeter, ToggleButton> mUserMaps = new HashMap<>();
 	private SharedPreferences mDefaultPreference, mEditorPreference;
 	private ViewGroup mViewTemplateTweetEditor;
@@ -718,7 +725,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 				mViewUserSelectExpander.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mViewAccountContainer.getVisibility() != View.VISIBLE ? R.attr.ic_navigation_expand_less : R.attr.ic_navigation_expand_more));
 				RotateAnimation ani = new RotateAnimation(-180, 0, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
 				ani.setDuration(300);
-				ani.setInterpolator(getActivity(), android.R.anim.accelerate_decelerate_interpolator);
+				ani.setInterpolator(INTERPOLATOR);
 				mViewUserSelectExpander.startAnimation(ani);
 			}
 			for (View v_ : new View[]{mViewAccountContainer, mViewOptionsContainer, mViewTemplateList, mViewLocationContainer}) {
@@ -862,12 +869,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 	private class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.ViewHolder> {
 		private final ContentResolver mResolver;
-		private final String[] projection = new String[]{
-				MediaStore.MediaColumns._ID,
-				MediaStore.MediaColumns.DATE_MODIFIED,
-				MediaStore.MediaColumns.DATA,
-				MediaStore.MediaColumns.MIME_TYPE
-		};
+		private final String[] projection;
 		private final ArrayList<Long> mNoIds = new ArrayList<>();
 		private Cursor mCursor;
 		private int filterType;
@@ -879,6 +881,26 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		};
 
 		public MediaAdapter() {
+			if (Build.VERSION.SDK_INT >= 16)
+				projection = new String[]{
+						MediaStore.MediaColumns._ID,
+						MediaStore.MediaColumns.DATE_MODIFIED,
+						MediaStore.MediaColumns.DATA,
+						MediaStore.MediaColumns.MIME_TYPE,
+						MediaStore.MediaColumns.SIZE,
+						MediaStore.MediaColumns.WIDTH,
+						MediaStore.MediaColumns.HEIGHT,
+						MediaStore.Video.VideoColumns.DURATION
+				};
+			else
+				projection = new String[]{
+						MediaStore.MediaColumns._ID,
+						MediaStore.MediaColumns.DATE_MODIFIED,
+						MediaStore.MediaColumns.DATA,
+						MediaStore.MediaColumns.MIME_TYPE,
+						MediaStore.MediaColumns.SIZE,
+						MediaStore.Video.VideoColumns.DURATION
+				};
 			setHasStableIds(true);
 			mResolver = getActivity().getContentResolver();
 			mResolver.registerContentObserver(MediaStore.Files.getContentUri("external"), true, mObserver);
@@ -934,7 +956,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			if (position == 0)
 				return R.layout.col_templatetweet_attach_external;
 			else
-				return R.layout.col_templatetweet_attachment;
+				return R.layout.col_templatetweet_attach_item;
 		}
 
 		@Override
@@ -942,16 +964,13 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			FrameLayout f = new FrameLayout(parent.getContext()) {
 				@Override
 				protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-					if (viewType == R.layout.col_templatetweet_attachment)
-						super.onMeasure(widthMeasureSpec, widthMeasureSpec);
-					else
+					if (viewType == R.layout.col_templatetweet_attach_external)
 						super.onMeasure(widthMeasureSpec, getChildAt(0).getLayoutParams().height + MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec) / 4, MeasureSpec.EXACTLY));
+					else
+						super.onMeasure(widthMeasureSpec, widthMeasureSpec);
 				}
 			};
-			View c = LayoutInflater.from(parent.getContext()).inflate(viewType, parent, false);
-			c.getLayoutParams().width = ViewGroup.LayoutParams.MATCH_PARENT;
-			c.getLayoutParams().height = ViewGroup.LayoutParams.MATCH_PARENT;
-			f.addView(c);
+			f.addView(LayoutInflater.from(parent.getContext()).inflate(viewType, parent, false));
 			return new ViewHolder(f);
 		}
 
@@ -972,6 +991,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			View mProgressView;
 			View mPickImage, mPickVideo, mTakeImage, mTakeVideo;
 			Spinner mFilterType;
+			TextView mDetails;
 
 			public ViewHolder(View itemView) {
 				super(itemView);
@@ -980,6 +1000,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 				mImageView = (ImageView) itemView.findViewById(R.id.image);
 				mProgressView = itemView.findViewById(R.id.progress);
 				mTypeView = (ImageView) itemView.findViewById(R.id.type);
+				mDetails = (TextView) itemView.findViewById(R.id.details);
 				mPickImage = itemView.findViewById(R.id.pick_image);
 				if (mPickImage != null) {
 					mFilterType = (Spinner) itemView.findViewById(R.id.attachment_type);
@@ -999,15 +1020,46 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 			public void bindViewHolder(int position) {
 				mCursor.moveToPosition(position);
-				String mimeType = mCursor.getString(3);
+				final String mimeType = mCursor.getString(3);
 				final long id = mCursor.getLong(0);
-				if (mimeType.startsWith("video/") || mimeType.equalsIgnoreCase("image/gif"))
+				String format;
+				if (mimeType.startsWith("video/")) {
 					mTypeView.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), R.attr.ic_av_videocam));
-				else
+					format = " (" + StringTools.fileSize(mCursor.getLong(4)) + ")\n" + DateUtils.formatElapsedTime(mCursor.getLong(mCursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION)) / 1000) + "\n";
+				} else if (mimeType.equalsIgnoreCase("image/gif")) {
+					mTypeView.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), R.attr.ic_av_videocam));
+					format = " (" + StringTools.fileSize(mCursor.getLong(4)) + ")\n";
+				} else {
 					mTypeView.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), R.attr.ic_image_image));
+					format = "\n";
+				}
+				final String fileName = new File(mCursor.getString(2)).getName();
+				final String finalFormat;
+				if (Build.VERSION.SDK_INT >= 16 && mCursor.getString(5) != null) {
+					mDetails.setText(mCursor.getString(5) + "x" + mCursor.getString(6) + format + fileName);
+					if (mimeType.startsWith("video/") && (mCursor.getInt(5) >= 1280 || mCursor.getInt(6) >= 1024))
+						mDetails.setTextColor(0xFFFF0000);
+					else
+						mDetails.setTextColor(0xFFFFFFFF);
+					finalFormat = mimeType.equals("image/gif") ? format : null;
+				} else {
+					mDetails.setText("?x?" + format + fileName);
+					mDetails.setTextColor(0xFFFFFFFF);
+					finalFormat = format;
+				}
 				mImageCache.assignImageView(mImageView, null, mCursor.getString(2), null, null, new ImageCache.OnImageAvailableListener() {
 					@Override
-					public void onImageAvailable(String url, BitmapDrawable bmp) {
+					public void onImageAvailable(String url, BitmapDrawable bmp, Drawable d, int originalWidth, int originalHeight) {
+						if (finalFormat != null) {
+							if (mimeType.startsWith("video/") && (originalWidth >= 1280 || originalHeight >= 1024))
+								mDetails.setTextColor(0xFFFF0000);
+							else
+								mDetails.setTextColor(0xFFFFFFFF);
+							String gifInfo = "";
+							if (d instanceof GifDrawable)
+								gifInfo = DateUtils.formatElapsedTime(((GifDrawable) d).getDuration() / 1000) + "." + Integer.toString(((GifDrawable) d).getDuration() % 1000 + 1000).substring(1, 3) + " (" + ((GifDrawable) d).getNumberOfFrames() + ")\n";
+							mDetails.setText(originalWidth + "x" + originalHeight + finalFormat + gifInfo + fileName);
+						}
 					}
 
 					@Override
@@ -1018,7 +1070,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 						}
 					}
 				});
-				mImageCache.assignStatusIndicator(mProgressView, mCursor.getString(2), null);
+				mImageCache.assignStatusIndicator(mProgressView, mCursor.getString(2));
 			}
 
 			@Override
@@ -1254,7 +1306,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 		@Override
 		public int getItemViewType(int position) {
-			return R.layout.col_templatetweet_attachment;
+			return R.layout.col_templatetweet_attached_item;
 		}
 
 		@Override
@@ -1336,10 +1388,10 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 					}
 					if (a.mLocalFileExists) {
 						mImageCache.assignImageView(mImageView, a.mLocalFile.getAbsolutePath(), null);
-						mImageCache.assignStatusIndicator(mProgressView, a.mLocalFile.getAbsolutePath(), null);
+						mImageCache.assignStatusIndicator(mProgressView, a.mLocalFile.getAbsolutePath());
 					} else {
 						mImageCache.assignImageView(mImageView, null, null);
-						mImageCache.assignStatusIndicator(mProgressView, null, null);
+						mImageCache.assignStatusIndicator(mProgressView, null);
 					}
 				}
 			}
