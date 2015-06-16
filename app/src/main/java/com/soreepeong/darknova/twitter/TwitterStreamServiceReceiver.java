@@ -26,13 +26,13 @@ public class TwitterStreamServiceReceiver {
 	private static final HashSet<TwitterEngine.TwitterStreamCallback> mStreamCallbacks = new HashSet<>();
 	private static final Handler mHandler = new Handler(Looper.getMainLooper());
 
-	private static final ArrayList<TwitterEngine.StreamableTwitterEngine> mStreamOnUsers = new ArrayList<>();
+	private static final ArrayList<TwitterEngine> mStreamOnUsers = new ArrayList<>();
 	private static final ArrayList<OnStreamTurnedListener> mStreamTurnListeners = new ArrayList<>();
 	private static final ArrayList<OnServiceInterfaceReadyListener> mServiceReadyListeners = new ArrayList<>();
 	private static final TwitterEngine.TwitterStreamCallback mStreamCallback = new TwitterEngine.TwitterStreamCallback() {
 
 		@Override
-		public void onStreamConnected(final TwitterEngine.StreamableTwitterEngine engine) {
+		public void onStreamConnected(final TwitterEngine engine) {
 			mHandler.post(new Runnable() {
 				@Override
 				public void run() {
@@ -45,7 +45,7 @@ public class TwitterStreamServiceReceiver {
 		}
 
 		@Override
-		public void onStreamStart(final TwitterEngine.StreamableTwitterEngine engine) {
+		public void onStreamStart(final TwitterEngine engine) {
 			mHandler.post(new Runnable() {
 				@Override
 				public void run() {
@@ -58,7 +58,7 @@ public class TwitterStreamServiceReceiver {
 		}
 
 		@Override
-		public void onStreamError(final TwitterEngine.StreamableTwitterEngine engine, final Throwable e) {
+		public void onStreamError(final TwitterEngine engine, final Throwable e) {
 			mHandler.post(new Runnable() {
 				@Override
 				public void run() {
@@ -71,7 +71,7 @@ public class TwitterStreamServiceReceiver {
 		}
 
 		@Override
-		public void onStreamTweetEvent(final TwitterEngine.StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final Tweet tweet, final long created_at) {
+		public void onStreamTweetEvent(final TwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final Tweet tweet, final long created_at) {
 			mHandler.post(new Runnable() {
 				@Override
 				public void run() {
@@ -84,7 +84,7 @@ public class TwitterStreamServiceReceiver {
 		}
 
 		@Override
-		public void onStreamUserEvent(final TwitterEngine.StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final long created_at) {
+		public void onStreamUserEvent(final TwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final long created_at) {
 			mHandler.post(new Runnable() {
 				@Override
 				public void run() {
@@ -97,7 +97,7 @@ public class TwitterStreamServiceReceiver {
 		}
 
 		@Override
-		public void onStreamStop(final TwitterEngine.StreamableTwitterEngine engine) {
+		public void onStreamStop(final TwitterEngine engine) {
 			mHandler.post(new Runnable() {
 				@Override
 				public void run() {
@@ -130,7 +130,7 @@ public class TwitterStreamServiceReceiver {
 				public void handleMessage(Message msg) {
 					Bundle b = msg.getData();
 					b.setClassLoader(mContext.getClassLoader());
-					TwitterEngine.StreamableTwitterEngine e = TwitterEngine.get(b.getLong("user_id"));
+					TwitterEngine e = TwitterEngine.get(b.getLong("user_id"));
 					switch (msg.what) {
 						case DarknovaService.MESSAGE_STREAM_CALLBACK_PREPARED: {
 							synchronized (mServiceReadyListeners) {
@@ -225,7 +225,7 @@ public class TwitterStreamServiceReceiver {
 		}
 	}
 
-	public static void forceSetStatus(TwitterEngine.StreamableTwitterEngine e, boolean b) {
+	public static void forceSetStatus(TwitterEngine e, boolean b) {
 		if (b && !mStreamOnUsers.contains(e))
 			mStreamOnUsers.add(e);
 		else if (!b && mStreamOnUsers.contains(e))
@@ -236,7 +236,7 @@ public class TwitterStreamServiceReceiver {
 		return mStreamOnUsers.contains(e);
 	}
 
-	public static void turnStreamOn(TwitterEngine.StreamableTwitterEngine e, boolean state) {
+	public static void turnStreamOn(TwitterEngine e, boolean state) {
 		if (state) {
 			sendServiceMessage(Message.obtain(null, DarknovaService.MESSAGE_STREAM_START, (int) (e.getUserId() >> 32), (int) e.getUserId()));
 		} else {

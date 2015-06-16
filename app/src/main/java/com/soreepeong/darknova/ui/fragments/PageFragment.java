@@ -7,11 +7,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.soreepeong.darknova.core.ThreadScheduler;
 import com.soreepeong.darknova.settings.Page;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.tools.TimedStorage;
 
-import java.util.ArrayList;
 import java.util.regex.Pattern;
 
 /**
@@ -23,45 +23,12 @@ import java.util.regex.Pattern;
 public abstract class PageFragment extends Fragment{
 
 	private static final SparseArray<TimedStorage<View>> mCachedPageViews = new SparseArray<>();
-	private static final ArrayList<Thread> mRunningRefreshers = new ArrayList<>(), mQueuedRefreshers = new ArrayList<>();
-	private static final Thread mRefresherExecutor = new Thread(){
-		@Override
-		public void run() {
-			try{
-				while(true){
-					synchronized (mQueuedRefreshers){
-						while(mQueuedRefreshers.isEmpty() || mRunningRefreshers.size() >= 4)
-							mQueuedRefreshers.wait();
-						final Thread t = mQueuedRefreshers.remove(0);
-						synchronized (mRunningRefreshers){
-							mRunningRefreshers.add(t);
-						}
-						t.start();
-					}
-				}
-			}catch(InterruptedException e){
-				e.printStackTrace();
-			}
-		}
-	};
+	private static final ThreadScheduler mRefreshScheduler = new ThreadScheduler(4, "Refresher");
+
 	protected Page mPage;
 	protected boolean mIsActive;
 	protected String mQuickFilterString;
 	protected Pattern mQuickFilterPattern;
-
-	{
-		if(!mRefresherExecutor.isAlive())
-			mRefresherExecutor.start();
-	}
-
-	public static PageFragment getInstance(String cacheDir, Page p) {
-		TimelineFragment fragment = new TimelineFragment();
-		Bundle b = new Bundle();
-		b.putParcelable("page", p);
-		b.putString("cache-dir", cacheDir);
-		fragment.setArguments(b);
-		return fragment;
-	}
 
 	public static View obtainPageView(int layoutId, LayoutInflater inflater, ViewGroup container) {
 		View res = null;
@@ -78,21 +45,12 @@ public abstract class PageFragment extends Fragment{
 		mCachedPageViews.get(layoutId).release(v);
 	}
 
-	protected static void addRefresher(Thread t){
-		synchronized(mQueuedRefreshers){
-			mQueuedRefreshers.add(t);
-			mQueuedRefreshers.notify();
-		}
+	protected static void addRefresher(Runnable t) {
+		mRefreshScheduler.schedule(t);
 	}
 
-	protected static void removeRefresher(Thread t){
-		synchronized (mRunningRefreshers){
-			mRunningRefreshers.remove(t);
-		}
-		synchronized(mQueuedRefreshers){
-			mQueuedRefreshers.remove(t);
-			mQueuedRefreshers.notify();
-		}
+	protected static void removeRefresher(Runnable t) {
+		mRefreshScheduler.cancel(t);
 	}
 
 	public void scrollToTop(){}

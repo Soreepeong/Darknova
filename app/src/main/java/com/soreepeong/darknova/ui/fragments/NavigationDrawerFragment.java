@@ -319,7 +319,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 	}
 
 	@Override
-	public void onUserlistChanged(List<TwitterEngine.StreamableTwitterEngine> engines, List<TwitterEngine.StreamableTwitterEngine> oldEngines) {
+	public void onUserlistChanged(List<TwitterEngine> engines, List<TwitterEngine> oldEngines) {
 		if (mPageAdapter != null && getActivity() != null) {
 			ArrayList<TwitterEngine> newEngines = new ArrayList<>();
 			newEngines.addAll(engines);
@@ -360,9 +360,9 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				if (mStreamPowerChangeWaitingEngines.contains(e)) {
 					mStreamPowerChangeWaitingEngines.remove(e);
 					if (msg.what == 1)
-						TwitterStreamServiceReceiver.forceSetStatus((TwitterEngine.StreamableTwitterEngine) e, false);
+						TwitterStreamServiceReceiver.forceSetStatus((TwitterEngine) e, false);
 					else if (msg.what == 2)
-						TwitterStreamServiceReceiver.forceSetStatus((TwitterEngine.StreamableTwitterEngine) e, true);
+						TwitterStreamServiceReceiver.forceSetStatus((TwitterEngine) e, true);
 					if (!mIsPageListing)
 						mPageAdapter.notifyItemChanged(1 + mPageAdapter.mListedUsers.indexOf(e.getTweeter()));
 				}
@@ -886,7 +886,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				int usr = getAdapterPosition() - 1;
 				if (usr < 0)
 					return;
-				TwitterEngine.StreamableTwitterEngine engine = TwitterEngine.get(mListedUsers.get(usr).user_id);
+				TwitterEngine engine = TwitterEngine.get(mListedUsers.get(usr).user_id);
 				TwitterStreamServiceReceiver.turnStreamOn(engine, isChecked);
 				mHandler.sendMessageDelayed(Message.obtain(mHandler, MESSAGE_SERVICE_TIMEOUT, isChecked ? 2 : 1, 0, engine), SERVICE_COMMUNICATION_TIMEOUT);
 				mStreamPowerChangeWaitingEngines.add(engine);

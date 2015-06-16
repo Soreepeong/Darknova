@@ -797,7 +797,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	}
 
 	@Override
-	public void onUserlistChanged(List<TwitterEngine.StreamableTwitterEngine> engines, List<TwitterEngine.StreamableTwitterEngine> oldEngines) {
+	public void onUserlistChanged(List<TwitterEngine> engines, List<TwitterEngine> oldEngines) {
 		ArrayList<TwitterEngine> newEngines = new ArrayList<>();
 		newEngines.addAll(engines);
 		refillUserMaps(newEngines);

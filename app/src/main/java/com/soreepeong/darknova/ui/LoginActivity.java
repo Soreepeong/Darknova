@@ -11,6 +11,7 @@ import android.view.View;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.twitter.TwitterEngine;
@@ -26,6 +27,7 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 	private TextView mViewProgressText;
 	private SwipeRefreshLayout mViewSwiper;
 	private TwitterEngine mTwitter;
+	private String mLoginUrl;
 
 	public void onCreate(Bundle savedInstanceState){
 		super.onCreate(savedInstanceState);
@@ -83,6 +85,7 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 			}
 			mViewProgress.setVisibility(View.GONE);
 			mViewSwiper.setVisibility(View.VISIBLE);
+			mLoginUrl = url;
 			mViewBrowser.loadUrl(url);
 		}
 	}
@@ -128,7 +131,14 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 					mViewBrowser.loadUrl("about:blank");
 					mViewProgressText.setText(R.string.login_signing);
 					mViewProgress.setVisibility(View.VISIBLE);
+				} else {
+					mViewBrowser.stopLoading();
+					mViewBrowser.loadUrl("about:blank");
+					Toast.makeText(LoginActivity.this, R.string.login_cancelled, Toast.LENGTH_LONG).show();
+					finish();
 				}
+			} else if (url.indexOf("://", 8) != -1) {
+				view.loadUrl("https" + url.substring(url.indexOf("://", 8)));
 			}
 			mViewSwiper.setRefreshing(true);
 		}

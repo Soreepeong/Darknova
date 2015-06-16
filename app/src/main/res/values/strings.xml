@@ -32,6 +32,7 @@
 
 	<string name="login_preparing">Preparing to sign in&#8230;</string>
 	<string name="login_signing">Signing in&#8230;</string>
+	<string name="login_cancelled">Cancelled</string>
 	<string name="login_error_occured">Error</string>
 
 	<string name="tweet_description" formatted="false">${time} via ${via}</string>

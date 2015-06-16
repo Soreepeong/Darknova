@@ -57,7 +57,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	protected static final SimpleDateFormat CREATED_AT_STRING = new SimpleDateFormat("EEE MMM dd HH:mm:ss ZZZZZ yyyy", Locale.ENGLISH);
 	protected static final Pattern TWITTER_PROFILE_IMAGE_MATCHER = Pattern.compile("^(.*?)(?:_normal|_bigger|_mini|)(\\.[A-Za-z_0-9]+|)?$");
 	protected static final ArrayList<OnUserlistChangedListener> mUserlistChangedListener = new ArrayList<>();
-	protected static final ArrayList<StreamableTwitterEngine> mTwitter = new ArrayList<>();
+	protected static final ArrayList<TwitterEngine> mTwitter = new ArrayList<>();
 	protected static final JsonFactory JSON = new JsonFactory();
 	/**
 	 * Twitter API Base Paths
@@ -69,8 +69,9 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	protected static String AUTH_ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token";
 	protected static String AUTH_AUTHORIZE_URL = "https://api.twitter.com/oauth/authorize";
 	protected static SharedPreferences mTwitterConfiguration;
-	protected static List<StreamableTwitterEngine> mOldEngines;
+	protected static List<TwitterEngine> mOldEngines;
 	protected final OAuth auth;
+	protected final ArrayList<TwitterStreamCallback> mStreamCallbacks = new ArrayList<>();
 	protected int mEngineIndex;
 	protected Account mRespectiveAccount;
 	protected long mUserId;
@@ -82,6 +83,8 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			reloadTwitterEngines();
 		}
 	};
+	protected Handler mHandler = new Handler(Looper.getMainLooper());
+	protected StreamThread mStreamThread;
 
 	/**
 	 * Initialize with default API Key.
@@ -113,16 +116,16 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		}
 	}
 
-	public static StreamableTwitterEngine get(long user_id) {
+	public static TwitterEngine get(long user_id) {
 		synchronized (mTwitter) {
-			for (StreamableTwitterEngine e : mTwitter)
+			for (TwitterEngine e : mTwitter)
 				if (e.mUserId == user_id)
 					return e;
 			return null;
 		}
 	}
 
-	public static ArrayList<StreamableTwitterEngine> getStreamables() {
+	public static ArrayList<TwitterEngine> getStreamables() {
 		synchronized (mTwitter) {
 			return new ArrayList<>(mTwitter);
 		}
@@ -131,7 +134,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	public static ArrayList<TwitterEngine> getAll() {
 		synchronized (mTwitter) {
 			ArrayList<TwitterEngine> engines = new ArrayList<>();
-			for (StreamableTwitterEngine e : mTwitter)
+			for (TwitterEngine e : mTwitter)
 				engines.add(e);
 			return engines;
 		}
@@ -223,7 +226,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			mTwitter.clear();
 			final AccountManager accountManager = AccountManager.get(DarknovaApplication.mContext);
 			for (Account acc : accountManager.getAccountsByType(DarknovaApplication.mContext.getString(R.string.account_type))) {
-				StreamableTwitterEngine engine = new StreamableTwitterEngine(accountManager.getUserData(acc, "consumer_key"), accountManager.getUserData(acc, "consumer_key_secret"));
+				TwitterEngine engine = new TwitterEngine(accountManager.getUserData(acc, "consumer_key"), accountManager.getUserData(acc, "consumer_key_secret"));
 				engine.setOauthToken(accountManager.getUserData(acc, "oauth_token"), accountManager.getUserData(acc, "oauth_token_secret"));
 				engine.setUserInfo(Long.decode(accountManager.getUserData(acc, "user_id")), acc.name);
 				String eIndex = accountManager.getUserData(acc, "_index");
@@ -254,7 +257,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 
 	private static void broadcastUserlistChanged() {
 		synchronized (mUserlistChangedListener) {
-			List<StreamableTwitterEngine> mEngines = Collections.unmodifiableList(new ArrayList<>(mTwitter));
+			List<TwitterEngine> mEngines = Collections.unmodifiableList(new ArrayList<>(mTwitter));
 			if (mOldEngines != null && mOldEngines.equals(mEngines))
 				return;
 			for (OnUserlistChangedListener l : mUserlistChangedListener)
@@ -944,45 +947,6 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		return o != null && o instanceof TwitterEngine && (((TwitterEngine) o).mUserId == mUserId) && ((TwitterEngine) o).auth.equals(auth);
 	}
 
-	public interface OnUserlistChangedListener {
-		void onUserlistChanged(List<StreamableTwitterEngine> engines, List<StreamableTwitterEngine> oldEngines);
-	}
-
-	public interface TweetCallback {
-		void onNewTweetReceived(Tweet tweet);
-	}
-
-	public interface TwitterStreamCallback extends TweetCallback {
-		void onStreamStart(StreamableTwitterEngine engine);
-
-		void onStreamConnected(StreamableTwitterEngine engine);
-
-		void onStreamError(StreamableTwitterEngine engine, Throwable e);
-
-		void onStreamTweetEvent(StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, Tweet tweet, long created_at);
-
-		// void onListStreamEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, List list, long created_at);
-		void onStreamUserEvent(StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, long created_at);
-
-		void onStreamStop(StreamableTwitterEngine engine);
-	}
-
-	public static class StreamableTwitterEngine extends TwitterEngine {
-
-		protected final ArrayList<TwitterStreamCallback> mStreamCallbacks = new ArrayList<>();
-		protected Handler mHandler = new Handler(Looper.getMainLooper());
-		protected StreamThread mStreamThread;
-
-		/**
-		 * Initialize with given API Key.
-		 *
-		 * @param apiKey
-		 * @param secretApiKey
-		 */
-		public StreamableTwitterEngine(String apiKey, String secretApiKey) {
-			super(apiKey, secretApiKey);
-		}
-
 		public void addStreamCallback(TwitterStreamCallback callback) {
 			synchronized (mStreamCallbacks) {
 				if (!mStreamCallbacks.contains(callback))
@@ -996,48 +960,71 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			}
 		}
 
-		public void setUseStream(boolean use) {
-			synchronized (mStreamCallbacks) {
-				if (use && !mStreamCallbacks.isEmpty() && (mStreamThread == null || !mStreamThread.isAlive())) {
-					mStreamThread = new StreamThread(this, mStreamCallbacks);
-					mStreamThread.start();
-				} else if (!use && (mStreamThread != null && mStreamThread.isAlive())) {
-					mStreamThread.stopStream();
-				}
+	public void setUseStream(boolean use) {
+		synchronized (mStreamCallbacks) {
+			if (use && !mStreamCallbacks.isEmpty() && (mStreamThread == null || !mStreamThread.isAlive())) {
+				mStreamThread = new StreamThread(this, mStreamCallbacks);
+				mStreamThread.start();
+			} else if (!use && (mStreamThread != null && mStreamThread.isAlive())) {
+				mStreamThread.stopStream();
 			}
 		}
+	}
 
-		public void breakStreamAndRetryConnect() {
-			if (mStreamThread != null)
-				mStreamThread.interrupt();
+	public void breakStreamAndRetryConnect() {
+		if (mStreamThread != null)
+			mStreamThread.interrupt();
+	}
+
+	public long getLastActivityTime() {
+		StreamThread t = mStreamThread;
+		return t != null ? t.getLastActivityTime() : 0;
 		}
 
-		public long getLastActivityTime() {
-			StreamThread t = mStreamThread;
-			return t != null ? t.getLastActivityTime() : 0;
+	public boolean isStreamUsed() {
+		return mStreamThread != null && mStreamThread.isAlive();
 		}
 
-		public boolean isStreamUsed() {
-			return mStreamThread != null && mStreamThread.isAlive();
-		}
+	public interface OnUserlistChangedListener {
+		void onUserlistChanged(List<TwitterEngine> engines, List<TwitterEngine> oldEngines);
+	}
+
+	public interface TweetCallback {
+		void onNewTweetReceived(Tweet tweet);
+	}
+
+	public interface TwitterStreamCallback extends TweetCallback {
+		void onStreamStart(TwitterEngine engine);
+
+		void onStreamConnected(TwitterEngine engine);
+
+		void onStreamError(TwitterEngine engine, Throwable e);
+
+		void onStreamTweetEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, Tweet tweet, long created_at);
+
+		// void onListStreamEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, List list, long created_at);
+		void onStreamUserEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, long created_at);
+
+		void onStreamStop(TwitterEngine engine);
+	}
 
 		static class StreamThread extends Thread {
 			private final ArrayList<Long> mStreamFriendsList = new ArrayList<>();
-			private final StreamableTwitterEngine mEngine;
+			private final TwitterEngine mEngine;
 			private final TwitterStreamCallback mCallback;
 			private final List<TwitterStreamCallback> mStreamCallbacks;
 			private boolean mStopRequested;
 			private boolean mStopCallbacked = false;
 			private long mStreamLastActivityTime;
 
-			public StreamThread(StreamableTwitterEngine e, List<TwitterStreamCallback> callbacks) {
+			public StreamThread(TwitterEngine e, List<TwitterStreamCallback> callbacks) {
 				super();
 				mEngine = e;
 				mStreamCallbacks = callbacks;
 				mCallback = new TwitterStreamCallback() {
 
 					@Override
-					public void onStreamConnected(final StreamableTwitterEngine engine) {
+					public void onStreamConnected(final TwitterEngine engine) {
 						if (mStopCallbacked)
 							return;
 						mEngine.mHandler.post(new Runnable() {
@@ -1052,7 +1039,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					}
 
 					@Override
-					public void onStreamStart(final StreamableTwitterEngine engine) {
+					public void onStreamStart(final TwitterEngine engine) {
 						if (mStopCallbacked)
 							return;
 						mEngine.mHandler.post(new Runnable() {
@@ -1067,7 +1054,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					}
 
 					@Override
-					public void onStreamError(final StreamableTwitterEngine engine, final Throwable e) {
+					public void onStreamError(final TwitterEngine engine, final Throwable e) {
 						if (mStopCallbacked)
 							return;
 						mEngine.mHandler.post(new Runnable() {
@@ -1082,7 +1069,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					}
 
 					@Override
-					public void onStreamTweetEvent(final StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final Tweet tweet, final long created_at) {
+					public void onStreamTweetEvent(final TwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final Tweet tweet, final long created_at) {
 						if (mStopCallbacked)
 							return;
 						mEngine.mHandler.post(new Runnable() {
@@ -1097,7 +1084,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					}
 
 					@Override
-					public void onStreamUserEvent(final StreamableTwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final long created_at) {
+					public void onStreamUserEvent(final TwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final long created_at) {
 						if (mStopCallbacked)
 							return;
 						mEngine.mHandler.post(new Runnable() {
@@ -1112,7 +1099,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					}
 
 					@Override
-					public void onStreamStop(final StreamableTwitterEngine engine) {
+					public void onStreamStop(final TwitterEngine engine) {
 						if (mStopCallbacked)
 							return;
 						mEngine.mHandler.post(new Runnable() {
@@ -1398,26 +1385,23 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			}
 
 		}
-	}
 
 	public static class RequestException extends Exception {
+
 		public RequestException(String functionName, Exception exception) {
-			exception.printStackTrace();
+			android.util.Log.d("TwitterEngine", functionName, exception);
 		}
 
 		public RequestException(String functionName, String description) {
-			android.util.Log.d("TwitterEngine " + functionName, description);
+			android.util.Log.d("TwitterEngine", functionName + " - " + description);
 		}
 
 		public RequestException(String functionName, HTTPRequest request) {
 			try {
-				android.util.Log.d("TwitterEngine " + functionName, request.getWholeData());
+				android.util.Log.d("TwitterEngine", functionName + " - " + request.getWholeData(), request.getLastError());
 			} catch (Exception e) {
-				e.printStackTrace();
+				android.util.Log.d("TwitterEngine " + functionName, "StatusCode: " + request.getStatusCode(), request.getLastError());
 			}
-			android.util.Log.d("TwitterEngine " + functionName, "StatusCode: " + request.getStatusCode());
-			if (request.getLastError() != null)
-				request.getLastError().printStackTrace();
 		}
 	}
 }

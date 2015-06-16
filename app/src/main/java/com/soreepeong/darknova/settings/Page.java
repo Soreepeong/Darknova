@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Page, rendered by PageFragment
@@ -42,6 +44,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 			return new Page[size];
 		}
 	};
+	private static final int MAX_BACKGROUND_NEW_ITEMS = 40;
 	private static final List<Page> mPages = Collections.synchronizedList(new ArrayList<Page>());
 	private static final ArrayList<OnPageListChangedListener> mPagesListener = new ArrayList<>();
 	private static final Comparator<Element> elementComparator = new Comparator<Element>() {
@@ -50,6 +53,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 			return lhs.generateUniqid().compareTo(rhs.generateUniqid());
 		}
 	};
+	private static final Map<Page, String> mPagesOnMemory = Collections.synchronizedMap(new WeakHashMap<Page, String>());
 	private static int mNonTemporaryPageLength = 0;
 	private static SharedPreferences mPagePreferences;
 	private static long mLastPageLoad;
@@ -85,6 +89,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 			parentPage = mPages.get(parentIndex);
 		}
 		mParentPage = parents;
+		mPagesOnMemory.put(this, name);
 	}
 
 	protected Page(Parcel in) {
@@ -99,6 +104,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		}
 		elements = Collections.unmodifiableList(newElements);
 		mParentPage = null;
+		mPagesOnMemory.put(this, name);
 	}
 
 	protected Page(String key, SharedPreferences in) {
@@ -113,6 +119,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		}
 		elements = Collections.unmodifiableList(newElements);
 		mParentPage = null;
+		mPagesOnMemory.put(this, name);
 	}
 
 	public static void templatePageUser(long user_id, String screen_name, MainActivity mainActivity) {
@@ -208,9 +215,9 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		});
 		TwitterEngine.addOnUserlistChangedListener(new TwitterEngine.OnUserlistChangedListener() {
 			@Override
-			public void onUserlistChanged(List<TwitterEngine.StreamableTwitterEngine> engines, List<TwitterEngine.StreamableTwitterEngine> oldEngines) {
-				ArrayList<TwitterEngine.StreamableTwitterEngine> newEngines = new ArrayList<>(engines);
-				ArrayList<TwitterEngine.StreamableTwitterEngine> removedEngines = new ArrayList<>(oldEngines);
+			public void onUserlistChanged(List<TwitterEngine> engines, List<TwitterEngine> oldEngines) {
+				ArrayList<TwitterEngine> newEngines = new ArrayList<>(engines);
+				ArrayList<TwitterEngine> removedEngines = new ArrayList<>(oldEngines);
 				newEngines.removeAll(oldEngines);
 				removedEngines.removeAll(engines);
 				for (int i = 0; i < mPages.size(); i++) {
@@ -228,7 +235,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 						mPages.set(i, newPage.build());
 					}
 				}
-				for (TwitterEngine.StreamableTwitterEngine e : newEngines)
+				for (TwitterEngine e : newEngines)
 					createDefaultPages(e);
 				reloadPages();
 			}
@@ -355,64 +362,83 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		}
 	}
 
-	public void setFragment(TimelineFragment frag) {
+	public static void stopAllPageHolders() {
+		synchronized (mPagesOnMemory) {
+			for (Page p : mPagesOnMemory.keySet())
+				p.stopPageHolder();
+		}
+	}
+
+	public static void clearPossibleBackgroundItems() {
+		synchronized (mPagesOnMemory) {
+			for (Page p : mPagesOnMemory.keySet())
+				if (p.mConnectedFragment == null && p.mList_holdRemover == null)
+					p.mListPending.clear();
+		}
+	}
+
+	public void stopPageHolder() {
 		if (mList_holdRemover != null) {
 			mList_holdRemover.interrupt();
 			mList_holdRemover = null;
 		}
+	}
+
+	public void setFragment(TimelineFragment frag) {
+		stopPageHolder();
 		if (frag == null) { // delay gc
 			final List<Tweet> mList_hold = mList != null && mList.get() != null ? mList.get() : null;
 			if (mList_hold != null) {
-				mList_holdRemover = new Thread() {
+				mList_holdRemover = new Thread("PageRemover for " + name + " size " + mList_hold.size()) {
 					@Override
 					public void run() {
 						try {
 							Thread.sleep(60000);
-							android.util.Log.d("darknova", "page gone: " + name + " size " + mList_hold.size());
+							android.util.Log.d("Page", "Gone: " + name + " size " + mList_hold.size());
 						} catch (InterruptedException e) {
-							android.util.Log.d("darknova", "page held: " + name);
+							android.util.Log.d("Page", "Held: " + name);
 						}
 					}
 				};
 				mList_holdRemover.start();
 			}
 		}
-		android.util.Log.d("Darknova Page", mId + " (" + name + ") " + (frag == null ? "disconnect" : "connect"));
+		android.util.Log.d("Page", mId + " (" + name + ") " + (frag == null ? "disconnect" : "connect"));
 		mConnectedFragment = frag;
 	}
 
 	@Override
-	public void onStreamStart(TwitterEngine.StreamableTwitterEngine engine) {
+	public void onStreamStart(TwitterEngine engine) {
 		if (mConnectedFragment != null)
 			mConnectedFragment.onStreamStart(engine);
 	}
 
 	@Override
-	public void onStreamConnected(TwitterEngine.StreamableTwitterEngine engine) {
+	public void onStreamConnected(TwitterEngine engine) {
 		if (mConnectedFragment != null)
 			mConnectedFragment.onStreamConnected(engine);
 	}
 
 	@Override
-	public void onStreamError(TwitterEngine.StreamableTwitterEngine engine, Throwable e) {
+	public void onStreamError(TwitterEngine engine, Throwable e) {
 		if (mConnectedFragment != null)
 			mConnectedFragment.onStreamError(engine, e);
 	}
 
 	@Override
-	public void onStreamTweetEvent(TwitterEngine.StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, Tweet tweet, long created_at) {
+	public void onStreamTweetEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, Tweet tweet, long created_at) {
 		if (mConnectedFragment != null)
 			mConnectedFragment.onStreamTweetEvent(engine, event, source, target, tweet, created_at);
 	}
 
 	@Override
-	public void onStreamUserEvent(TwitterEngine.StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, long created_at) {
+	public void onStreamUserEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, long created_at) {
 		if (mConnectedFragment != null)
 			mConnectedFragment.onStreamUserEvent(engine, event, source, target, created_at);
 	}
 
 	@Override
-	public void onStreamStop(TwitterEngine.StreamableTwitterEngine engine) {
+	public void onStreamStop(TwitterEngine engine) {
 		if (mConnectedFragment != null)
 			mConnectedFragment.onStreamStop(engine);
 	}
@@ -426,6 +452,8 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 				index = -index - 1;
 				mListPending.add(index, tweet);
 			}
+			if (mConnectedFragment == null && mList_holdRemover == null && mListPending.size() > MAX_BACKGROUND_NEW_ITEMS)
+				mListPending.subList(MAX_BACKGROUND_NEW_ITEMS, mListPending.size()).clear();
 		}
 		return true;
 	}
@@ -445,7 +473,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		return false;
 	}
 
-	public boolean containsStream(TwitterEngine.StreamableTwitterEngine engine) {
+	public boolean containsStream(TwitterEngine engine) {
 		for (Element e : elements)
 			if (e.containsStream(engine.getUserId()))
 				return true;

@@ -693,32 +693,32 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 	}
 
 	@Override
-	public void onStreamStart(TwitterEngine.StreamableTwitterEngine engine) {
+	public void onStreamStart(TwitterEngine engine) {
 
 	}
 
 	@Override
-	public void onStreamConnected(TwitterEngine.StreamableTwitterEngine engine) {
+	public void onStreamConnected(TwitterEngine engine) {
 		if (mPage.containsStream(engine))
 			onRefresh();
 	}
 
 	@Override
-	public void onStreamError(TwitterEngine.StreamableTwitterEngine engine, Throwable e) {
+	public void onStreamError(TwitterEngine engine, Throwable e) {
 	}
 
 	@Override
-	public void onStreamTweetEvent(TwitterEngine.StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, Tweet tweet, long created_at) {
-
-	}
-
-	@Override
-	public void onStreamUserEvent(TwitterEngine.StreamableTwitterEngine engine, String event, Tweeter source, Tweeter target, long created_at) {
+	public void onStreamTweetEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, Tweet tweet, long created_at) {
 
 	}
 
 	@Override
-	public void onStreamStop(TwitterEngine.StreamableTwitterEngine engine) {
+	public void onStreamUserEvent(TwitterEngine engine, String event, Tweeter source, Tweeter target, long created_at) {
+
+	}
+
+	@Override
+	public void onStreamStop(TwitterEngine engine) {
 
 	}
 
@@ -1269,11 +1269,8 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 					refresher.finished.acquire();
 			} catch (InterruptedException e) {
 				e.printStackTrace();
-				for (PageElementRefresher refresher : mElements.values()) {
-					if (refresher.isAlive())
-						refresher.interrupt();
+				for (PageElementRefresher refresher : mElements.values())
 					removeRefresher(refresher);
-				}
 			}
 			applyTweetChanges();
 			return null;
@@ -1358,7 +1355,7 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 			}
 		}
 
-		private class PageElementRefresher extends Thread {
+		private class PageElementRefresher implements Runnable {
 			private final Page.Element mElement;
 			private final long since_id, max_id;
 			public Exception exception;
@@ -1406,7 +1403,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 					exception = e;
 				} finally {
 					finished.release();
-					removeRefresher(this);
 				}
 			}
 		}
@@ -1907,7 +1903,6 @@ public class TimelineFragment extends PageFragment implements SwipeRefreshLayout
 					((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
 					((MainActivity) getActivity()).getNewTweetFragment().insertText("@" + t.user.screen_name + " ");
 					((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
-					// TODO Show Action Bar
 				} else if (v.equals(dragInitiatorButton)) {
 					if (!mSelectedList.contains(t)) {
 						mSelectedList.add(t);

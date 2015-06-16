@@ -160,7 +160,7 @@ public class Tweeter implements Parcelable {
 
 	public static HashMap<String, Tweeter> getAvailableTweeters() {
 		synchronized (mUsersByUserId) {
-			return mUsersByScreenName.getMap();
+			return new HashMap<>(mUsersByScreenName);
 		}
 	}
 
@@ -434,7 +434,7 @@ public class Tweeter implements Parcelable {
 		}
 
 		@Override
-		public void onUserlistChanged(List<TwitterEngine.StreamableTwitterEngine> engines, List<TwitterEngine.StreamableTwitterEngine> oldEngines) {
+		public void onUserlistChanged(List<TwitterEngine> engines, List<TwitterEngine> oldEngines) {
 			Iterator<Tweeter> i = mTweeterList.iterator();
 			a:
 			while (i.hasNext()) {

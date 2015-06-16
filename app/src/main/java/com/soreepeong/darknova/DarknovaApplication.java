@@ -34,6 +34,7 @@ public class DarknovaApplication extends Application implements Handler.Callback
 	public static Context mContext;
 	private static volatile long mRuntimeUniqueIdCounter = 0;
 	private static Handler mHandler;
+	private static ImageCache mImageCache;
 
 	public static long uniqid(){
 		return mRuntimeUniqueIdCounter++;
@@ -59,7 +60,7 @@ public class DarknovaApplication extends Application implements Handler.Callback
 		StringTools.loadHanjaArray(getResources());
 
 		// For preparing image cache earlier
-		ImageCache.getCache(this, null);
+		mImageCache = ImageCache.getCache(this, null);
 
 		// BEFORE TwitterEngine: addOnUserlistChangedListener from AlwaysAvailableUsers on preparation
 		Tweeter.initializeAlwaysAvailableUsers(this);
@@ -83,5 +84,18 @@ public class DarknovaApplication extends Application implements Handler.Callback
 			}
 		}
 		return false;
+	}
+
+	@Override
+	public void onTrimMemory(int level) {
+		super.onTrimMemory(level);
+		if (level >= TRIM_MEMORY_BACKGROUND) {
+			if (mImageCache != null)
+				mImageCache.clearStorage();
+		}
+		if (level >= TRIM_MEMORY_MODERATE) {
+			Page.stopAllPageHolders();
+			Page.clearPossibleBackgroundItems();
+		}
 	}
 }
