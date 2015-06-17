@@ -71,10 +71,21 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	public long mPageLastItemId, mPageNewestSeenItemId;
 	private Thread mList_holdRemover;
 
-	protected Page(String name, int iconResId, List<Element> elements, Page parentPage, long id) {
+	protected Page(String name, int iconResId, List<Element> elements, Page parentPage) {
 		this.name = name;
 		this.iconResId = iconResId;
 		this.elements = Collections.unmodifiableList(elements);
+		long id;
+		synchronized (mPages) {
+			wholeLoop:
+			while (true) {
+				id = DarknovaApplication.uniqid();
+				for (Page p : mPages)
+					if (p.mId == id)
+						continue wholeLoop;
+				break;
+			}
+		}
 		mId = id;
 		if (parentPage == null) {
 			mParentPage = null;
@@ -834,7 +845,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 					if (e.isOnlyElement())
 						throw new RuntimeException("only one element allowed");
 			Collections.sort(mElements, elementComparator);
-			Page p = new Page(mName, mResId, mElements, mParentPage, DarknovaApplication.uniqid());
+			Page p = new Page(mName, mResId, mElements, mParentPage);
 			mElements = null;
 			return p;
 		}

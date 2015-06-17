@@ -517,6 +517,8 @@ public class StringTools {
 		if (Character.isWhitespace(code))
 			p.append("\\s");
 		boolean appendJVowels = true, isJapanese = true;
+		if (JapaneseCharacter.toKatakana(code) != code)
+			p.append("|").append(JapaneseCharacter.toKatakana(code));
 		switch (code) {
 			case 'a':
 				p.append(appendKatagana("|[あぁ]"));
@@ -584,10 +586,10 @@ public class StringTools {
 				appendJVowels = false;
 				break;
 			case 'v':
-				p.append(appendKatagana("|[っ]?[ヴ]"));
+				p.append(appendKatagana("|[っ]?[ヴばびぶべぼ]"));
 				break;
 			case 'w':
-				p.append(appendKatagana("|[わを]"));
+				p.append(appendKatagana("|[わをう]"));
 				break;
 			case 'y':
 				p.append(appendKatagana("|[やゆよゃゅょ]"));

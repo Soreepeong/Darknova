@@ -237,13 +237,26 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 
 	@Override
 	public void onBackPressed() {
+		boolean selected = false;
+		int currentItem = mPager.getCurrentItem();
+		if (getFragmentAt(currentItem) != null)
+			selected = getFragmentAt(currentItem).isSomethingSelected();
 		if (mNavigationDrawerFragment.isDrawerOpen())
 			mNavigationDrawerFragment.closeDrawer();
 		else if (mTemplateTweetEditorFragment.switchViews(null))
 			return;
 		else if (mTemplateTweetEditorFragment.isNewTweetVisible())
 			mTemplateTweetEditorFragment.hideNewTweet();
-		else
+		else if (selected)
+			getCurrentPage().clearSelection();
+		else if (currentItem >= Page.getCountNonTemporary() && Page.size() > 0) {
+			Page rmItem = Page.remove(currentItem);
+			if (rmItem != null) {
+				int newIndex = rmItem.getParentPageIndex();
+				if (newIndex != -1)
+					mPager.setCurrentItem(newIndex, true);
+			}
+		} else
 			super.onBackPressed();
 	}
 

@@ -402,6 +402,48 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		return mScreenName;
 	}
 
+	protected ArrayList<SavedSearch> parseSavedSearchArray(JsonParser parser) throws IOException, ParseException {
+		ArrayList<SavedSearch> res = new ArrayList<>();
+		while (!Thread.currentThread().isInterrupted() && parser.nextToken() != JsonToken.END_ARRAY) {
+			if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
+				res.add(parseSavedSearch(parser));
+			}
+		}
+		return res;
+	}
+
+	protected SavedSearch parseSavedSearch(JsonParser parser) throws IOException, ParseException {
+		SavedSearch res = new SavedSearch();
+		String key;
+		while (!Thread.currentThread().isInterrupted() && parser.nextToken() != JsonToken.END_OBJECT) {
+			key = parser.getCurrentName();
+			parser.nextToken();
+			if (parser.getCurrentToken() == JsonToken.VALUE_NULL) continue;
+			if (key.endsWith("_str")) StreamTools.consumeJsonValue(parser);
+			else switch (key) {
+				case "created_at":
+					res.created_at = parseTwitterDate(parser.getValueAsString());
+					break;
+				case "id":
+					res.id = parser.getLongValue();
+					break;
+				case "name":
+					res.name = parser.getText();
+					break;
+				case "query":
+					res.query = parser.getText();
+					break;
+				default:
+					StreamTools.consumeJsonValue(parser);
+			}
+			if (parser.getCurrentToken() == JsonToken.START_OBJECT || parser.getCurrentToken() == JsonToken.START_ARRAY) {
+				res.id = 0;
+				break;
+			}
+		}
+		return res;
+	}
+
 	protected Tweeter parseUser(JsonParser parser) throws IOException, ParseException {
 		return parseUser(parser, null);
 	}
@@ -934,6 +976,25 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		}
 	}
 
+	public ArrayList<SavedSearch> getSavedSearches() throws RequestException {
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "saved_searches/list.json", auth, false, null);
+		if (request == null) return null;
+		InputStream in = null;
+		try {
+			request.submitRequest();
+			if (request.getStatusCode() != 200)
+				throw new RequestException("getSavedSearches", request);
+			in = request.getInputStream();
+			JsonParser parser = JSON.createParser(in = request.getInputStream());
+			return parseSavedSearchArray(parser);
+		} catch (Throwable e) {
+			throw new RequestException("getSavedSearches", e);
+		} finally {
+			StreamTools.close(in);
+			request.close();
+		}
+	}
+
 	@Override
 	public int compareTo(@NonNull TwitterEngine another) {
 		int eq = mEngineIndex - another.mEngineIndex;
@@ -947,18 +1008,18 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		return o != null && o instanceof TwitterEngine && (((TwitterEngine) o).mUserId == mUserId) && ((TwitterEngine) o).auth.equals(auth);
 	}
 
-		public void addStreamCallback(TwitterStreamCallback callback) {
-			synchronized (mStreamCallbacks) {
-				if (!mStreamCallbacks.contains(callback))
-					mStreamCallbacks.add(callback);
-			}
+	public void addStreamCallback(TwitterStreamCallback callback) {
+		synchronized (mStreamCallbacks) {
+			if (!mStreamCallbacks.contains(callback))
+				mStreamCallbacks.add(callback);
 		}
+	}
 
-		public void removeStreamCallback(TwitterStreamCallback callback) {
-			synchronized (mStreamCallbacks) {
-				mStreamCallbacks.remove(callback);
-			}
+	public void removeStreamCallback(TwitterStreamCallback callback) {
+		synchronized (mStreamCallbacks) {
+			mStreamCallbacks.remove(callback);
 		}
+	}
 
 	public void setUseStream(boolean use) {
 		synchronized (mStreamCallbacks) {
@@ -979,11 +1040,11 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	public long getLastActivityTime() {
 		StreamThread t = mStreamThread;
 		return t != null ? t.getLastActivityTime() : 0;
-		}
+	}
 
 	public boolean isStreamUsed() {
 		return mStreamThread != null && mStreamThread.isAlive();
-		}
+	}
 
 	public interface OnUserlistChangedListener {
 		void onUserlistChanged(List<TwitterEngine> engines, List<TwitterEngine> oldEngines);
@@ -1008,387 +1069,387 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		void onStreamStop(TwitterEngine engine);
 	}
 
-		static class StreamThread extends Thread {
-			private final ArrayList<Long> mStreamFriendsList = new ArrayList<>();
-			private final TwitterEngine mEngine;
-			private final TwitterStreamCallback mCallback;
-			private final List<TwitterStreamCallback> mStreamCallbacks;
-			private boolean mStopRequested;
-			private boolean mStopCallbacked = false;
-			private long mStreamLastActivityTime;
+	static class StreamThread extends Thread {
+		private final ArrayList<Long> mStreamFriendsList = new ArrayList<>();
+		private final TwitterEngine mEngine;
+		private final TwitterStreamCallback mCallback;
+		private final List<TwitterStreamCallback> mStreamCallbacks;
+		private boolean mStopRequested;
+		private boolean mStopCallbacked = false;
+		private long mStreamLastActivityTime;
 
-			public StreamThread(TwitterEngine e, List<TwitterStreamCallback> callbacks) {
-				super();
-				mEngine = e;
-				mStreamCallbacks = callbacks;
-				mCallback = new TwitterStreamCallback() {
+		public StreamThread(TwitterEngine e, List<TwitterStreamCallback> callbacks) {
+			super();
+			mEngine = e;
+			mStreamCallbacks = callbacks;
+			mCallback = new TwitterStreamCallback() {
 
-					@Override
-					public void onStreamConnected(final TwitterEngine engine) {
-						if (mStopCallbacked)
-							return;
-						mEngine.mHandler.post(new Runnable() {
-							@Override
-							public void run() {
-								synchronized (mStreamCallbacks) {
-									for (TwitterStreamCallback c : mStreamCallbacks)
-										c.onStreamConnected(engine);
-								}
+				@Override
+				public void onStreamConnected(final TwitterEngine engine) {
+					if (mStopCallbacked)
+						return;
+					mEngine.mHandler.post(new Runnable() {
+						@Override
+						public void run() {
+							synchronized (mStreamCallbacks) {
+								for (TwitterStreamCallback c : mStreamCallbacks)
+									c.onStreamConnected(engine);
 							}
-						});
-					}
-
-					@Override
-					public void onStreamStart(final TwitterEngine engine) {
-						if (mStopCallbacked)
-							return;
-						mEngine.mHandler.post(new Runnable() {
-							@Override
-							public void run() {
-								synchronized (mStreamCallbacks) {
-									for (TwitterStreamCallback c : mStreamCallbacks)
-										c.onStreamStart(engine);
-								}
-							}
-						});
-					}
-
-					@Override
-					public void onStreamError(final TwitterEngine engine, final Throwable e) {
-						if (mStopCallbacked)
-							return;
-						mEngine.mHandler.post(new Runnable() {
-							@Override
-							public void run() {
-								synchronized (mStreamCallbacks) {
-									for (TwitterStreamCallback c : mStreamCallbacks)
-										c.onStreamError(engine, e);
-								}
-							}
-						});
-					}
-
-					@Override
-					public void onStreamTweetEvent(final TwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final Tweet tweet, final long created_at) {
-						if (mStopCallbacked)
-							return;
-						mEngine.mHandler.post(new Runnable() {
-							@Override
-							public void run() {
-								synchronized (mStreamCallbacks) {
-									for (TwitterStreamCallback c : mStreamCallbacks)
-										c.onStreamTweetEvent(engine, event, source, target, tweet, created_at);
-								}
-							}
-						});
-					}
-
-					@Override
-					public void onStreamUserEvent(final TwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final long created_at) {
-						if (mStopCallbacked)
-							return;
-						mEngine.mHandler.post(new Runnable() {
-							@Override
-							public void run() {
-								synchronized (mStreamCallbacks) {
-									for (TwitterStreamCallback c : mStreamCallbacks)
-										c.onStreamUserEvent(engine, event, source, target, created_at);
-								}
-							}
-						});
-					}
-
-					@Override
-					public void onStreamStop(final TwitterEngine engine) {
-						if (mStopCallbacked)
-							return;
-						mEngine.mHandler.post(new Runnable() {
-							@Override
-							public void run() {
-								synchronized (mStreamCallbacks) {
-									for (TwitterStreamCallback c : mStreamCallbacks)
-										c.onStreamStop(engine);
-								}
-							}
-						});
-					}
-
-					@Override
-					public void onNewTweetReceived(Tweet tweet) {
-						if (mStopCallbacked)
-							return;
-						synchronized (mStreamCallbacks) {
-							for (TwitterStreamCallback c : mStreamCallbacks)
-								c.onNewTweetReceived(tweet);
 						}
+					});
+				}
+
+				@Override
+				public void onStreamStart(final TwitterEngine engine) {
+					if (mStopCallbacked)
+						return;
+					mEngine.mHandler.post(new Runnable() {
+						@Override
+						public void run() {
+							synchronized (mStreamCallbacks) {
+								for (TwitterStreamCallback c : mStreamCallbacks)
+									c.onStreamStart(engine);
+							}
+						}
+					});
+				}
+
+				@Override
+				public void onStreamError(final TwitterEngine engine, final Throwable e) {
+					if (mStopCallbacked)
+						return;
+					mEngine.mHandler.post(new Runnable() {
+						@Override
+						public void run() {
+							synchronized (mStreamCallbacks) {
+								for (TwitterStreamCallback c : mStreamCallbacks)
+									c.onStreamError(engine, e);
+							}
+						}
+					});
+				}
+
+				@Override
+				public void onStreamTweetEvent(final TwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final Tweet tweet, final long created_at) {
+					if (mStopCallbacked)
+						return;
+					mEngine.mHandler.post(new Runnable() {
+						@Override
+						public void run() {
+							synchronized (mStreamCallbacks) {
+								for (TwitterStreamCallback c : mStreamCallbacks)
+									c.onStreamTweetEvent(engine, event, source, target, tweet, created_at);
+							}
+						}
+					});
+				}
+
+				@Override
+				public void onStreamUserEvent(final TwitterEngine engine, final String event, final Tweeter source, final Tweeter target, final long created_at) {
+					if (mStopCallbacked)
+						return;
+					mEngine.mHandler.post(new Runnable() {
+						@Override
+						public void run() {
+							synchronized (mStreamCallbacks) {
+								for (TwitterStreamCallback c : mStreamCallbacks)
+									c.onStreamUserEvent(engine, event, source, target, created_at);
+							}
+						}
+					});
+				}
+
+				@Override
+				public void onStreamStop(final TwitterEngine engine) {
+					if (mStopCallbacked)
+						return;
+					mEngine.mHandler.post(new Runnable() {
+						@Override
+						public void run() {
+							synchronized (mStreamCallbacks) {
+								for (TwitterStreamCallback c : mStreamCallbacks)
+									c.onStreamStop(engine);
+							}
+						}
+					});
+				}
+
+				@Override
+				public void onNewTweetReceived(Tweet tweet) {
+					if (mStopCallbacked)
+						return;
+					synchronized (mStreamCallbacks) {
+						for (TwitterStreamCallback c : mStreamCallbacks)
+							c.onNewTweetReceived(tweet);
 					}
-				};
-			}
+				}
+			};
+		}
 
-			public void stopStream() {
-				mStopRequested = true;
-				interrupt();
-			}
+		public void stopStream() {
+			mStopRequested = true;
+			interrupt();
+		}
 
-			@Override
-			public void interrupt() {
-				if (mStopRequested && !mStopCallbacked) {
+		@Override
+		public void interrupt() {
+			if (mStopRequested && !mStopCallbacked) {
+				mCallback.onStreamStop(mEngine);
+				mStopCallbacked = true;
+			}
+			super.interrupt();
+		}
+
+		@Override
+		public void run() {
+			Thread.currentThread().setName("StreamThread for " + mEngine.getScreenName());
+			int errorWaitTime = 0;
+			mCallback.onStreamStart(mEngine);
+			try {
+				while (!mStopRequested) {
+					Thread.sleep(errorWaitTime);
+					try {
+						final HTTPRequest conn = HTTPRequest.getRequest(STREAM_BASE_PATH + "user.json", mEngine.auth, false, null);
+						int statusCode;
+						if (conn == null) {
+							statusCode = 0;
+						} else {
+							conn.setConnectTimeout(10000);
+							conn.setReadTimeout(90000);
+							conn.submitRequest();
+							statusCode = conn.getStatusCode();
+						}
+						if (statusCode != 200) {
+							if (statusCode == 0) { // Network error
+								if (errorWaitTime < 16000)
+									errorWaitTime += 250;
+							} else if (statusCode == 420) { // Rate Limit
+								if (errorWaitTime < 60000)
+									errorWaitTime += 60000;
+								else
+									errorWaitTime *= 2;
+								if (errorWaitTime > 600000)
+									errorWaitTime = 600000;
+							} else {
+								if (errorWaitTime < 5000)
+									errorWaitTime += 5000;
+								else
+									errorWaitTime *= 2;
+								if (errorWaitTime > 320000)
+									errorWaitTime = 320000;
+							}
+							if (!Thread.interrupted())
+								mCallback.onStreamError(mEngine, new RequestException("StreamRunner", conn));
+							continue;
+						}
+						errorWaitTime = 0;
+						final InputStream in = conn.getInputStream(false);
+						try {
+							mStreamLastActivityTime = System.currentTimeMillis();
+							mCallback.onStreamConnected(mEngine);
+							final byte[] buffer = new byte[8192];
+							int searchFrom = 0;
+							ByteBuffer data = ByteBuffer.allocate(buffer.length);
+							while (!mStopRequested) {
+								int read = in.read(buffer, 0, Math.max(1, Math.min(buffer.length, in.available())));
+								if (Thread.interrupted())
+									break;
+								if (data.remaining() < read) {
+									ByteBuffer tmp = ByteBuffer.allocate(data.capacity() * 2);
+									tmp.put(data.array(), 0, data.position());
+									data = tmp;
+								}
+								data.put(buffer, 0, read);
+								while (true) {
+									int pos = ArrayTools.indexOf(data.array(), searchFrom, data.position(), CRLF, CRLF_FAILURE);
+									if (pos == -1) {
+										searchFrom = Math.max(0, data.position() - CRLF.length + 1);
+										break;
+									}
+									if (mStopRequested)
+										return;
+									parseStreamMessage(new String(data.array(), 0, pos));
+									data.limit(data.position());
+									data.position(pos + CRLF.length);
+									data.compact();
+									searchFrom = 0;
+								}
+								if (data.position() > MAX_STREAM_HOLD)
+									stopStream();
+							}
+						} finally {
+							conn.close();
+							StreamTools.close(in);
+						}
+						errorWaitTime = 0; // interrupted
+					} catch (Throwable e) {
+						errorWaitTime = 250;
+						e.printStackTrace();
+						mCallback.onStreamError(mEngine, e);
+					}
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			} finally {
+				if (!mStopCallbacked) {
 					mCallback.onStreamStop(mEngine);
 					mStopCallbacked = true;
 				}
-				super.interrupt();
 			}
-
-			@Override
-			public void run() {
-				Thread.currentThread().setName("StreamThread for " + mEngine.getScreenName());
-				int errorWaitTime = 0;
-				mCallback.onStreamStart(mEngine);
-				try {
-					while (!mStopRequested) {
-						Thread.sleep(errorWaitTime);
-						try {
-							final HTTPRequest conn = HTTPRequest.getRequest(STREAM_BASE_PATH + "user.json", mEngine.auth, false, null);
-							int statusCode;
-							if (conn == null) {
-								statusCode = 0;
-							} else {
-								conn.setConnectTimeout(10000);
-								conn.setReadTimeout(90000);
-								conn.submitRequest();
-								statusCode = conn.getStatusCode();
-							}
-							if (statusCode != 200) {
-								if (statusCode == 0) { // Network error
-									if (errorWaitTime < 16000)
-										errorWaitTime += 250;
-								} else if (statusCode == 420) { // Rate Limit
-									if (errorWaitTime < 60000)
-										errorWaitTime += 60000;
-									else
-										errorWaitTime *= 2;
-									if (errorWaitTime > 600000)
-										errorWaitTime = 600000;
-								} else {
-									if (errorWaitTime < 5000)
-										errorWaitTime += 5000;
-									else
-										errorWaitTime *= 2;
-									if (errorWaitTime > 320000)
-										errorWaitTime = 320000;
-								}
-								if (!Thread.interrupted())
-									mCallback.onStreamError(mEngine, new RequestException("StreamRunner", conn));
-								continue;
-							}
-							errorWaitTime = 0;
-							final InputStream in = conn.getInputStream(false);
-							try {
-								mStreamLastActivityTime = System.currentTimeMillis();
-								mCallback.onStreamConnected(mEngine);
-								final byte[] buffer = new byte[8192];
-								int searchFrom = 0;
-								ByteBuffer data = ByteBuffer.allocate(buffer.length);
-								while (!mStopRequested) {
-									int read = in.read(buffer, 0, Math.max(1, Math.min(buffer.length, in.available())));
-									if (Thread.interrupted())
-										break;
-									if (data.remaining() < read) {
-										ByteBuffer tmp = ByteBuffer.allocate(data.capacity() * 2);
-										tmp.put(data.array(), 0, data.position());
-										data = tmp;
-									}
-									data.put(buffer, 0, read);
-									while (true) {
-										int pos = ArrayTools.indexOf(data.array(), searchFrom, data.position(), CRLF, CRLF_FAILURE);
-										if (pos == -1) {
-											searchFrom = Math.max(0, data.position() - CRLF.length + 1);
-											break;
-										}
-										if (mStopRequested)
-											return;
-										parseStreamMessage(new String(data.array(), 0, pos));
-										data.limit(data.position());
-										data.position(pos + CRLF.length);
-										data.compact();
-										searchFrom = 0;
-									}
-									if (data.position() > MAX_STREAM_HOLD)
-										stopStream();
-								}
-							} finally {
-								conn.close();
-								StreamTools.close(in);
-							}
-							errorWaitTime = 0; // interrupted
-						} catch (Throwable e) {
-							errorWaitTime = 250;
-							e.printStackTrace();
-							mCallback.onStreamError(mEngine, e);
-						}
-					}
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				} finally {
-					if (!mStopCallbacked) {
-						mCallback.onStreamStop(mEngine);
-						mStopCallbacked = true;
-					}
-				}
-			}
-
-			// TODO
-			protected void parseStreamMessage(String line) {
-				mStreamLastActivityTime = System.currentTimeMillis();
-				if (line.isEmpty()) return;
-				try {
-					if (line.startsWith("{\"delete\":{")) {
-						Tweet removed = Tweet.getTweet(new JSONObject(line).getJSONObject("delete").getJSONObject("status").getLong("id"));
-						removed.removed = true;
-						removed.info.lastUpdated = System.currentTimeMillis();
-						mCallback.onStreamTweetEvent(mEngine, "delete", null, null, removed, 0);
-					} else if (line.startsWith("{\"friends\":[")) {
-						JSONArray arr = new JSONObject(line).getJSONArray("friends");
-						mStreamFriendsList.clear();
-						for (int i = 0; i < arr.length(); i++)
-							mStreamFriendsList.add(arr.getLong(i));
-					} else if (line.startsWith("{\"scrub_geo\":{")) {
-					} else if (line.startsWith("{\"limit\":{")) {
-					} else if (line.startsWith("{\"status_withheld\":{")) {
-					} else if (line.startsWith("{\"user_withheld\":{")) {
-					} else if (line.startsWith("{\"warning\":{")) {
-					} else if (line.startsWith("{\"disconnect\":{")) {
-					} else if (line.contains("\"event\":\"")) {
-						JsonParser parser = JSON.createParser(line);
-						parser.nextToken();
-						Tweeter source = null, target = null;
-						Tweet target_object = null;
-						String event = null;
-						long created_at = -1;
-						while (!Thread.currentThread().isInterrupted() && parser.nextToken() != JsonToken.END_OBJECT) {
-							String key = parser.getCurrentName();
-							parser.nextToken();
-							if (parser.getCurrentToken() == JsonToken.VALUE_NULL) continue;
-							switch (key) {
-								case "source":
-									source = mEngine.parseUser(parser);
-									break;
-								case "target":
-									target = mEngine.parseUser(parser);
-									break;
-								case "event":
-									event = parser.getText();
-									break;
-								case "created_at":
-									created_at = parseTwitterDate(parser.getText());
-									break;
-								case "target_object":
-									if (event == null)
-										if ((event = new JSONObject(line).getString("event")) == null)
-											break;
-									switch (event) {
-										case "favorite":
-										case "unfavorite":
-											target_object = mEngine.parseTweet(parser, mStreamFriendsList);
-											break;
-										case "list_created":
-										case "list_destroyed":
-										case "list_updated":
-										case "list_member_added":
-										case "list_member_removed":
-										case "list_user_subscribed":
-										case "list_user_unsubscribed":
-											StreamTools.consumeJsonValue(parser);
-											break;
-										default:
-											StreamTools.consumeJsonValue(parser);
-											break;
-									}
-									break;
-								default:
-									StreamTools.consumeJsonValue(parser);
-							}
-						}
-						if (event == null)
-							return;
-						switch (event) {
-							case "user_update": // target = source
-								if (source == null)
-									return;
-								mCallback.onStreamUserEvent(mEngine, event, source, null, created_at);
-								break;
-							case "block":
-								if (target == null || source == null)
-									return;
-								mCallback.onStreamUserEvent(mEngine, event, source, target, created_at);
-								break;
-							case "unblock":
-								if (target == null || source == null)
-									return;
-								mCallback.onStreamUserEvent(mEngine, event, source, target, created_at);
-								break;
-							case "favorite":
-								mCallback.onStreamTweetEvent(mEngine, event, source, target, target_object, created_at);
-								break;
-							case "unfavorite":
-								mCallback.onStreamTweetEvent(mEngine, event, source, target, target_object, created_at);
-								break;
-							case "quoted_tweet":
-								mCallback.onStreamTweetEvent(mEngine, event, source, target, target_object, created_at);
-								break;
-							case "follow":
-								if (target == null || source == null)
-									return;
-								if (mEngine.getTweeter().equals(source))
-									mStreamFriendsList.add(target.user_id);
-								mCallback.onStreamUserEvent(mEngine, event, source, target, created_at);
-								break;
-							case "unfollow":
-								if (target == null || source == null)
-									return;
-								if (mEngine.getTweeter().equals(source))
-									mStreamFriendsList.remove(target.user_id);
-								mCallback.onStreamUserEvent(mEngine, event, source, target, created_at);
-								break;
-							case "list_created":
-								break;
-							case "list_destroyed":
-								break;
-							case "list_updated":
-								break;
-							case "list_member_added":
-								break;
-							case "list_member_removed":
-								break;
-							case "list_user_subscribed":
-								break;
-							case "list_user_unsubscribed":
-								break;
-						}
-					} else if (line.contains("\"recipient\":{") && line.contains("\"sender\":{")) {
-					} else {
-						JsonParser parser = JSON.createParser(line);
-						parser.nextToken();
-						Tweet t = mEngine.parseTweet(parser, mStreamFriendsList);
-						if (t.id == 0)
-							return;
-						mCallback.onNewTweetReceived(t);
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-					ACRA.log.e("STREAM_PARSER", "stream line parse fail: " + line, e);
-				}
-			}
-
-			public long getLastActivityTime() {
-				return mStreamLastActivityTime;
-			}
-
 		}
+
+		// TODO
+		protected void parseStreamMessage(String line) {
+			mStreamLastActivityTime = System.currentTimeMillis();
+			if (line.isEmpty()) return;
+			try {
+				if (line.startsWith("{\"delete\":{")) {
+					Tweet removed = Tweet.getTweet(new JSONObject(line).getJSONObject("delete").getJSONObject("status").getLong("id"));
+					removed.removed = true;
+					removed.info.lastUpdated = System.currentTimeMillis();
+					mCallback.onStreamTweetEvent(mEngine, "delete", null, null, removed, 0);
+				} else if (line.startsWith("{\"friends\":[")) {
+					JSONArray arr = new JSONObject(line).getJSONArray("friends");
+					mStreamFriendsList.clear();
+					for (int i = 0; i < arr.length(); i++)
+						mStreamFriendsList.add(arr.getLong(i));
+				} else if (line.startsWith("{\"scrub_geo\":{")) {
+				} else if (line.startsWith("{\"limit\":{")) {
+				} else if (line.startsWith("{\"status_withheld\":{")) {
+				} else if (line.startsWith("{\"user_withheld\":{")) {
+				} else if (line.startsWith("{\"warning\":{")) {
+				} else if (line.startsWith("{\"disconnect\":{")) {
+				} else if (line.contains("\"event\":\"")) {
+					JsonParser parser = JSON.createParser(line);
+					parser.nextToken();
+					Tweeter source = null, target = null;
+					Tweet target_object = null;
+					String event = null;
+					long created_at = -1;
+					while (!Thread.currentThread().isInterrupted() && parser.nextToken() != JsonToken.END_OBJECT) {
+						String key = parser.getCurrentName();
+						parser.nextToken();
+						if (parser.getCurrentToken() == JsonToken.VALUE_NULL) continue;
+						switch (key) {
+							case "source":
+								source = mEngine.parseUser(parser);
+								break;
+							case "target":
+								target = mEngine.parseUser(parser);
+								break;
+							case "event":
+								event = parser.getText();
+								break;
+							case "created_at":
+								created_at = parseTwitterDate(parser.getText());
+								break;
+							case "target_object":
+								if (event == null)
+									if ((event = new JSONObject(line).getString("event")) == null)
+										break;
+								switch (event) {
+									case "favorite":
+									case "unfavorite":
+										target_object = mEngine.parseTweet(parser, mStreamFriendsList);
+										break;
+									case "list_created":
+									case "list_destroyed":
+									case "list_updated":
+									case "list_member_added":
+									case "list_member_removed":
+									case "list_user_subscribed":
+									case "list_user_unsubscribed":
+										StreamTools.consumeJsonValue(parser);
+										break;
+									default:
+										StreamTools.consumeJsonValue(parser);
+										break;
+								}
+								break;
+							default:
+								StreamTools.consumeJsonValue(parser);
+						}
+					}
+					if (event == null)
+						return;
+					switch (event) {
+						case "user_update": // target = source
+							if (source == null)
+								return;
+							mCallback.onStreamUserEvent(mEngine, event, source, null, created_at);
+							break;
+						case "block":
+							if (target == null || source == null)
+								return;
+							mCallback.onStreamUserEvent(mEngine, event, source, target, created_at);
+							break;
+						case "unblock":
+							if (target == null || source == null)
+								return;
+							mCallback.onStreamUserEvent(mEngine, event, source, target, created_at);
+							break;
+						case "favorite":
+							mCallback.onStreamTweetEvent(mEngine, event, source, target, target_object, created_at);
+							break;
+						case "unfavorite":
+							mCallback.onStreamTweetEvent(mEngine, event, source, target, target_object, created_at);
+							break;
+						case "quoted_tweet":
+							mCallback.onStreamTweetEvent(mEngine, event, source, target, target_object, created_at);
+							break;
+						case "follow":
+							if (target == null || source == null)
+								return;
+							if (mEngine.getTweeter().equals(source))
+								mStreamFriendsList.add(target.user_id);
+							mCallback.onStreamUserEvent(mEngine, event, source, target, created_at);
+							break;
+						case "unfollow":
+							if (target == null || source == null)
+								return;
+							if (mEngine.getTweeter().equals(source))
+								mStreamFriendsList.remove(target.user_id);
+							mCallback.onStreamUserEvent(mEngine, event, source, target, created_at);
+							break;
+						case "list_created":
+							break;
+						case "list_destroyed":
+							break;
+						case "list_updated":
+							break;
+						case "list_member_added":
+							break;
+						case "list_member_removed":
+							break;
+						case "list_user_subscribed":
+							break;
+						case "list_user_unsubscribed":
+							break;
+					}
+				} else if (line.contains("\"recipient\":{") && line.contains("\"sender\":{")) {
+				} else {
+					JsonParser parser = JSON.createParser(line);
+					parser.nextToken();
+					Tweet t = mEngine.parseTweet(parser, mStreamFriendsList);
+					if (t.id == 0)
+						return;
+					mCallback.onNewTweetReceived(t);
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+				ACRA.log.e("STREAM_PARSER", "stream line parse fail: " + line, e);
+			}
+		}
+
+		public long getLastActivityTime() {
+			return mStreamLastActivityTime;
+		}
+
+	}
 
 	public static class RequestException extends Exception {
 
-		public RequestException(String functionName, Exception exception) {
+		public RequestException(String functionName, Throwable exception) {
 			android.util.Log.d("TwitterEngine", functionName, exception);
 		}
 
