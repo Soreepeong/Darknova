@@ -44,6 +44,13 @@ public class SavedSearch implements Parcelable {
 		query = in.getString(key + ".query", null);
 	}
 
+	public static void removeFromPreference(String key, SharedPreferences.Editor dest) {
+		dest.remove(key + ".created_at");
+		dest.remove(key + ".id");
+		dest.remove(key + ".name");
+		dest.remove(key + ".query");
+	}
+
 	@Override
 	public int describeContents() {
 		return 0;

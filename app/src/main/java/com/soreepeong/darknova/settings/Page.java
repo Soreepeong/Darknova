@@ -4,18 +4,17 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.support.annotation.NonNull;
 
 import com.soreepeong.darknova.DarknovaApplication;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.tools.StringTools;
-import com.soreepeong.darknova.twitter.Entities;
+import com.soreepeong.darknova.twitter.ObjectWithId;
 import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.twitter.TwitterStreamServiceReceiver;
 import com.soreepeong.darknova.ui.MainActivity;
-import com.soreepeong.darknova.ui.fragments.TimelineFragment;
+import com.soreepeong.darknova.ui.fragments.PageFragment;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -31,7 +30,7 @@ import java.util.WeakHashMap;
  *
  * @author Soreepeong
  */
-public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
+public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	@SuppressWarnings("unused")
 	public static final Parcelable.Creator<Page> CREATOR = new Parcelable.Creator<Page>() {
 		@Override
@@ -45,11 +44,11 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		}
 	};
 	private static final int MAX_BACKGROUND_NEW_ITEMS = 40;
-	private static final List<Page> mPages = Collections.synchronizedList(new ArrayList<Page>());
+	private static final List<Page<? extends ObjectWithId>> mPages = Collections.synchronizedList(new ArrayList<Page<? extends ObjectWithId>>());
 	private static final ArrayList<OnPageListChangedListener> mPagesListener = new ArrayList<>();
-	private static final Comparator<Element> elementComparator = new Comparator<Element>() {
+	private static final Comparator<PageElement> elementComparator = new Comparator<PageElement>() {
 		@Override
-		public int compare(Element lhs, Element rhs) {
+		public int compare(PageElement lhs, PageElement rhs) {
 			return lhs.generateUniqid().compareTo(rhs.generateUniqid());
 		}
 	};
@@ -59,19 +58,19 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	private static long mLastPageLoad;
 	public final String name;
 	public final int iconResId;
-	public final List<Element> elements;
+	public final List<PageElement> elements;
 	public final Object mListEditLock = new Object();
 	public final ArrayList<Tweet> mListPending = new ArrayList<>();
 	private final long mId;
 	private final List<WeakReference<Page>> mParentPage;
-	public WeakReference<List<Tweet>> mList;
-	public TimelineFragment mConnectedFragment;
+	public WeakReference<List<_T>> mList;
+	public PageFragment<_T> mConnectedFragment;
 	public boolean mIsListAtTop;
 	public int mPageLastOffset;
 	public long mPageLastItemId, mPageNewestSeenItemId;
 	private Thread mList_holdRemover;
 
-	protected Page(String name, int iconResId, List<Element> elements, Page parentPage) {
+	protected Page(String name, int iconResId, List<PageElement> elements, Page parentPage) {
 		this.name = name;
 		this.iconResId = iconResId;
 		this.elements = Collections.unmodifiableList(elements);
@@ -107,9 +106,9 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		mId = in.readLong();
 		name = in.readString();
 		iconResId = in.readInt();
-		ArrayList<Element> newElements = new ArrayList<>();
-		in.readList(newElements, Element.class.getClassLoader());
-		for (Iterator<Element> i = newElements.iterator(); i.hasNext(); ) {
+		ArrayList<PageElement> newElements = new ArrayList<>();
+		in.readList(newElements, PageElement.class.getClassLoader());
+		for (Iterator<PageElement> i = newElements.iterator(); i.hasNext(); ) {
 			if (i.next().mTwitterEngine == null)
 				i.remove();
 		}
@@ -122,9 +121,9 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		mId = in.getLong(key + ".id", DarknovaApplication.uniqid());
 		name = in.getString(key + ".name", null);
 		iconResId = in.getInt(key + ".iconResId", 0);
-		ArrayList<Element> newElements = new ArrayList<>();
+		ArrayList<PageElement> newElements = new ArrayList<>();
 		for (int i = 0, i_ = in.getInt(key + ".elements.length", 0); i < i_; i++) {
-			Element e = new Element(key + ".elements." + i, in);
+			PageElement e = new PageElement(key + ".elements." + i, in);
 			if (e.mTwitterEngine != null)
 				newElements.add(e);
 		}
@@ -134,18 +133,18 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	}
 
 	public static void templatePageUser(long user_id, String screen_name, MainActivity mainActivity) {
-		Page.Builder builder = new Page.Builder(screen_name, R.drawable.ic_eyes);
+		Page.Builder<Tweet> builder = new Builder<>(screen_name, R.drawable.ic_eyes);
 		TwitterEngine currentUser = mainActivity.getDrawerFragment().getCurrentUser();
-		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_SINGLE, user_id, screen_name));
-		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_USER_TIMELINE, user_id, screen_name));
+		builder.e().add(new PageElement(currentUser, PageElement.FUNCTION_USER_SINGLE, user_id, screen_name));
+		builder.e().add(new PageElement(currentUser, PageElement.FUNCTION_USER_TIMELINE, user_id, screen_name));
 		builder.setParentPage(mainActivity.getCurrentPage().getRepresentingPage());
 		mainActivity.selectPage(Page.addIfNoExist(builder.build()));
 	}
 
 	public static void templatePageSearch(String search, MainActivity mainActivity) {
-		Page.Builder builder = new Page.Builder(search, R.drawable.ic_bigeyed);
+		Page.Builder<Tweet> builder = new Page.Builder<>(search, R.drawable.ic_bigeyed);
 		TwitterEngine currentUser = mainActivity.getDrawerFragment().getCurrentUser();
-		builder.e().add(new Page.Element(currentUser, Page.Element.FUNCTION_SEARCH, 0, search));
+		builder.e().add(new PageElement(currentUser, PageElement.FUNCTION_SEARCH, 0, search));
 		builder.setParentPage(mainActivity.getCurrentPage().getRepresentingPage());
 		mainActivity.selectPage(Page.addIfNoExist(builder.build()));
 	}
@@ -164,17 +163,19 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	public static void reloadPages() {
 		synchronized (mPages) {
 			if (mPagePreferences.getLong("mPages.lastedit", 1) != mLastPageLoad) {
-				ArrayList<Page> oldPages = new ArrayList<>(mPages.subList(0, mNonTemporaryPageLength));
-				ArrayList<Page> tempPages = new ArrayList<>(mPages.subList(mNonTemporaryPageLength, mPages.size()));
+				ArrayList<Page<? extends ObjectWithId>> oldPages = new ArrayList<>();
+				ArrayList<Page<? extends ObjectWithId>> tempPages = new ArrayList<>();
+				oldPages.addAll(mPages.subList(0, mNonTemporaryPageLength));
+				tempPages.addAll(mPages.subList(mNonTemporaryPageLength, mPages.size()));
 				mPages.clear();
 				mNonTemporaryPageLength = mPagePreferences.getInt("mPages.length", 0);
 				for (int i = 0; i < mNonTemporaryPageLength; i++) {
-					Page p = new Page("mPages." + i, mPagePreferences);
+					Page<? extends ObjectWithId> p = new Page<>("mPages." + i, mPagePreferences);
 					if (oldPages.contains(p)) {
 						p = oldPages.get(oldPages.indexOf(p));
 						oldPages.remove(p);
 					} else {
-						for (Element e : p.elements)
+						for (PageElement e : p.elements)
 							if (e.containsStream(e.twitterEngineId)) {
 								TwitterStreamServiceReceiver.addStreamCallback(p);
 								break;
@@ -183,23 +184,15 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 					}
 					if (p.elements.size() == 0)
 						continue;
-					if (p.elements.get(0).function == Element.FUNCTION_DEBUG)
+					if (p.elements.get(0).function == PageElement.FUNCTION_DEBUG)
 						continue;
 					mPages.add(p);
 				}
 				if (mNonTemporaryPageLength > mPages.size())
 					mNonTemporaryPageLength = mPages.size();
-				if (DarknovaApplication.USE_DEBUG_FEATURES) {
-					if (!TwitterEngine.getAll().isEmpty() && (mPages.isEmpty() || mPages.get(0).elements.get(0).function != Element.FUNCTION_DEBUG)) {
-						Page.Builder b = new Page.Builder("Debug");
-						b.e().add(new Element(TwitterEngine.getAll().get(0), Element.FUNCTION_DEBUG, 0, null));
-						mPages.add(0, b.build());
-						mNonTemporaryPageLength++;
-					}
-				}
-				for (Page p : oldPages)
+				for (Page<? extends ObjectWithId> p : oldPages)
 					TwitterStreamServiceReceiver.removeStreamCallback(p);
-				for (Page p : tempPages)
+				for (Page<? extends ObjectWithId> p : tempPages)
 					addIfNoExist(p);
 			}
 			mLastPageLoad = mPagePreferences.getLong("new_tweet.lastedit", 1);
@@ -207,12 +200,12 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	}
 
 	public static void createDefaultPages(TwitterEngine user) {
-		Page.Builder p;
-		p = new Page.Builder("Home", R.drawable.ic_launcher);
-		p.e().add(new Page.Element(user, Page.Element.FUNCTION_HOME_TIMELINE, 0, null));
+		Page.Builder<Tweet> p;
+		p = new Page.Builder<>("Home", R.drawable.ic_launcher);
+		p.e().add(new PageElement(user, PageElement.FUNCTION_HOME_TIMELINE, 0, null));
 		addIfNoExist(p.build(), false);
-		p = new Page.Builder("Mentions", R.drawable.ic_mention);
-		p.e().add(new Page.Element(user, Page.Element.FUNCTION_MENTIONS, 0, null));
+		p = new Page.Builder<>("Mentions", R.drawable.ic_mention);
+		p.e().add(new PageElement(user, PageElement.FUNCTION_MENTIONS, 0, null));
 		addIfNoExist(p.build(), false);
 	}
 
@@ -232,15 +225,16 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 				newEngines.removeAll(oldEngines);
 				removedEngines.removeAll(engines);
 				for (int i = 0; i < mPages.size(); i++) {
-					Page p = mPages.get(i);
-					ArrayList<Element> newElements = new ArrayList<>(p.elements);
-					for (Element e : p.elements)
+					Page<? extends ObjectWithId> p = mPages.get(i);
+					ArrayList<PageElement> newElements = new ArrayList<>();
+					newElements.addAll(p.elements);
+					for (PageElement e : p.elements)
 						if (removedEngines.contains(e.mTwitterEngine))
 							newElements.remove(e);
 					if (newElements.isEmpty())
 						remove(i--);
 					else if (newElements.size() != p.elements.size()) {
-						Builder newPage = new Builder(p.name, p.iconResId);
+						Builder<Tweet> newPage = new Builder<>(p.name, p.iconResId);
 						newPage.e().addAll(newElements);
 						newPage.mParentPage = mPages.get(p.getParentPageIndex());
 						mPages.set(i, newPage.build());
@@ -254,8 +248,10 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		reloadPages();
 	}
 
-	public static ArrayList<Page> getList() {
-		return new ArrayList<>(mPages);
+	public static ArrayList<Page<? extends ObjectWithId>> getList() {
+		ArrayList<Page<? extends ObjectWithId>> res = new ArrayList<>();
+		res.addAll(mPages);
+		return res;
 	}
 
 	public static int indexOf(Page p) {
@@ -272,12 +268,13 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		broadcastPageChange();
 	}
 
-	public static Page getLoaded(Page p) {
+	@SuppressWarnings("unchecked")
+	public static <_T extends ObjectWithId> Page<_T> getLoaded(Page<_T> p) {
 		synchronized (mPages) {
 			int i = mPages.indexOf(p);
 			if (i == -1)
 				return null;
-			return Page.mPages.get(i);
+			return (Page<_T>) Page.mPages.get(i);
 		}
 	}
 
@@ -293,11 +290,11 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		}
 	}
 
-	public static int addIfNoExist(Page p) {
+	public static int addIfNoExist(Page<? extends ObjectWithId> p) {
 		return addIfNoExist(p, true);
 	}
 
-	public static int addIfNoExist(Page p, boolean isTemporaryPage) {
+	public static int addIfNoExist(Page<? extends ObjectWithId> p, boolean isTemporaryPage) {
 		synchronized (mPages) {
 			int i = mPages.indexOf(p);
 			if (i != -1) {
@@ -309,11 +306,12 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 				}
 				return i;
 			}
-			for (Element e : p.elements)
+			for (PageElement e : p.elements) {
 				if (e.containsStream(e.twitterEngineId)) {
 					TwitterStreamServiceReceiver.addStreamCallback(p);
 					break;
 				}
+			}
 			i = isTemporaryPage ? mPages.size() : mNonTemporaryPageLength;
 			mPages.add(i, p);
 			if (!isTemporaryPage) {
@@ -329,7 +327,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		return mPages.size();
 	}
 
-	public static Page get(int index) {
+	public static Page<? extends ObjectWithId> get(int index) {
 		return mPages.get(index);
 	}
 
@@ -395,10 +393,10 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		}
 	}
 
-	public void setFragment(TimelineFragment frag) {
+	public void setFragment(PageFragment<_T> frag) {
 		stopPageHolder();
 		if (frag == null) { // delay gc
-			final List<Tweet> mList_hold = mList != null && mList.get() != null ? mList.get() : null;
+			final List<_T> mList_hold = mList != null && mList.get() != null ? mList.get() : null;
 			if (mList_hold != null) {
 				mList_holdRemover = new Thread("PageRemover for " + name + " size " + mList_hold.size()) {
 					@Override
@@ -478,14 +476,14 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	}
 
 	public boolean canHave(Tweet tweet) {
-		for (Element e : elements)
+		for (PageElement e : elements)
 			if (e.canHave(tweet))
 				return true;
 		return false;
 	}
 
 	public boolean containsStream(TwitterEngine engine) {
-		for (Element e : elements)
+		for (PageElement e : elements)
 			if (e.containsStream(engine.getUserId()))
 				return true;
 		return false;
@@ -506,7 +504,7 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 
 	public String generateUniqid() {
 		StringBuilder sb = new StringBuilder();
-		for (Element e : elements) {
+		for (PageElement e : elements) {
 			if (sb.length() > 0)
 				sb.append(":");
 			sb.append(e.generateUniqid());
@@ -518,12 +516,12 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 	public boolean equals(Object o) {
 		if (!(o instanceof Page))
 			return false;
-		Page p2 = (Page) o;
+		Page<? extends ObjectWithId> p2 = (Page<? extends ObjectWithId>) o;
 		if (p2.mId == mId)
 			return true;
 		if (p2.elements.size() != elements.size())
 			return false;
-		ArrayList<Element> e = new ArrayList<>(p2.elements);
+		ArrayList<PageElement> e = new ArrayList<>(p2.elements);
 		e.removeAll(elements);
 		return e.isEmpty();
 	}
@@ -563,242 +561,10 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 		void onPageListChanged();
 	}
 
-	public static class Element implements Parcelable {
-		public static final int FUNCTION_DEBUG = -1;
-
-		/**
-		 * Functions returning tweets
-		 */
-		public static final int FUNCTION_HOME_TIMELINE = 0;
-		public static final int FUNCTION_MENTIONS = 1;
-		public static final int FUNCTION_RETWEETS_OF_ME = 2;
-		public static final int FUNCTION_SEARCH = 3;
-		public static final int FUNCTION_LIST_TWEETS = 4;
-		public static final int FUNCTION_USER_TIMELINE = 5;
-		public static final int FUNCTION_USER_FAVORITES = 6;
-		public static final int FUNCTION_TWEET_SINGLE = 7;
-
-		/**
-		 * Functions returning user IDs
-		 */
-		public static final int FUNCTION_BLOCKED_USERS = 9;
-		public static final int FUNCTION_NO_RETWEET_USERS = 10;
-		public static final int FUNCTION_LIST_MEMBERS = 11;
-		public static final int FUNCTION_LIST_SUBSCRIBERS = 12;
-		public static final int FUNCTION_USER_FOLLOWERS = 13;
-		public static final int FUNCTION_USER_FRIENDS = 14;
-		public static final int FUNCTION_USER_LIST_FOLLOWING = 15;
-		public static final int FUNCTION_TWEET_RETWEETED_BY = 16;
-
-		/**
-		 * Functions returning lists
-		 */
-		public static final int FUNCTION_USER_LIST_MEMBERED = 17;
-
-		/**
-		 * Functions returning single user
-		 */
-		public static final int FUNCTION_USER_SINGLE = 18;
-
-		/**
-		 * Functions returning DMs
-		 */
-		public static final int FUNCTION_DM_RECEIVED = 19;
-		public static final int FUNCTION_DM_SENT = 20;
-		@SuppressWarnings("unused")
-		public static final Parcelable.Creator<Element> CREATOR = new Parcelable.Creator<Element>() {
-			@Override
-			public Element createFromParcel(Parcel in) {
-				return new Element(in);
-			}
-
-			@Override
-			public Element[] newArray(int size) {
-				return new Element[size];
-			}
-		};
-		public final long twitterEngineId;
-		public final int function;
-		public final long id;
-		public final String name;
-		private TwitterEngine mTwitterEngine;
-		private String mUniqid;
-
-		public Element(TwitterEngine twitterEngine, int function, long id, String name) {
-			this.twitterEngineId = twitterEngine.getUserId();
-			this.mTwitterEngine = twitterEngine;
-			this.function = function;
-			this.id = id;
-			this.name = name;
-		}
-
-		protected Element(String key, SharedPreferences in) {
-			twitterEngineId = in.getLong(key + ".twitterEngineId", 0);
-			mTwitterEngine = TwitterEngine.get(twitterEngineId);
-			function = in.getInt(key + ".function", 0);
-			id = in.getLong(key + ".id", 0);
-			name = in.getString(key + ".name", null);
-		}
-
-		protected Element(Parcel in) {
-			twitterEngineId = in.readLong();
-			mTwitterEngine = TwitterEngine.get(twitterEngineId);
-			function = in.readInt();
-			id = in.readLong();
-			name = in.readString();
-		}
-
-		@Override
-		public int hashCode() {
-			return Long.valueOf(twitterEngineId).hashCode() ^ function ^ Long.valueOf(id).hashCode() ^ (name == null ? 0 : name.hashCode());
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			return o instanceof Element &&
-					((Element) o).twitterEngineId == twitterEngineId &&
-					((Element) o).function == function &&
-					((Element) o).id == id &&
-					((((Element) o).name != null && ((Element) o).name.equals(name)) ||
-							(name == null && ((Element) o).name == null));
-		}
-
-		public String generateUniqid() {
-			if (mUniqid != null)
-				return mUniqid;
-			mUniqid = twitterEngineId + "." + function + "." + id + "." + name;
-			return mUniqid;
-		}
-
-		public boolean containsStream(TwitterEngine e) {
-			return e != null && containsStream(e.getUserId());
-		}
-
-		public boolean containsStream(long user_id) {
-			switch (function) {
-				case FUNCTION_HOME_TIMELINE:
-					return user_id == twitterEngineId;
-				case FUNCTION_MENTIONS:
-					return user_id == twitterEngineId;
-				case FUNCTION_USER_TIMELINE:
-					return user_id == id;
-			}
-			return false;
-		}
-
-		public boolean isHeaderView() {
-			switch (function) {
-				case FUNCTION_USER_SINGLE:
-					return true;
-				case FUNCTION_DEBUG:
-					return true;
-			}
-			return false;
-		}
-
-		public int getHeaderType() {
-			switch (function) {
-				case FUNCTION_USER_SINGLE:
-					return R.layout.row_header_userbig;
-				case FUNCTION_DEBUG:
-					return R.layout.debug;
-			}
-			return -1;
-		}
-
-		public boolean isOnlyElement() {
-			switch (function) {
-				case FUNCTION_TWEET_SINGLE:
-					return true;
-				case FUNCTION_DEBUG:
-					return true;
-			}
-			return false;
-		}
-
-		public boolean canHave(Tweet tweet) {
-			switch (function) {
-				case FUNCTION_HOME_TIMELINE:
-					return (tweet.perUserInfo.get(twitterEngineId) != null) && (twitterEngineId == tweet.user.user_id || mTwitterEngine.getTweeter().follows(tweet.user));
-				case FUNCTION_MENTIONS:
-					if (tweet.entities != null)
-						for (Entities.Entity e : tweet.entities.list) {
-							if (e instanceof Entities.MentionsEntity)
-								if (((Entities.MentionsEntity) e).id == twitterEngineId)
-									return true;
-						}
-					return false;
-				case FUNCTION_USER_TIMELINE:
-					return tweet.user.user_id == id;
-				case FUNCTION_USER_SINGLE:
-					return false;
-				case FUNCTION_SEARCH:
-					return true;
-			}
-			return true;
-		}
-
-		public TwitterEngine getTwitterEngine() {
-			if (mTwitterEngine == null && twitterEngineId != 0)
-				mTwitterEngine = TwitterEngine.get(twitterEngineId);
-			return mTwitterEngine;
-		}
-
-		@Override
-		public int describeContents() {
-			return 0;
-		}
-
-		@Override
-		public void writeToParcel(Parcel dest, int flags) {
-			dest.writeLong(twitterEngineId);
-			dest.writeInt(function);
-			dest.writeLong(id);
-			dest.writeString(name);
-		}
-
-		public void writeToPreferences(String key, SharedPreferences.Editor dest) {
-			dest.putLong(key + ".twitterEngineId", twitterEngineId);
-			dest.putInt(key + ".function", function);
-			dest.putLong(key + ".id", id);
-			dest.putString(key + ".name", name);
-		}
-
-		public ElementHeader createHeader(int viewType) {
-			ElementHeader header = new ElementHeader();
-			header.mId = DarknovaApplication.uniqid();
-			header.mHeaderType = viewType;
-			return header;
-		}
-
-		public class ElementHeader implements Comparable<ElementHeader> {
-
-			private long mId;
-			private int mHeaderType;
-
-			public long getId() {
-				return mId;
-			}
-
-			public int getHeaderType() {
-				return mHeaderType;
-			}
-
-			@Override
-			public int compareTo(@NonNull ElementHeader another) {
-				return mId > another.mId ? 1 : (mId == another.mId ? 0 : -1);
-			}
-
-			public Element getElement() {
-				return Element.this;
-			}
-		}
-	}
-
-	public static class Builder {
+	public static class Builder<_T extends ObjectWithId> {
 		String mName;
 		int mResId;
-		ArrayList<Element> mElements = new ArrayList<>();
+		ArrayList<PageElement> mElements = new ArrayList<>();
 		Page mParentPage;
 
 		public Builder(String name, int resId) {
@@ -831,21 +597,21 @@ public class Page implements Parcelable, TwitterEngine.TwitterStreamCallback {
 			return this;
 		}
 
-		public ArrayList<Element> e() {
+		public ArrayList<PageElement> e() {
 			return mElements;
 		}
 
-		public Page build() {
+		public Page<_T> build() {
 			if (mElements == null)
 				throw new RuntimeException("already built");
 			if (mElements.size() == 0)
 				throw new RuntimeException("no element");
 			if (mElements.size() > 1)
-				for (Element e : mElements)
+				for (PageElement e : mElements)
 					if (e.isOnlyElement())
 						throw new RuntimeException("only one element allowed");
 			Collections.sort(mElements, elementComparator);
-			Page p = new Page(mName, mResId, mElements, mParentPage);
+			Page<_T> p = new Page<>(mName, mResId, mElements, mParentPage);
 			mElements = null;
 			return p;
 		}

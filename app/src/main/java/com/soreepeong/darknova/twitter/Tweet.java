@@ -14,7 +14,7 @@ import java.util.HashMap;
  *
  * @author Soreepeong
  */
-public class Tweet implements Parcelable, Comparable<Tweet>{
+public class Tweet implements ObjectWithId, Parcelable {
 
 	private static WeakValueHashMap<Long, Tweet> mTweets = new WeakValueHashMap<>();
 	public final ArrayList<Long> accessedBy = new ArrayList<>();
@@ -68,10 +68,6 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 		in.readList(accessedBy, Long.class.getClassLoader());
 	}
 
-	public static Tweet getExistingTweet(long id){
-		return mTweets.get(id);
-	}
-
 	public static Tweet getTweet(long id){
 		Tweet t = mTweets.get(id);
 		if(t != null)
@@ -116,7 +112,7 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 		return t;
 	}
 
-	public static Tweet getTemporaryTweet(){
+	public static Tweet getTemporary() {
 		return new Tweet();
 	}
 
@@ -126,8 +122,8 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 	}
 
 	@Override
-	public int compareTo(@NonNull Tweet another) {
-		return id < another.id ? -1 : (id == another.id ? 0 : 1);
+	public int compareTo(@NonNull ObjectWithId another) {
+		return id < ((Tweet) another).id ? -1 : (id == ((Tweet) another).id ? 0 : 1);
 	}
 
 	@Override
@@ -179,40 +175,9 @@ public class Tweet implements Parcelable, Comparable<Tweet>{
 		dest.writeList(accessedBy);
 	}
 
-	public static class InternalInformation implements Parcelable {
-		@SuppressWarnings("unused")
-		public static final Parcelable.Creator<InternalInformation> CREATOR = new Parcelable.Creator<InternalInformation>() {
-			@Override
-			public InternalInformation createFromParcel(Parcel in) {
-				return new InternalInformation(in);
-			}
-
-			@Override
-			public InternalInformation[] newArray(int size) {
-				return new InternalInformation[size];
-			}
-		};
-		public long lastUpdated;
-		public boolean stub;
-
-		public InternalInformation() {
-		}
-
-		protected InternalInformation(Parcel in) {
-			lastUpdated = in.readLong();
-			stub = in.readByte() != 0x00;
-		}
-
-		@Override
-		public int describeContents() {
-			return 0;
-		}
-
-		@Override
-		public void writeToParcel(Parcel dest, int flags) {
-			dest.writeLong(lastUpdated);
-			dest.writeByte((byte) (stub ? 0x01 : 0x00));
-		}
+	@Override
+	public long getId() {
+		return id;
 	}
 
 	public static class ForUserInfo implements Parcelable{

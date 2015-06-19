@@ -26,6 +26,7 @@ import android.support.v4.app.NotificationCompat;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.settings.PageElement;
 import com.soreepeong.darknova.settings.TemplateTweet;
 import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.StringTools;
@@ -153,7 +154,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 		Page.Builder builder = new Page.Builder();
 		for (TwitterEngine e : TwitterEngine.getStreamables()) {
 			e.addStreamCallback(this);
-			builder.e().add(new Page.Element(e, Page.Element.FUNCTION_MENTIONS, 0, null));
+			builder.e().add(new PageElement(e, PageElement.FUNCTION_MENTIONS, 0, null));
 		}
 		mNotifyChecker = builder.e().isEmpty() ? null : builder.build();
 		TwitterEngine.addOnUserlistChangedListener(this);
@@ -172,7 +173,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 		synchronized (mRemovalPendingStreamingUsers) {
 			for (TwitterEngine e : engines) {
 				e.addStreamCallback(this);
-				builder.e().add(new Page.Element(e, Page.Element.FUNCTION_MENTIONS, 0, null));
+				builder.e().add(new PageElement(e, PageElement.FUNCTION_MENTIONS, 0, null));
 				if (mRemovalPendingStreamingUsers.contains(e))
 					mHandler.removeMessages(MESSAGE_USER_REMOVED_STREAM_STOP, mRemovalPendingStreamingUsers.remove(mRemovalPendingStreamingUsers.indexOf(e)));
 			}

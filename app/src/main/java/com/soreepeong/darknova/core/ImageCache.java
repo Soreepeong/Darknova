@@ -1,5 +1,6 @@
 package com.soreepeong.darknova.core;
 
+import android.app.ActivityManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -60,7 +61,6 @@ import pl.droidsonroids.gif.GifDrawable;
  * @author Soreepeong
  */
 public class ImageCache {
-	private static final int MAX_SIZE = 4 * 1048576;
 	private static final int REVEAL_ANIMATION_LENGTH = 300;
 	private static final String[] COLUMN_ID_ONLY = new String[]{"_id"};
 	private static final AccelerateDecelerateInterpolator REVEAL_ANIMATION_INTERPOLATOR = new AccelerateDecelerateInterpolator();
@@ -120,12 +120,12 @@ public class ImageCache {
 	private final SparseArray<BitmapDrawable> mNullResourceBitmaps = new SparseArray<>();
 	private File mCacheFile;
 
-	private ImageCache(ContentResolver resolver, Resources res) throws IOException {
-		mResolver = resolver;
-		mResources = res;
+	private ImageCache(Context context) throws IOException {
+		mResolver = context.getContentResolver();
+		mResources = context.getResources();
 		mSchedulerLocal = new ThreadScheduler(2, "LocalImage");
 		mSchedulerRemote = new ThreadScheduler(4, "RemoteImage");
-		mMemoryCache = new LruCache<String, BitmapDrawable>(MAX_SIZE) {
+		mMemoryCache = new LruCache<String, BitmapDrawable>(((ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE)).getMemoryClass() * 1048576 / 8) {
 			@Override
 			protected int sizeOf(String key, BitmapDrawable bitmap) {
 				if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
@@ -597,7 +597,7 @@ public class ImageCache {
 		@Override
 		public void run() {
 			try {
-				mCurrentCache = new ImageCache(mContext.getContentResolver(), mContext.getResources());
+				mCurrentCache = new ImageCache(mContext);
 				mMainThreadHandler.post(new Runnable() {
 					@Override
 					public void run() {

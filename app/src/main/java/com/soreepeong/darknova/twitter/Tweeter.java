@@ -8,6 +8,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.support.annotation.NonNull;
 
 import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.WeakValueHashMap;
@@ -32,7 +33,7 @@ import java.util.Map;
  *
  * @author Soreepeong
  */
-public class Tweeter implements Parcelable {
+public class Tweeter implements ObjectWithId, Parcelable {
 
 	private static final WeakValueHashMap<Long, Tweeter> mUsersByUserId = new WeakValueHashMap<>();
 	private static final WeakValueHashMap<String, Tweeter> mUsersByScreenName = new WeakValueHashMap<>();
@@ -254,7 +255,7 @@ public class Tweeter implements Parcelable {
 		}
 	}
 
-	public static Tweeter getTemporaryTweeter() {
+	public static Tweeter getTemporary() {
 		return new Tweeter();
 	}
 
@@ -354,8 +355,18 @@ public class Tweeter implements Parcelable {
 		dest.writeMap(perUserInfo);
 	}
 
+	@Override
+	public long getId() {
+		return user_id;
+	}
+
+	@Override
+	public int compareTo(@NonNull ObjectWithId another) {
+		return user_id < ((Tweeter) another).user_id ? -1 : (user_id == ((Tweeter) another).user_id ? 0 : 1);
+	}
+
 	public interface OnUserInformationChangedListener {
-		public void onUserInformationChanged(Tweeter tweeter);
+		void onUserInformationChanged(Tweeter tweeter);
 	}
 
 	public static class AlwaysAvailableUsers implements OnUserInformationChangedListener, Handler.Callback, TwitterEngine.OnUserlistChangedListener {
@@ -490,42 +501,6 @@ public class Tweeter implements Parcelable {
 		public void writeToParcel(Parcel dest, int flags) {
 			dest.writeByte((byte) (following ? 0x01 : 0x00));
 			dest.writeByte((byte) (follow_request_sent ? 0x01 : 0x00));
-		}
-	}
-
-	public static class InternalInformation implements Parcelable {
-		@SuppressWarnings("unused")
-		public static final Parcelable.Creator<InternalInformation> CREATOR = new Parcelable.Creator<InternalInformation>() {
-			@Override
-			public InternalInformation createFromParcel(Parcel in) {
-				return new InternalInformation(in);
-			}
-
-			@Override
-			public InternalInformation[] newArray(int size) {
-				return new InternalInformation[size];
-			}
-		};
-		long lastUpdated;
-		boolean stub;
-
-		public InternalInformation() {
-		}
-
-		protected InternalInformation(Parcel in) {
-			lastUpdated = in.readLong();
-			stub = in.readByte() != 0x00;
-		}
-
-		@Override
-		public int describeContents() {
-			return 0;
-		}
-
-		@Override
-		public void writeToParcel(Parcel dest, int flags) {
-			dest.writeLong(lastUpdated);
-			dest.writeByte((byte) (stub ? 0x01 : 0x00));
 		}
 	}
 }

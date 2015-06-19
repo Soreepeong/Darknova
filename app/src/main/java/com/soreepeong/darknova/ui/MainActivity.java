@@ -34,7 +34,6 @@ import com.soreepeong.darknova.ui.fragments.PageFragment;
 import com.soreepeong.darknova.ui.fragments.SearchSuggestionFragment;
 import com.soreepeong.darknova.ui.fragments.SortableFragmentStatePagerAdapter;
 import com.soreepeong.darknova.ui.fragments.TemplateTweetEditorFragment;
-import com.soreepeong.darknova.ui.fragments.TimelineFragment;
 
 import java.util.ArrayList;
 
@@ -399,7 +398,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 
 		@Override
 		public Fragment getItem(int position) {
-			return TimelineFragment.newInstance(getCacheDir().getAbsolutePath(), Page.get(position));
+			return PageFragment.newInstance(getCacheDir().getAbsolutePath(), Page.get(position));
 		}
 
 		@Override

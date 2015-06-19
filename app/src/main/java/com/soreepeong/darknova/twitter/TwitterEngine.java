@@ -449,7 +449,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	}
 
 	protected Tweeter parseUser(JsonParser parser, ArrayList<Long> friends) throws IOException, ParseException {
-		Tweeter res = Tweeter.getTemporaryTweeter();
+		Tweeter res = Tweeter.getTemporary();
 		String key;
 		boolean following = false, follow_request_sent = false;
 		while (!Thread.currentThread().isInterrupted() && parser.nextToken() != JsonToken.END_OBJECT) {
@@ -564,7 +564,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	}
 
 	protected Tweet parseTweet(JsonParser parser, ArrayList<Long> friends) throws IOException, ParseException {
-		Tweet res = Tweet.getTemporaryTweet();
+		Tweet res = Tweet.getTemporary();
 		Entities e1 = null, e2 = null;
 		String key, unused_message = null;
 		long in_reply_to_user_id = 0;

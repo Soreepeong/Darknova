@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,9 +58,11 @@ import java.util.regex.Pattern;
  *
  * @author Soreepeong
  */
-public class SearchSuggestionFragment extends Fragment implements SearchView.OnQueryTextListener, View.OnFocusChangeListener, ImageCache.OnImageCacheReadyListener, MenuItemCompat.OnActionExpandListener, View.OnClickListener {
+public class SearchSuggestionFragment extends Fragment implements SearchView.OnQueryTextListener, View.OnFocusChangeListener, ImageCache.OnImageCacheReadyListener, MenuItemCompat.OnActionExpandListener, View.OnClickListener, TwitterEngine.OnUserlistChangedListener {
 	private static final int LIST_COUNT = 15;
-	private static final ArrayList<SavedSearch> mSavedSearches = new ArrayList<>();
+	private static final HashMap<Long, ArrayList<SavedSearch>> mSavedSearches = new HashMap<>();
+	private static final HashMap<Long, UserSearchHistoryManager> mUserHistory = new HashMap<>();
+	private static final HashMap<Long, TweetSearchHistoryManager> mTweetHistory = new HashMap<>();
 	private static File mSearchHistoryFile;
 	private final ArrayList<UserSuggestion> mUserList = new ArrayList<>();
 	private final ArrayList<SearchSuggestion> mSearchList = new ArrayList<>();
@@ -101,7 +104,8 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		mSearchPreferences = getActivity().getSharedPreferences("SearchLoader", 0);
 		if (mSearchHistoryFile == null) {
 			mSearchHistoryFile = new File(getActivity().getCacheDir(), "search-history");
-			new SearchLoader().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, null);
+			for (TwitterEngine e : TwitterEngine.getAll())
+				new SearchLoader().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, e, null);
 			new Thread() {
 				@Override
 				public void run() {
@@ -114,8 +118,11 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 							return;
 						p.unmarshall(b, 0, b.length);
 						p.setDataPosition(0);
-						UserSearchHistory.prepare(p);
-						TweetSearchHistory.prepare(p);
+						long l;
+						while ((l = p.readLong()) != 0) {
+							mUserHistory.put(l, new UserSearchHistoryManager(p));
+							mTweetHistory.put(l, new TweetSearchHistoryManager(p));
+						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					} finally {
@@ -126,6 +133,8 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			}.start();
 		}
 
+		TwitterEngine.addOnUserlistChangedListener(this);
+
 		return mViewFragment;
 	}
 
@@ -135,9 +144,10 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		mViewFragment = null;
 		mViewUserList = null;
 		mViewSearchList = null;
+		TwitterEngine.removeOnUserlistChangedListener(this);
 	}
 
-	private void saveHistory() {
+	private synchronized void saveHistory() {
 		if (mHistorySaveThread != null)
 			return;
 		mHistorySaveThread = new Thread() {
@@ -147,8 +157,11 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				Parcel p = Parcel.obtain();
 				try {
 					out = new FileOutputStream(mSearchHistoryFile);
-					UserSearchHistory.save(p);
-					TweetSearchHistory.save(p);
+					for (long l : mUserHistory.keySet()) {
+						mUserHistory.get(l).save(p);
+						mTweetHistory.get(l).save(p);
+					}
+					p.writeLong(0);
 					out.write(p.marshall());
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -351,11 +364,16 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			if (res.size() >= LIST_COUNT)
 				res.subList(LIST_COUNT, res.size()).clear();
 		} else {
-			synchronized (UserSearchHistory.mList) {
-				for (int i = 0, i_ = Math.min(LIST_COUNT, UserSearchHistory.mList.size()); i < i_; i++) {
-					Tweeter t = UserSearchHistory.mList.get(i).tweeter;
-					res.add(new UserSuggestion(t, t.screen_name, t.name, null, null));
+			ArrayList<UserSearchHistory> histories = new ArrayList<>();
+			synchronized (mUserHistory) {
+				for (UserSearchHistoryManager hist : mUserHistory.values()) {
+					histories.addAll(hist.mList);
 				}
+			}
+			Collections.sort(histories, Collections.reverseOrder());
+			for (int i = 0, i_ = Math.min(LIST_COUNT, histories.size()); i < i_; i++) {
+				Tweeter t = histories.get(i).tweeter;
+				res.add(new UserSuggestion(t, t.screen_name, t.name, null, null));
 			}
 		}
 		return res;
@@ -363,7 +381,11 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 
 	public ArrayList<SearchSuggestion> makeSearchSuggestions(String text) {
 		ArrayList<SearchSuggestion> res = new ArrayList<>();
-		ArrayList<SavedSearch> list = new ArrayList<>(mSavedSearches);
+		ArrayList<SavedSearch> list = new ArrayList<>();
+		synchronized (mSavedSearches) {
+			for (ArrayList<SavedSearch> a : mSavedSearches.values())
+				list.addAll(a);
+		}
 		text = text.trim();
 		if (!text.isEmpty()) {
 			Iterator<SavedSearch> i = list.iterator();
@@ -421,10 +443,15 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			if (res.size() >= LIST_COUNT)
 				res.subList(LIST_COUNT, res.size()).clear();
 		} else {
-			synchronized (TweetSearchHistory.mList) {
-				for (int i = 0, i_ = Math.min(5, TweetSearchHistory.mList.size()); i < i_; i++)
-					res.add(new SearchSuggestion(TweetSearchHistory.mList.get(i).keyword, null, null));
+			ArrayList<TweetSearchHistory> histories = new ArrayList<>();
+			synchronized (mTweetHistory) {
+				for (TweetSearchHistoryManager hist : mTweetHistory.values()) {
+					histories.addAll(hist.mList);
+				}
 			}
+			Collections.sort(histories, Collections.reverseOrder());
+			for (int i = 0, i_ = Math.min(5, histories.size()); i < i_; i++)
+				res.add(new SearchSuggestion(histories.get(i).keyword, null, null));
 			for (SavedSearch s : list) {
 				SearchSuggestion g = new SearchSuggestion(s.query, null, null);
 				if (!res.contains(g))
@@ -457,6 +484,59 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		hide();
 	}
 
+	@Override
+	public void onUserlistChanged(List<TwitterEngine> engines, List<TwitterEngine> oldEngines) {
+		wholeLoop:
+		for (Iterator<Long> i = mUserHistory.keySet().iterator(); i.hasNext(); ) {
+			Long id = i.next();
+			for (TwitterEngine e : oldEngines)
+				if (e.getUserId() == id)
+					continue wholeLoop;
+			i.remove();
+		}
+		for (TwitterEngine e : engines)
+			if (!mUserHistory.containsKey(e.getUserId()))
+				mUserHistory.put(e.getUserId(), new UserSearchHistoryManager());
+		wholeLoop:
+		for (Iterator<Long> i = mTweetHistory.keySet().iterator(); i.hasNext(); ) {
+			Long id = i.next();
+			for (TwitterEngine e : oldEngines)
+				if (e.getUserId() == id)
+					continue wholeLoop;
+			i.remove();
+		}
+		for (TwitterEngine e : engines)
+			if (!mTweetHistory.containsKey(e.getUserId()))
+				mTweetHistory.put(e.getUserId(), new TweetSearchHistoryManager());
+		ArrayList<TwitterEngine> removedEngines = new ArrayList<>(oldEngines);
+		removedEngines.removeAll(engines);
+		SharedPreferences.Editor edit = mSearchPreferences.edit();
+		for (TwitterEngine engine : removedEngines) {
+			long id = engine.getUserId();
+			for (int i = 0, i_ = mSearchPreferences.getInt("SavedSearch." + id + ".length", 0); i < i_; i++)
+				SavedSearch.removeFromPreference("SavedSearch." + id + "." + i, edit);
+			edit.remove("SavedSearch." + id + ".length");
+		}
+		edit.apply();
+		saveHistory();
+	}
+
+	private void increaseSearchCountRecord(long from, Tweeter to) {
+		UserSearchHistoryManager m = mUserHistory.get(from);
+		if (m == null)
+			mUserHistory.put(from, m = new UserSearchHistoryManager());
+		m.increase(to);
+		saveHistory();
+	}
+
+	private void increaseSearchCountRecord(long from, String to) {
+		TweetSearchHistoryManager m = mTweetHistory.get(from);
+		if (m == null)
+			mTweetHistory.put(from, m = new TweetSearchHistoryManager());
+		m.increase(to);
+		saveHistory();
+	}
+
 	public static class UserSearchHistory implements Parcelable {
 		@SuppressWarnings("unused")
 		public static final Parcelable.Creator<UserSearchHistory> CREATOR = new Parcelable.Creator<UserSearchHistory>() {
@@ -470,8 +550,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				return new UserSearchHistory[size];
 			}
 		};
-		private static final ArrayList<UserSearchHistory> mList = new ArrayList<>();
-		private static final HashMap<Tweeter, UserSearchHistory> mMap = new HashMap<>();
 		public final Tweeter tweeter;
 		public long lastSearch;
 		public int searchCount;
@@ -486,37 +564,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			tweeter = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
 			lastSearch = in.readLong();
 			searchCount = in.readInt();
-		}
-
-		public static void prepare(Parcel p) {
-			synchronized (mList) {
-				mList.clear();
-				mMap.clear();
-				p.readTypedList(mList, CREATOR);
-				for (UserSearchHistory h : mList)
-					mMap.put(h.tweeter, h);
-			}
-		}
-
-		public static void save(Parcel p) {
-			synchronized (mList) {
-				p.writeTypedList(mList);
-			}
-		}
-
-		public static void increase(Tweeter t) {
-			synchronized (mList) {
-				if (mMap.get(t) != null)
-					mMap.get(t).increaseCount();
-				else {
-					UserSearchHistory h = new UserSearchHistory(t);
-					mList.add(h);
-					mMap.put(t, h);
-				}
-				while (mList.size() > 30) {
-					mMap.remove(mList.remove(mList.size() - 1).tweeter);
-				}
-			}
 		}
 
 		public void increaseCount() {
@@ -550,8 +597,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				return new TweetSearchHistory[size];
 			}
 		};
-		private static final ArrayList<TweetSearchHistory> mList = new ArrayList<>();
-		private static final HashMap<String, TweetSearchHistory> mMap = new HashMap<>();
 		public final String keyword;
 		public long lastSearch;
 		public int searchCount;
@@ -566,39 +611,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			keyword = in.readString();
 			lastSearch = in.readLong();
 			searchCount = in.readInt();
-		}
-
-		public static void prepare(Parcel p) {
-			synchronized (mList) {
-				mList.clear();
-				mMap.clear();
-				p.readTypedList(mList, CREATOR);
-				for (TweetSearchHistory h : mList)
-					mMap.put(h.keyword.toLowerCase(), h);
-			}
-		}
-
-		public static void save(Parcel p) {
-			synchronized (mList) {
-				p.writeTypedList(mList);
-			}
-		}
-
-		public static void increase(String text) {
-			synchronized (mList) {
-				String t = text.toLowerCase();
-				if (mMap.get(t) != null)
-					mMap.get(t).increaseCount();
-				else {
-					TweetSearchHistory h = new TweetSearchHistory(text);
-					mList.add(h);
-					mMap.put(t, h);
-				}
-				Collections.sort(mList, Collections.reverseOrder());
-				while (mList.size() > 30) {
-					mMap.remove(mList.remove(mList.size() - 1).keyword);
-				}
-			}
 		}
 
 		protected void increaseCount() {
@@ -628,6 +640,88 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		}
 	}
 
+	private class UserSearchHistoryManager {
+		private final ArrayList<UserSearchHistory> mList = new ArrayList<>();
+		private final HashMap<Tweeter, UserSearchHistory> mMap = new HashMap<>();
+
+		public UserSearchHistoryManager() {
+		}
+
+		public UserSearchHistoryManager(Parcel p) {
+			synchronized (mList) {
+				mList.clear();
+				mMap.clear();
+				p.readTypedList(mList, UserSearchHistory.CREATOR);
+				for (UserSearchHistory h : mList)
+					mMap.put(h.tweeter, h);
+			}
+		}
+
+		public void save(Parcel p) {
+			synchronized (mList) {
+				p.writeTypedList(mList);
+			}
+		}
+
+		public void increase(Tweeter t) {
+			synchronized (mList) {
+				if (mMap.get(t) != null)
+					mMap.get(t).increaseCount();
+				else {
+					UserSearchHistory h = new UserSearchHistory(t);
+					mList.add(h);
+					mMap.put(t, h);
+				}
+				while (mList.size() > 30) {
+					mMap.remove(mList.remove(mList.size() - 1).tweeter);
+				}
+			}
+		}
+
+	}
+
+	private class TweetSearchHistoryManager {
+		private final ArrayList<TweetSearchHistory> mList = new ArrayList<>();
+		private final HashMap<String, TweetSearchHistory> mMap = new HashMap<>();
+
+		public TweetSearchHistoryManager() {
+		}
+
+		public TweetSearchHistoryManager(Parcel p) {
+			synchronized (mList) {
+				mList.clear();
+				mMap.clear();
+				p.readTypedList(mList, TweetSearchHistory.CREATOR);
+				for (TweetSearchHistory h : mList)
+					mMap.put(h.keyword.toLowerCase(), h);
+			}
+		}
+
+		public void save(Parcel p) {
+			synchronized (mList) {
+				p.writeTypedList(mList);
+			}
+		}
+
+		public void increase(String text) {
+			synchronized (mList) {
+				String t = text.toLowerCase();
+				if (mMap.get(t) != null)
+					mMap.get(t).increaseCount();
+				else {
+					TweetSearchHistory h = new TweetSearchHistory(text);
+					mList.add(h);
+					mMap.put(t, h);
+				}
+				Collections.sort(mList, Collections.reverseOrder());
+				while (mList.size() > 30) {
+					mMap.remove(mList.remove(mList.size() - 1).keyword);
+				}
+			}
+		}
+
+	}
+
 	private class ListCreator extends AsyncTask<String, Object, String> {
 		ArrayList<UserSuggestion> userSuggestions;
 		ArrayList<SearchSuggestion> searchSuggestions;
@@ -652,27 +746,31 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		}
 	}
 
-	private class SearchLoader extends AsyncTask<Void, TwitterEngine.RequestException, ArrayList<SavedSearch>> {
+	private class SearchLoader extends AsyncTask<TwitterEngine, TwitterEngine.RequestException, ArrayList<SavedSearch>> {
 		private boolean firstLoad;
+		private TwitterEngine mEngine;
+		private long mId;
 
 		public SearchLoader() {
 			super();
 		}
 
 		@Override
-		protected ArrayList<SavedSearch> doInBackground(Void... params) {
+		protected ArrayList<SavedSearch> doInBackground(TwitterEngine... params) {
 			try {
-				firstLoad = params != null && params.length == 1;
-				if (mSavedSearches.isEmpty()) {
+				mEngine = params[0];
+				mId = mEngine.getUserId();
+				firstLoad = params.length >= 2;
+				if (mSavedSearches.get(mId) == null) {
 					ArrayList<SavedSearch> ret = new ArrayList<>();
-					for (int i = 0, i_ = mSearchPreferences.getInt("SavedSearch.length", 0); i < i_; i++)
-						ret.add(new SavedSearch("SavedSearch." + i, mSearchPreferences));
+					for (int i = 0, i_ = mSearchPreferences.getInt("SavedSearch." + mId + ".length", 0); i < i_; i++)
+						ret.add(new SavedSearch("SavedSearch." + mId + "." + i, mSearchPreferences));
 					if (!ret.isEmpty())
 						return ret;
 				}
 				if (firstLoad)
 					return null;
-				return ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser().getSavedSearches();
+				return mEngine.getSavedSearches();
 			} catch (TwitterEngine.RequestException e) {
 				e.printStackTrace();
 				publishProgress(e);
@@ -689,23 +787,21 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			if (firstLoad) {
 				if (ret == null)
 					return;
-				mSavedSearches.clear();
-				mSavedSearches.addAll(ret);
+				mSavedSearches.put(mEngine.getUserId(), ret);
 				return;
 			}
 			mViewSearchRefresher.setRefreshing(false);
 			if (ret == null) {
 				return;
 			}
-			if (!ret.equals(mSavedSearches)) {
+			if (!ret.equals(mSavedSearches.get(mId))) {
 				SharedPreferences.Editor edit = mSearchPreferences.edit();
-				edit.putInt("SavedSearch.length", ret.size());
+				edit.putInt("SavedSearch." + mId + ".length", ret.size());
 				for (int i = 0; i < ret.size(); i++)
-					ret.get(i).writeToPreferences("SavedSearch." + i, edit);
+					ret.get(i).writeToPreferences("SavedSearch." + mId + "." + i, edit);
 				edit.apply();
 			}
-			mSavedSearches.clear();
-			mSavedSearches.addAll(ret);
+			mSavedSearches.put(mEngine.getUserId(), ret);
 			if (mViewFragment.getVisibility() != View.VISIBLE)
 				return;
 			if (mTaskListCreator != null)
@@ -751,8 +847,12 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			if (!query.equals(mInputText))
 				return;
 			if (u != null && !u.isEmpty()) {
-				UserSearchHistory.increase(u.get(0));
-				saveHistory();
+				TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
+				if (currentUser == null)
+					return;
+				synchronized (mUserHistory) {
+					increaseSearchCountRecord(currentUser.getUserId(), u.get(0));
+				}
 				openUser(u.get(0).user_id, u.get(0).screen_name);
 				return;
 			}
@@ -848,8 +948,12 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 						mTaskUserSearcher.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, s.name);
 					return;
 				}
-				UserSearchHistory.increase(s.user);
-				saveHistory();
+				TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
+				if (currentUser == null)
+					return;
+				synchronized (mUserHistory) {
+					increaseSearchCountRecord(currentUser.getUserId(), s.user);
+				}
 				openUser(s.user.user_id, s.user.screen_name);
 			}
 		}
@@ -883,7 +987,10 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 
 		@Override
 		public void onRefresh() {
-			new SearchLoader().execute();
+			TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
+			if (currentUser == null)
+				return;
+			new SearchLoader().execute(currentUser);
 		}
 
 		public class ViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
@@ -905,8 +1012,12 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				if (position < 0 || position >= getItemCount())
 					return;
 				SearchSuggestion s = mSearchList.get(position);
-				TweetSearchHistory.increase(s.text);
-				saveHistory();
+				TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
+				if (currentUser == null)
+					return;
+				synchronized (mTweetHistory) {
+					increaseSearchCountRecord(currentUser.getUserId(), s.text);
+				}
 				Page.templatePageSearch(s.text, (MainActivity) getActivity());
 				mSearchView.setIconified(true);
 				MenuItemCompat.collapseActionView(mMenuItem);

@@ -27,6 +27,7 @@ import android.view.ContextMenu;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.RotateAnimation;
@@ -47,6 +48,7 @@ import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
 import com.soreepeong.darknova.tools.ResTools;
 import com.soreepeong.darknova.tools.StringTools;
+import com.soreepeong.darknova.twitter.ObjectWithId;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.twitter.TwitterStreamServiceReceiver;
@@ -360,9 +362,9 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				if (mStreamPowerChangeWaitingEngines.contains(e)) {
 					mStreamPowerChangeWaitingEngines.remove(e);
 					if (msg.what == 1)
-						TwitterStreamServiceReceiver.forceSetStatus((TwitterEngine) e, false);
+						TwitterStreamServiceReceiver.forceSetStatus(e, false);
 					else if (msg.what == 2)
-						TwitterStreamServiceReceiver.forceSetStatus((TwitterEngine) e, true);
+						TwitterStreamServiceReceiver.forceSetStatus(e, true);
 					if (!mIsPageListing)
 						mPageAdapter.notifyItemChanged(1 + mPageAdapter.mListedUsers.indexOf(e.getTweeter()));
 				}
@@ -380,7 +382,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 
 	public class NavigationDrawerAdapter extends RecyclerView.Adapter<NavigationDrawerAdapter.DrawerViewHolder> implements Tweeter.OnUserInformationChangedListener, DraggableItemAdapter<NavigationDrawerAdapter.DrawerViewHolder> {
 
-		final ArrayList<Page> mListedPages;
+		final ArrayList<Page<? extends ObjectWithId>> mListedPages;
 		final ArrayList<Tweeter> mListedUsers;
 		final SparseArray<BitmapDrawable> mSizedBitmapResources = new SparseArray<>();
 
@@ -395,7 +397,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 		Manage pages	Manage users(Reorder)
 		 */
 
-		public NavigationDrawerAdapter(List<Page> data, ArrayList<TwitterEngine> users) {
+		public NavigationDrawerAdapter(List<Page<? extends ObjectWithId>> data, ArrayList<TwitterEngine> users) {
 			mListedPages = new ArrayList<>(data);
 			mListedUsers = new ArrayList<>();
 			for (TwitterEngine e : users) {
@@ -405,7 +407,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 			setHasStableIds(true);
 		}
 
-		public void updateUnderlyingData(List<Page> data, ArrayList<TwitterEngine> users) {
+		public void updateUnderlyingData(List<Page<? extends ObjectWithId>> data, ArrayList<TwitterEngine> users) {
 			if (data != null) {
 				mListedPages.clear();
 				mListedPages.addAll(data);
@@ -709,7 +711,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 
 					RotateAnimation ani = new RotateAnimation(-180, 0, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
 					ani.setDuration(300);
-					ani.setInterpolator(getActivity(), android.R.anim.accelerate_decelerate_interpolator);
+					ani.setInterpolator(new AccelerateDecelerateInterpolator());
 					mViewShowAccountList.startAnimation(ani);
 				} else if (v.equals(mViewAvatar)) {
 					Page.templatePageUser(mCurrentUser.getUserId(), mCurrentUser.getScreenName(), (MainActivity) getActivity());
@@ -754,7 +756,10 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				if (position < 0 || position >= mListedPages.size())
 					return;
 				if (v.equals(actionButton)) {
-					int newIndex = Page.remove(position).getParentPageIndex();
+					Page p = Page.remove(position);
+					if (p == null)
+						return;
+					int newIndex = p.getParentPageIndex();
 					if (newIndex != -1)
 						selectPage(newIndex);
 				} else if (mListEditMode) {
