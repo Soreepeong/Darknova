@@ -23,8 +23,7 @@ import android.view.animation.AccelerateInterpolator;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
-import android.view.animation.TranslateAnimation;
-import android.widget.FrameLayout;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -43,6 +42,8 @@ import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.twitter.TwitterStreamServiceReceiver;
 import com.soreepeong.darknova.ui.MainActivity;
+import com.soreepeong.darknova.ui.MediaPreviewActivity;
+import com.soreepeong.darknova.ui.span.TweetSpanner;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
@@ -87,7 +88,6 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 	protected SwipeRefreshLayout mViewRefresher;
 	protected ProgressBar mViewProgress;
 	protected ImageView mViewEmptyIndicator;
-	protected FrameLayout mViewUnderActionbar;
 	protected TextView mViewUnreadTweetCount;
 	protected ImageCache mImageCache;
 
@@ -247,22 +247,6 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			lastIndex += mAdapter.mElementHeaders.size() + mAdapter.mNonElementHeaders.size();
 			mListLayout.scrollToPositionWithOffset(lastIndex, mPage.mPageLastOffset);
 		}
-	}
-
-	public void onActionBarShown() {
-		TranslateAnimation a = new TranslateAnimation(0, 0, -getResources().getDimensionPixelSize(R.dimen.abc_action_bar_default_height_material), 0);
-		a.setDuration(300);
-		a.setInterpolator(new DecelerateInterpolator());
-		mViewUnderActionbar.startAnimation(a);
-		mViewUnderActionbar.setPadding(0, getResources().getDimensionPixelSize(R.dimen.abc_action_bar_default_height_material), 0, 0);
-	}
-
-	public void onActionBarHidden() {
-		TranslateAnimation a = new TranslateAnimation(0, 0, getResources().getDimensionPixelSize(R.dimen.abc_action_bar_default_height_material), 0);
-		a.setDuration(300);
-		a.setInterpolator(new AccelerateInterpolator());
-		mViewUnderActionbar.startAnimation(a);
-		mViewUnderActionbar.setPadding(0, 0, 0, 0);
 	}
 
 	@Override
@@ -615,7 +599,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			final LayoutInflater inflater = LayoutInflater.from(parent.getContext());
 			View v = inflater.inflate(viewType, parent, false);
 			switch (viewType) {
-				case R.layout.row_header_userbig:
+				case R.layout.row_header_big_user:
 					return new UserHeaderViewHolder(v);
 			}
 			return new NonElementHeaderViewHolder(v);
@@ -672,36 +656,90 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		}
 
 		class UserHeaderViewHolder extends CustomViewHolder {
-			private final TextView lblUserId;
+			private final TextView mId, mName, mBio, mHomepage, mLocation;
+			private final ImageView mUserImage, mUserBannerImage;
+			private final Button mFollowers, mFriends, mTweets, mFavorites;
+			private final View mIsProtected, mIsVerified;
+			private Tweeter user;
 
 			// TODO Design
 
 			public UserHeaderViewHolder(View itemView) {
 				super(itemView);
-				lblUserId = (TextView) itemView.findViewById(R.id.lblUserId);
+				mId = (TextView) itemView.findViewById(R.id.user_id);
+				mName = (TextView) itemView.findViewById(R.id.user_name);
+				mLocation = (TextView) itemView.findViewById(R.id.user_location);
+				mHomepage = (TextView) itemView.findViewById(R.id.user_homepage);
+				mBio = (TextView) itemView.findViewById(R.id.user_bio);
+				mUserImage = (ImageView) itemView.findViewById(R.id.user_image);
+				mUserBannerImage = (ImageView) itemView.findViewById(R.id.user_banner);
+				mFollowers = (Button) itemView.findViewById(R.id.followers);
+				mFriends = (Button) itemView.findViewById(R.id.friends);
+				mTweets = (Button) itemView.findViewById(R.id.tweets);
+				mFavorites = (Button) itemView.findViewById(R.id.favorites);
+				mIsProtected = itemView.findViewById(R.id.imgInfoProtected);
+				mIsVerified = itemView.findViewById(R.id.imgInfoVerified);
+				mUserImage.setOnClickListener(this);
+				mUserBannerImage.setOnClickListener(this);
+				mTweets.setOnClickListener(this);
+				mFavorites.setOnClickListener(this);
 			}
 
 			@Override
 			public void onClick(View v) {
-
+				if (v.equals(mUserImage)) {
+					if (user.profile_image_url != null)
+						MediaPreviewActivity.previewImage(v.getContext(), user.profile_image_url[user.profile_image_url.length - 1]);
+				} else if (v.equals(mUserBannerImage)) {
+					if (user.profile_banner_url != null)
+						MediaPreviewActivity.previewImage(v.getContext(), user.profile_banner_url[user.profile_banner_url.length - 1]);
+				} else if (v.equals(mTweets)) {
+					Page.templatePageUser(user.user_id, user.screen_name, (MainActivity) getActivity(), PageElement.FUNCTION_USER_TIMELINE, Page.indexOf(mPage));
+				} else if (v.equals(mFavorites)) {
+					Page.templatePageUser(user.user_id, user.screen_name, (MainActivity) getActivity(), PageElement.FUNCTION_USER_FAVORITES, Page.indexOf(mPage));
+				}
 			}
 
 			@Override
 			public void bindViewHolder(int position) {
 				PageElement.ElementHeader header = (PageElement.ElementHeader) getItem(position);
-				switch (header.getElement().function) {
-					case PageElement.FUNCTION_USER_SINGLE: {
-						Tweeter user = Tweeter.getTweeter(header.getElement().id, header.getElement().name);
-						lblUserId.setText(user.screen_name + ": " + user.name + "\n" +
-								user.statuses_count + " tweets\n" +
-								user.favourites_count + " favorites\n" +
-								user.followers_count + " followers\n" +
-								user.friends_count + " friends\n" +
-								"\n" +
-								user.description);
-						break;
-					}
+				user = Tweeter.getTweeter(header.getElement().id, header.getElement().name);
+				mId.setText(user.screen_name);
+				mName.setText(user.name);
+				if (user.location == null || user.location.isEmpty())
+					mLocation.setVisibility(View.GONE);
+				else {
+					mLocation.setVisibility(View.VISIBLE);
+					mLocation.setText(user.location);
 				}
+				if (user.description == null || user.description.isEmpty())
+					mBio.setVisibility(View.GONE);
+				else {
+					mBio.setVisibility(View.VISIBLE);
+					mBio.setText(TweetSpanner.includeEntities(user.description, user.entities_description, mImageCache, mHomepage.getLineHeight(), mBio.getText()));
+				}
+				if (user.url == null || user.url.isEmpty())
+					mHomepage.setVisibility(View.GONE);
+				else {
+					mHomepage.setVisibility(View.VISIBLE);
+					mHomepage.setText(user.url == null ? "" : TweetSpanner.includeEntities(user.url, user.entities_url, mImageCache, mHomepage.getLineHeight(), mHomepage.getText()));
+				}
+				mImageCache.assignImageView(mUserImage, user.getProfileImageUrl(), null);
+				mImageCache.assignImageView(mUserBannerImage, user.getProfileBannerUrl(), null);
+				mFollowers.setText(user.followers_count + " followers");
+				mFriends.setText(user.friends_count + " friends");
+				mTweets.setText(user.statuses_count + "\ntweets");
+				mFavorites.setText(user.favourites_count + "\nfavorites");
+				mIsProtected.setVisibility(user._protected ? View.VISIBLE : View.GONE);
+				mIsVerified.setVisibility(user.verified ? View.VISIBLE : View.GONE);
+				for (PageElement e : mPage.elements)
+					if (e.function == PageElement.FUNCTION_USER_TIMELINE) {
+						mTweets.setEnabled(false);
+						mFavorites.setEnabled(true);
+					} else if (e.function == PageElement.FUNCTION_USER_FAVORITES) {
+						mTweets.setEnabled(true);
+						mFavorites.setEnabled(false);
+					}
 			}
 		}
 	}

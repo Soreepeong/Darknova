@@ -94,8 +94,10 @@ public class TemplateTweetAttachment implements Parcelable {
 	}
 
 	public void resolve(final Context context, final AttachmentResolveResult resolveResult) {
-		if (mResolver != null || mLocalFile.exists())
+		if (mResolver != null || (mLocalFile.exists() && mLocalFile.length() != 0)) {
+			android.util.Log.wtf("mLocalFile", "exists?");
 			return;
+		}
 		mResolver = new Thread() {
 			@Override
 			public void run() {

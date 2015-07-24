@@ -555,7 +555,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		res.info.lastUpdated = System.currentTimeMillis();
 		res.info.stub = false;
 		res.url = decodeText(res.url, res.entities_url);
-		res.description = decodeText(res.url, res.entities_description);
+		res.description = decodeText(res.description, res.entities_description);
 		return Tweeter.updateTweeter(res);
 	}
 
@@ -723,6 +723,11 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 
 	public ArrayList<Tweet> getUserHome(long user_id, int count, long since_id, long max_id, boolean exclude_replies, boolean include_entities, TweetCallback callback) throws RequestException {
 		return getTweetArrayRequest("statuses/user_timeline.json?user_id=" + user_id + "&exclude_replies=" + (exclude_replies ? "t" : "f") + "&include_entities=" + (include_entities ? "t" : "f") +
+				(count > 0 ? "&count=" + count : "") + (since_id > 0 ? "&since_id=" + since_id : "") + (max_id > 0 ? "&max_id=" + max_id : ""), null, callback);
+	}
+
+	public ArrayList<Tweet> getUserFavorites(long user_id, int count, long since_id, long max_id, boolean include_entities, TweetCallback callback) throws RequestException {
+		return getTweetArrayRequest("favorites/list.json?user_id=" + user_id + "&include_entities=" + (include_entities ? "t" : "f") +
 				(count > 0 ? "&count=" + count : "") + (since_id > 0 ? "&since_id=" + since_id : "") + (max_id > 0 ? "&max_id=" + max_id : ""), null, callback);
 	}
 
@@ -926,6 +931,25 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			return parseTweet(parser);
 		} catch (ParseException | IOException e) {
 			throw new RequestException("postRetweet", e);
+		} finally {
+			StreamTools.close(in);
+			request.close();
+		}
+	}
+
+	public Tweet postFavorite(long id) throws RequestException {
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "favorites/create.json", auth, true, "id=" + id);
+		if (request == null) return null;
+		InputStream in = null;
+		try {
+			request.submitRequest();
+			if (request.getStatusCode() != 200)
+				throw new RequestException("postFavorite", request);
+			JsonParser parser = JSON.createParser(in = request.getInputStream());
+			parser.nextToken();
+			return parseTweet(parser);
+		} catch (ParseException | IOException e) {
+			throw new RequestException("postFavorite", e);
 		} finally {
 			StreamTools.close(in);
 			request.close();

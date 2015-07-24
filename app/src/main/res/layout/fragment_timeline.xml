@@ -22,36 +22,27 @@
 			android:id="@+id/list"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:clipToPadding="false"
-			android:paddingTop="?actionBarSize"
 			/>
 
-		<FrameLayout
-			android:id="@+id/under_actionbar"
+		<TextView
+			android:id="@+id/unread"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:paddingTop="?actionBarSize">
+			android:background="?attr/colorPrimaryTransparent"
+			android:gravity="center"
+			android:lines="1"
+			android:padding="8dp"
+			android:singleLine="true"
+			android:text="@string/page_loading"
+			/>
 
-			<TextView
-				android:id="@+id/unread"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:background="?attr/colorPrimaryTransparent"
-				android:gravity="center"
-				android:lines="1"
-				android:padding="8dp"
-				android:singleLine="true"
-				android:text="@string/page_loading"
-				/>
-
-			<ProgressBar
-				android:id="@id/progress_horizontal"
-				style="@style/Widget.AppCompat.ProgressBar.Horizontal"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:layout_marginTop="-7dp"
-				android:indeterminate="true"
-				/>
-		</FrameLayout>
+		<ProgressBar
+			android:id="@id/progress_horizontal"
+			style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="-7dp"
+			android:indeterminate="true"
+			/>
 	</FrameLayout>
 </android.support.v4.widget.SwipeRefreshLayout>

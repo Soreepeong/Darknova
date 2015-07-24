@@ -19,9 +19,9 @@ import android.support.v7.widget.RecyclerView;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
 import android.text.method.LinkMovementMethod;
+import android.view.HapticFeedbackConstants;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.animation.AlphaAnimation;
 import android.widget.Button;
@@ -59,6 +59,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.regex.Matcher;
@@ -173,7 +174,6 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		mViewRefresher = (SwipeRefreshLayout) mViewRoot.findViewById(R.id.swipeRefresher);
 		mViewProgress = (ProgressBar) mViewRoot.findViewById(R.id.progress_horizontal);
 		mViewEmptyIndicator = (ImageView) mViewRoot.findViewById(R.id.empty_image);
-		mViewUnderActionbar = (FrameLayout) mViewRoot.findViewById(R.id.under_actionbar);
 		mViewUnreadTweetCount = (TextView) mViewRoot.findViewById(R.id.unread);
 		mColorAccent = ResTools.getColorByAttribute(getActivity(), R.attr.colorAccent);
 
@@ -192,48 +192,10 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 					View v = mListLayout.findViewByPosition(firstVisibleItem);
 					int topRowVerticalPosition = v == null ? 0 : v.getTop() - mViewList.getPaddingTop();
 					mViewRefresher.setEnabled(mPage.mIsListAtTop = (firstVisibleItem == 0 && topRowVerticalPosition >= 0));
-					float touchSlop = ViewConfiguration.get(recyclerView.getContext()).getScaledTouchSlop();
 
 					if (dy <= 0) // scrolling up?
 						processVisibleItems(activity, false);
-					if ((firstVisibleItem == 0 && mViewList.getChildAt(0).getTop() > -bar.getHeight()) || (mListLayout.findFirstCompletelyVisibleItemPosition() == 0 && mListLayout.findLastCompletelyVisibleItemPosition() == mListLayout.getItemCount()) || dy < -touchSlop) {
-						activity.showActionBar();
-					} else if (dy > touchSlop) {
-						activity.hideActionBar();
-					}
 				}
-			}
-		});
-		mViewList.addOnLayoutChangeListener(mListSizeChangeListener = new View.OnLayoutChangeListener() {
-			@Override
-			public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
-				v.post(new Runnable() {
-					@Override
-					public void run() {
-						MainActivity activity = (MainActivity) getActivity();
-						if (activity != null && mListLayout != null) {
-							if (mListLayout.findFirstCompletelyVisibleItemPosition() == 0 && mListLayout.findLastCompletelyVisibleItemPosition() == mListLayout.getItemCount()) {
-								activity.showActionBar();
-							}
-						}
-					}
-				});
-			}
-		});
-		// Run after measurement
-		mHandler.post(new Runnable() {
-			@Override
-			public void run() {
-				MainActivity activity = (MainActivity) getActivity();
-				ActionBar bar = activity != null ? activity.getSupportActionBar() : null;
-				if (bar == null)
-					return;
-
-				int defaultEnd = getResources().getDimensionPixelSize(R.dimen.abc_action_bar_default_height_material); //(int) (getResources().getDisplayMetrics().density * 64);
-				mViewRefresher.setProgressViewOffset(false, bar.getHeight() - mViewRefresher.getProgressCircleDiameter(), bar.getHeight() - mViewRefresher.getProgressCircleDiameter() + defaultEnd);
-
-				// actionbar always shown at the time of inflation
-				mViewUnderActionbar.setPadding(0, getResources().getDimensionPixelSize(R.dimen.abc_action_bar_default_height_material), 0, 0);
 			}
 		});
 
@@ -249,7 +211,6 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 
 	private void processVisibleItems(MainActivity activity, boolean forceRenew) {
 		if (activity == null) return;
-		int visiblePaddingTop = activity.isActionBarVisible() ? mViewList.getPaddingTop() : 0;
 		if (mList != null && !mList.isEmpty() && mQuickFilteredList == null)
 			for (int i = mListLayout.findFirstVisibleItemPosition(); i <= mListLayout.findLastVisibleItemPosition(); i++) {
 				if (mAdapter.getItemViewType(i) != R.layout.row_tweet)
@@ -257,7 +218,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				int position = mAdapter.adapterPositionToListIndex(i);
 				Tweet tweet = mQuickFilteredList == null ? mList.get(position) : mQuickFilteredList.get(position).mObject;
 				View v = mListLayout.findViewByPosition(i);
-				if (v != null && v.getTop() >= visiblePaddingTop)
+				if (v != null && v.getTop() >= 0)
 					itemRead(tweet.id, forceRenew);
 				if (mLoadMoreItems.containsKey(tweet))
 					loadOlderThan(mList.get(position));
@@ -310,7 +271,6 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		mViewRefresher = null;
 		mViewProgress = null;
 		mViewEmptyIndicator = null;
-		mViewUnderActionbar = null;
 		mViewUnreadTweetCount = null;
 		mListLayout = null;
 		mProgressAnimator = null;
@@ -672,11 +632,12 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			int unread = Collections.binarySearch(mList, Tweet.getTweet(mPage.mPageNewestSeenItemId), Collections.reverseOrder());
 			if (unread < 0) unread = -1 - unread;
 			unread = Math.min(unread, mList.size());
-			if (unread > 0)
-				if (mListLayout.isSmoothScrolling() || mListLayout.findFirstVisibleItemPosition() == unread)
-					mListLayout.scrollToPositionWithOffset(unread, 0);
-				else
-					mListLayout.smoothScrollToPosition(mViewList, null, unread);
+			if (mListLayout.findFirstVisibleItemPosition() - unread < 8) {
+				mListLayout.smoothScrollToPosition(mViewList, null, unread);
+			} else {
+				mListLayout.scrollToPosition(unread);
+				mViewList.smoothScrollBy(0, 0);
+			}
 		}
 	}
 
@@ -729,6 +690,10 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				p.setDataPosition(0);
 				if (p.dataSize() > 0) {
 					p.readList(mList, Tweet.class.getClassLoader());
+					for (Iterator<Tweet> i = mList.iterator(); i.hasNext(); ) {
+						if (i.next() == null)
+							i.remove();
+					}
 					for (int i = 0, size = p.readInt(); i < size; i++) {
 						HashMap<PageElement, Byte> map = new HashMap<>();
 						Tweet key = p.readParcelable(Tweet.class.getClassLoader());
@@ -1106,6 +1071,9 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 						case PageElement.FUNCTION_USER_TIMELINE:
 							res = mElement.getTwitterEngine().getUserHome(mElement.id, mLoadCount, since_id, max_id, false, true, PageRefresher.this);
 							break;
+						case PageElement.FUNCTION_USER_FAVORITES:
+							res = mElement.getTwitterEngine().getUserFavorites(mElement.id, mLoadCount, since_id, max_id, true, PageRefresher.this);
+							break;
 					}
 					mProgress += mLoadCount - (res == null ? 0 : res.size());
 					publishProgress();
@@ -1154,6 +1122,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			private final Button tweetActionReply, tweetActionRetweet, tweetActionFavorite;
 
 			private Tweet mLastBoundTweet;
+			private boolean mIsLongPress;
 
 			public TweetViewHolder(View v) {
 				super(v);
@@ -1161,7 +1130,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				lblRetweetDescription = (TextView) v.findViewById(R.id.lblRetweetDescription);
 				lblData = (TextView) v.findViewById(R.id.lblData);
 				lblData.setMovementMethod(LinkMovementMethod.getInstance());
-				lblUserName = (TextView) v.findViewById(R.id.lblUserName);
+				lblUserName = (TextView) v.findViewById(R.id.user_name);
 				lblUserName.setOnClickListener(this);
 				imgUserPictureFull = (ImageView) v.findViewById(R.id.imgUserPictureFull);
 				imgUserPictureUp = (ImageView) v.findViewById(R.id.imgUserPictureUp);
@@ -1310,33 +1279,46 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				if (t == null)
 					return;
 				if (v.equals(tweetActionRetweet)) {
-					new AlertDialog.Builder(getActivity())
-							.setMessage("Retweet?")
-							.setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
-								@Override
-								public void onClick(DialogInterface dialog, int which) {
-									final ArrayList<TwitterEngine> postFrom = ((MainActivity) getActivity()).getNewTweetFragment().getPostFromList();
-									final long id = t.id;
-									new Thread() {
-										@Override
-										public void run() {
-											try {
-												for (TwitterEngine e : postFrom)
-													e.postRetweet(id);
-											} catch (Exception e) {
-												e.printStackTrace();
+					if (mIsLongPress || t.user._protected) {
+						((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
+						final Tweet t2 = t.retweeted_status == null ? t : t.retweeted_status;
+						((MainActivity) getActivity()).getNewTweetFragment().insertText("QT @" + (t2.user._protected ? "***" : t2.user.screen_name) + ": " + t2.text);
+						((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
+					} else {
+						new AlertDialog.Builder(getActivity())
+								.setMessage("Retweet?")
+								.setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+									@Override
+									public void onClick(DialogInterface dialog, int which) {
+										final ArrayList<TwitterEngine> postFrom = ((MainActivity) getActivity()).getNewTweetFragment().getPostFromList();
+										final long id = t.id;
+										new Thread() {
+											@Override
+											public void run() {
+												try {
+													for (TwitterEngine e : postFrom)
+														e.postRetweet(id);
+												} catch (Exception e) {
+													e.printStackTrace();
+												}
 											}
-										}
-									}.start();
-								}
-							})
-							.setNegativeButton(android.R.string.no, null)
-							.show();
+										}.start();
+									}
+								})
+								.setNegativeButton(android.R.string.no, null)
+								.show();
+					}
 				} else if (v.equals(tweetActionReply)) {
-					((MainActivity) getActivity()).showActionBar();
 					((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
 					((MainActivity) getActivity()).getNewTweetFragment().insertText("@" + t.user.screen_name + " ");
 					((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
+				} else if (v.equals(tweetActionFavorite)) {
+					try {
+						for (TwitterEngine e : ((MainActivity) getActivity()).getNewTweetFragment().getPostFromList())
+							e.postFavorite(t.id);
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
 				} else if (v.equals(dragInitiatorButton)) {
 					if (!mSelectedList.contains(t)) {
 						mSelectedList.add(t);
@@ -1373,7 +1355,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 					}
 				} else if (v.equals(lblUserName)) {
 					Tweeter u = t.retweeted_status == null ? t.user : t.retweeted_status.user;
-					Page.templatePageUser(u.user_id, u.screen_name, (MainActivity) getActivity());
+					Page.templatePageUser(u.user_id, u.screen_name, (MainActivity) getActivity(), PageElement.FUNCTION_USER_TIMELINE);
 				} else {
 					for (int i = arrPreviews.length - 1; i >= 0; i--)
 						if (arrPreviews[i].equals(v)) {
@@ -1387,8 +1369,14 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				int itemPosition = getAdapterPosition();
 				final Tweet t = mQuickFilteredList == null ? (Tweet) getItem(itemPosition) : ((FilteredTweet) getItem(itemPosition)).mObject;
 				if (v.equals(tweetActionRetweet)) {
-					return true;
+					if (t.user._protected)
+						return true;
+					mIsLongPress = true;
+					v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+					tweetActionRetweet.setText(R.string.tweet_action_quote);
 				} else if (v.equals(tweetActionReply)) {
+					return true;
+				} else if (v.equals(tweetActionFavorite)) {
 					return true;
 				}
 				return false;
@@ -1399,6 +1387,8 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				int itemPosition = getAdapterPosition();
 				final Tweet t = mQuickFilteredList == null ? (Tweet) getItem(itemPosition) : ((FilteredTweet) getItem(itemPosition)).mObject;
 				dragInitiator.setKeepContainerOnClick(!mSelectedList.contains(t));
+				mIsLongPress = false;
+				tweetActionRetweet.setText(t.user._protected ? R.string.tweet_action_quote : R.string.tweet_action_retweet);
 			}
 
 			@Override

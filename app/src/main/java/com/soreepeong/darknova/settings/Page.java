@@ -132,13 +132,19 @@ public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.
 		mPagesOnMemory.put(this, name);
 	}
 
-	public static void templatePageUser(long user_id, String screen_name, MainActivity mainActivity) {
-		Page.Builder<Tweet> builder = new Builder<>(screen_name, R.drawable.ic_eyes);
+	public static void templatePageUser(long user_id, String screen_name, MainActivity mainActivity, int function) {
+		templatePageUser(user_id, screen_name, mainActivity, function, -1);
+	}
+
+	public static void templatePageUser(long user_id, String screen_name, MainActivity mainActivity, int function, int replacing) {
+		String fnName = function == PageElement.FUNCTION_USER_FAVORITES ? ": ☆" : "";
+		Page.Builder<Tweet> builder = new Builder<>(screen_name + fnName, R.drawable.ic_eyes);
 		TwitterEngine currentUser = mainActivity.getDrawerFragment().getCurrentUser();
 		builder.e().add(new PageElement(currentUser, PageElement.FUNCTION_USER_SINGLE, user_id, screen_name));
-		builder.e().add(new PageElement(currentUser, PageElement.FUNCTION_USER_TIMELINE, user_id, screen_name));
+		builder.e().add(new PageElement(currentUser, function, user_id, screen_name));
 		builder.setParentPage(mainActivity.getCurrentPage().getRepresentingPage());
-		mainActivity.selectPage(Page.addIfNoExist(builder.build()));
+		mainActivity.selectPage(replacing >= 0 ? Page.replaceIfNoExist(replacing, builder.build()) : Page.addIfNoExist(builder.build()));
+		mainActivity.getSearchSuggestionFragment().increaseSearchCountRecord(currentUser.getUserId(), Tweeter.getTweeter(user_id, screen_name));
 	}
 
 	public static void templatePageSearch(String search, MainActivity mainActivity) {
@@ -147,6 +153,7 @@ public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.
 		builder.e().add(new PageElement(currentUser, PageElement.FUNCTION_SEARCH, 0, search));
 		builder.setParentPage(mainActivity.getCurrentPage().getRepresentingPage());
 		mainActivity.selectPage(Page.addIfNoExist(builder.build()));
+		mainActivity.getSearchSuggestionFragment().increaseSearchCountRecord(currentUser.getUserId(), search);
 	}
 
 	public static void savePages() {
@@ -323,6 +330,27 @@ public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.
 		}
 	}
 
+	public static int replaceIfNoExist(int index, Page<? extends ObjectWithId> p) {
+		synchronized (mPages) {
+			int i = mPages.indexOf(p);
+			if (i != -1)
+				return i;
+			for (PageElement e : p.elements) {
+				if (e.containsStream(e.twitterEngineId)) {
+					TwitterStreamServiceReceiver.addStreamCallback(p);
+					break;
+				}
+			}
+			TwitterStreamServiceReceiver.removeStreamCallback(mPages.get(index));
+			mPages.set(index, p);
+			if (index < mNonTemporaryPageLength) {
+				savePages();
+			}
+			broadcastPageChange();
+			return index;
+		}
+	}
+
 	public static int size() {
 		return mPages.size();
 	}
@@ -454,7 +482,7 @@ public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.
 
 	public boolean addNewTweet(Tweet tweet, boolean streamInitated) {
 		synchronized (mListPending) {
-			if (streamInitated && !canHave(tweet))
+			if (tweet == null || (streamInitated && !canHave(tweet)))
 				return false;
 			int index = Collections.binarySearch(mListPending, tweet); // old tweets on front
 			if (index < 0) {

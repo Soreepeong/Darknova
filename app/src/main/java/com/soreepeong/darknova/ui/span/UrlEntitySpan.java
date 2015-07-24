@@ -14,7 +14,6 @@ import android.view.animation.Interpolator;
 import com.soreepeong.darknova.core.HTTPRequest;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Entities;
-import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.ui.MediaPreviewActivity;
 
 import java.lang.ref.WeakReference;
@@ -28,15 +27,12 @@ import java.util.regex.Pattern;
  */
 public class UrlEntitySpan extends TouchableSpan implements EntitySpan, SelfInvalidatingSpan {
 	private final Entities.UrlEntity mEntity;
-	@SuppressWarnings("unused")
-	private final Tweet mTweet;
 	private long mExpandStartTime;
 	private WeakReference<Callback> mCallback;
 
-	public UrlEntitySpan(Entities.UrlEntity me, Tweet tweet) {
+	public UrlEntitySpan(Entities.UrlEntity me) {
 		super(0xFF909dff, 0, false, true, 0xFF909dff, 0x40FFFFFF, false, true);
 		mEntity = me;
-		mTweet = tweet;
 	}
 
 	@Override
@@ -46,7 +42,7 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan, SelfInva
 
 	@Override
 	public void onClick(View v) {
-		MediaPreviewActivity.previewLink(v.getContext(), mEntity);
+		MediaPreviewActivity.previewImage(v.getContext(), mEntity);
 	}
 
 	@Override

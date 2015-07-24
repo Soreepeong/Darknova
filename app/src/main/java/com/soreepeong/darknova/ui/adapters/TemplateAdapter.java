@@ -224,7 +224,7 @@ public class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHo
 			itemView.setOnLongClickListener(this);
 			type = (TextView) itemView.findViewById(R.id.type);
 			picture = (ImageView) itemView.findViewById(R.id.imgUserPictureFull);
-			username = (TextView) itemView.findViewById(R.id.lblUserName);
+			username = (TextView) itemView.findViewById(R.id.user_name);
 			data = (TextView) itemView.findViewById(R.id.lblData);
 			description = (TextView) itemView.findViewById(R.id.lblDescription);
 			reply_info = (TextView) itemView.findViewById(R.id.reply_info);

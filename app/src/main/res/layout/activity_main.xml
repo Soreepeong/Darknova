@@ -2,16 +2,17 @@
 	android:id="@+id/drawer_layout"
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
 	android:fitsSystemWindows="true">
 	<!-- The main content view -->
-	<FrameLayout
+	<com.soreepeong.darknova.ui.dragaction.DragParentFrameLayout
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
 		android:fitsSystemWindows="true">
 
-		<com.soreepeong.darknova.ui.dragaction.DragParentFrameLayout
+		<android.support.design.widget.CoordinatorLayout
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
 			android:fitsSystemWindows="true">
@@ -24,14 +25,13 @@
 				android:background="@drawable/actionbar_bg"
 				android:elevation="@dimen/fab_elevation"
 				app:action_on_leave="true"
-				app:action_type="@+id/drag_action_type_actionbar"
-				app:layout_scrollFlags="scroll|enterAlways"/>
+				app:action_type="@+id/drag_action_type_actionbar"/>
 
 			<android.support.v4.view.ViewPager
 				android:id="@+id/pager"
 				android:layout_width="match_parent"
 				android:layout_height="match_parent"
-				app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
+				android:layout_marginTop="?actionBarSize"/>
 
 			<android.support.design.widget.FloatingActionButton
 				android:id="@+id/new_tweet_opener"
@@ -49,7 +49,8 @@
 				android:layout_width="match_parent"
 				android:layout_height="match_parent"
 				android:layout_marginTop="?actionBarSize"
-				android:elevation="@dimen/fab_elevation"/>
+				android:elevation="@dimen/fab_elevation"
+				tools:layout="@layout/fragment_search_suggestion"/>
 
 			<com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectFrameLayout
 				android:id="@+id/drag_action_type_actionbar"
@@ -68,16 +69,18 @@
 					android:text="@string/drawer_open"
 					/>
 			</com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectFrameLayout>
-		</com.soreepeong.darknova.ui.dragaction.DragParentFrameLayout>
 
-		<fragment
-			android:id="@+id/fragment_template_tweet"
-			android:name="com.soreepeong.darknova.ui.fragments.TemplateTweetEditorFragment"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_gravity="bottom"
-			android:elevation="9dp"/>
-	</FrameLayout>
+			<fragment
+				android:id="@+id/fragment_template_tweet"
+				android:name="com.soreepeong.darknova.ui.fragments.TemplateTweetEditorFragment"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_gravity="bottom"
+				android:layout_marginTop="?actionBarSize"
+				android:elevation="9dp"
+				tools:layout="@layout/fragment_templatetweet"/>
+		</android.support.design.widget.CoordinatorLayout>
+	</com.soreepeong.darknova.ui.dragaction.DragParentFrameLayout>
 	<!-- The navigation drawer -->
 	<com.soreepeong.darknova.ui.view.ScrimInsetsFrameLayout
 		android:id="@+id/scrimInsetsFrameLayout"
@@ -94,6 +97,7 @@
 			android:name="com.soreepeong.darknova.ui.fragments.NavigationDrawerFragment"
 			android:layout_width="@dimen/navigation_drawer_width"
 			android:layout_height="match_parent"
-			android:fitsSystemWindows="true"/>
+			android:fitsSystemWindows="true"
+			tools:layout="@layout/fragment_drawer"/>
 	</com.soreepeong.darknova.ui.view.ScrimInsetsFrameLayout>
 </android.support.v4.widget.DrawerLayout>

@@ -332,6 +332,20 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		super.onResume();
 	}
 
+	@Override
+	public void onSaveInstanceState(Bundle outState) {
+		super.onSaveInstanceState(outState);
+		outState.putParcelable("image", mImage);
+	}
+
+	@Override
+	public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
+		super.onViewStateRestored(savedInstanceState);
+		if (savedInstanceState != null) {
+			mImage = savedInstanceState.getParcelable("image");
+		}
+	}
+
 	public void onPageEnter() {
 		if (getView() == null)
 			return;

@@ -197,10 +197,8 @@ public class Tweeter implements ObjectWithId, Parcelable {
 					// diff: a!=b && (a==null || !a.equals(b))
 					changed |= t.name != user.name && (t.name == null || !t.name.equals(user.name));
 					t.name = user.name;
-					if (user.description != null) {
-						changed |= t.description != user.description && (t.description == null || !t.description.equals(user.description));
-						t.description = user.description;
-					}
+					changed |= t.description != user.description && (t.description == null || !t.description.equals(user.description));
+					t.description = user.description;
 					changed |= t.location != user.location && (t.location == null || !t.location.equals(user.location));
 					t.location = user.location;
 					changed |= t.url != user.url && (t.url == null || !t.url.equals(user.url));

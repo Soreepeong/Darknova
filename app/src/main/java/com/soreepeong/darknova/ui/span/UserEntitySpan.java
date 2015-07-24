@@ -3,6 +3,7 @@ package com.soreepeong.darknova.ui.span;
 import android.view.View;
 
 import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.settings.PageElement;
 import com.soreepeong.darknova.twitter.Entities;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.ui.MainActivity;
@@ -27,6 +28,6 @@ public class UserEntitySpan extends TouchableSpan implements EntitySpan {
 	public void onClick(View v) {
 		if (!(v.getContext() instanceof MainActivity))
 			return;
-		Page.templatePageUser(mEntity.id, mEntity.screen_name, (MainActivity) v.getContext());
+		Page.templatePageUser(mEntity.id, mEntity.screen_name, (MainActivity) v.getContext(), PageElement.FUNCTION_USER_TIMELINE);
 	}
 }

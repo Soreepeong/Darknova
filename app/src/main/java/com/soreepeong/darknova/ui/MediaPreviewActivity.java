@@ -65,9 +65,18 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 	private int mBackgroundColorIndex;
 	private int[] mBackgroundColors = new int[]{0xA0000000, 0xFFFFFFFF, 0xFF000000};
 
-	public static void previewLink(Context context, Entities.UrlEntity e) {
+	public static void previewImage(Context context, Entities.UrlEntity e) {
 		Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(e.expanded_url), context, MediaPreviewActivity.class);
 		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+		intent.putExtra("darknova.caller", "darknova");
+		context.startActivity(intent);
+	}
+
+	public static void previewImage(Context context, String url) {
+		Intent intent = new Intent(context, MediaPreviewActivity.class);
+		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+		intent.setAction(Intent.ACTION_VIEW);
+		intent.setDataAndType(Uri.parse(url), "image/*");
 		intent.putExtra("darknova.caller", "darknova");
 		context.startActivity(intent);
 	}

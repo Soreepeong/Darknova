@@ -222,7 +222,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 				if (rmItem != null) {
 					int newIndex = rmItem.getParentPageIndex();
 					if (newIndex != -1)
-						mPager.setCurrentItem(newIndex, true);
+						selectPage(newIndex);
 				}
 				return true;
 			}
@@ -253,7 +253,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 			if (rmItem != null) {
 				int newIndex = rmItem.getParentPageIndex();
 				if (newIndex != -1)
-					mPager.setCurrentItem(newIndex, true);
+					selectPage(newIndex);
 			}
 		} else
 			super.onBackPressed();
@@ -284,32 +284,8 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	}
 
 	public void selectPage(int index) {
+		mPager.setCurrentItem(index, false);
 		onPageSelected(index);
-	}
-
-	public void showActionBar() {
-		if (mToolbar.getVisibility() == View.VISIBLE) return;
-		mTemplateTweetEditorFragment.showWithActionBar();
-		mToolbar.setVisibility(View.VISIBLE);
-		mActionBar.show();
-		mToolbar.clearAnimation();
-		mToolbar.startAnimation(AnimationUtils.loadAnimation(this, R.anim.show_downward));
-		for (Page p : Page.getList())
-			if (p.mConnectedFragment != null)
-				p.mConnectedFragment.onActionBarShown();
-	}
-
-	public void hideActionBar() {
-		if (mToolbar.getVisibility() != View.VISIBLE) return;
-		mTemplateTweetEditorFragment.hideWithActionBar();
-		ResTools.hideWithAnimation(mToolbar, R.anim.hide_upward, true);
-		for (Page p : Page.getList())
-			if (p.mConnectedFragment != null)
-				p.mConnectedFragment.onActionBarHidden();
-	}
-
-	public boolean isActionBarVisible() {
-		return mToolbar.getVisibility() == View.VISIBLE;
 	}
 
 	@Override
@@ -321,7 +297,6 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		mLastViewPagerPage = position;
 		mActionBar.setTitle(mPagerAdapter.getPageTitle(position));
 		mActionBar.setSubtitle(mPagerAdapter.getPageSubtitle(position));
-		showActionBar();
 
 		getFragmentAt(position).onPageEnter();
 
@@ -334,9 +309,6 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 
 	@Override
 	public void onPageScrollStateChanged(int state) {
-		if (state == ViewPager.SCROLL_STATE_DRAGGING) {
-			showActionBar();
-		}
 	}
 
 	@Override

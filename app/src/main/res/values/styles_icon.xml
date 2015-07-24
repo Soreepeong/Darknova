@@ -26,6 +26,7 @@
 		<item name="ic_action_search">@drawable/ic_search_white_36dp</item>
 		<item name="ic_content_send">@drawable/ic_send_white_36dp</item>
 		<item name="ic_action_settings">@drawable/ic_settings_white_36dp</item>
+		<item name="ic_social_share">@drawable/ic_share_white_36dp</item>
 		<item name="ic_action_star_rate">@drawable/ic_star_rate_white_36dp</item>
 		<item name="ic_editor_vertical_align_top">@drawable/ic_vertical_align_top_white_36dp</item>
 		<item name="ic_av_videocam">@drawable/ic_videocam_white_36dp</item>
@@ -58,6 +59,7 @@
 		<item name="ic_action_search">@drawable/ic_search_black_36dp</item>
 		<item name="ic_content_send">@drawable/ic_send_black_36dp</item>
 		<item name="ic_action_settings">@drawable/ic_settings_black_36dp</item>
+		<item name="ic_social_share">@drawable/ic_share_black_36dp</item>
 		<item name="ic_action_star_rate">@drawable/ic_star_rate_black_36dp</item>
 		<item name="ic_editor_vertical_align_top">@drawable/ic_vertical_align_top_black_36dp</item>
 		<item name="ic_av_videocam">@drawable/ic_videocam_black_36dp</item>

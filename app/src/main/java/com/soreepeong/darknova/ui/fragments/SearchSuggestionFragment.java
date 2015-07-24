@@ -30,6 +30,7 @@ import android.widget.TextView;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.settings.PageElement;
 import com.soreepeong.darknova.tools.ResTools;
 import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.StringTools;
@@ -119,10 +120,10 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 						p.unmarshall(b, 0, b.length);
 						p.setDataPosition(0);
 						long l;
-						while ((l = p.readLong()) != 0) {
+						while ((l = p.readLong()) != 0)
 							mUserHistory.put(l, new UserSearchHistoryManager(p));
+						while ((l = p.readLong()) != 0)
 							mTweetHistory.put(l, new TweetSearchHistoryManager(p));
-						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					} finally {
@@ -158,7 +159,12 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				try {
 					out = new FileOutputStream(mSearchHistoryFile);
 					for (long l : mUserHistory.keySet()) {
+						p.writeLong(l);
 						mUserHistory.get(l).save(p);
+					}
+					p.writeLong(0);
+					for (long l : mTweetHistory.keySet()) {
+						p.writeLong(l);
 						mTweetHistory.get(l).save(p);
 					}
 					p.writeLong(0);
@@ -169,6 +175,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 					p.recycle();
 					StreamTools.close(out);
 				}
+				mHistorySaveThread = null;
 			}
 		};
 		mHistorySaveThread.start();
@@ -478,7 +485,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 	}
 
 	private void openUser(long user_id, String screen_name) {
-		Page.templatePageUser(user_id, screen_name, (MainActivity) getActivity());
+		Page.templatePageUser(user_id, screen_name, (MainActivity) getActivity(), PageElement.FUNCTION_USER_TIMELINE);
 		mSearchView.setIconified(true);
 		MenuItemCompat.collapseActionView(mMenuItem);
 		hide();
@@ -521,23 +528,27 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		saveHistory();
 	}
 
-	private void increaseSearchCountRecord(long from, Tweeter to) {
-		UserSearchHistoryManager m = mUserHistory.get(from);
-		if (m == null)
-			mUserHistory.put(from, m = new UserSearchHistoryManager());
-		m.increase(to);
+	public void increaseSearchCountRecord(long from, Tweeter to) {
+		synchronized (mUserHistory) {
+			UserSearchHistoryManager m = mUserHistory.get(from);
+			if (m == null)
+				mUserHistory.put(from, m = new UserSearchHistoryManager());
+			m.increase(to);
+		}
 		saveHistory();
 	}
 
-	private void increaseSearchCountRecord(long from, String to) {
-		TweetSearchHistoryManager m = mTweetHistory.get(from);
-		if (m == null)
-			mTweetHistory.put(from, m = new TweetSearchHistoryManager());
-		m.increase(to);
+	public void increaseSearchCountRecord(long from, String to) {
+		synchronized (mTweetHistory) {
+			TweetSearchHistoryManager m = mTweetHistory.get(from);
+			if (m == null)
+				mTweetHistory.put(from, m = new TweetSearchHistoryManager());
+			m.increase(to);
+		}
 		saveHistory();
 	}
 
-	public static class UserSearchHistory implements Parcelable {
+	public static class UserSearchHistory implements Parcelable, Comparable<UserSearchHistory> {
 		@SuppressWarnings("unused")
 		public static final Parcelable.Creator<UserSearchHistory> CREATOR = new Parcelable.Creator<UserSearchHistory>() {
 			@Override
@@ -581,6 +592,15 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			dest.writeValue(tweeter);
 			dest.writeLong(lastSearch);
 			dest.writeInt(searchCount);
+		}
+
+		@Override
+		public int compareTo(UserSearchHistory another) {
+			if (lastSearch > another.lastSearch)
+				return 1;
+			if (lastSearch == another.lastSearch)
+				return 0;
+			return -1;
 		}
 	}
 
@@ -850,9 +870,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
 				if (currentUser == null)
 					return;
-				synchronized (mUserHistory) {
-					increaseSearchCountRecord(currentUser.getUserId(), u.get(0));
-				}
 				openUser(u.get(0).user_id, u.get(0).screen_name);
 				return;
 			}
@@ -951,9 +968,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
 				if (currentUser == null)
 					return;
-				synchronized (mUserHistory) {
-					increaseSearchCountRecord(currentUser.getUserId(), s.user);
-				}
 				openUser(s.user.user_id, s.user.screen_name);
 			}
 		}
@@ -1015,9 +1029,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 				TwitterEngine currentUser = ((MainActivity) getActivity()).getDrawerFragment().getCurrentUser();
 				if (currentUser == null)
 					return;
-				synchronized (mTweetHistory) {
-					increaseSearchCountRecord(currentUser.getUserId(), s.text);
-				}
 				Page.templatePageSearch(s.text, (MainActivity) getActivity());
 				mSearchView.setIconified(true);
 				MenuItemCompat.collapseActionView(mMenuItem);

@@ -46,6 +46,7 @@ import com.h6ah4i.android.widget.advrecyclerview.utils.AbstractDraggableItemView
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.settings.PageElement;
 import com.soreepeong.darknova.tools.ResTools;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.ObjectWithId;
@@ -689,7 +690,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 			public HeaderViewHolder(View itemView) {
 				super(itemView);
 
-				mViewAccountBackground = (ImageView) itemView.findViewById(R.id.imgAccountBackground);
+				mViewAccountBackground = (ImageView) itemView.findViewById(R.id.user_banner);
 				mViewAvatar = (ImageView) itemView.findViewById(R.id.imgAvatar);
 				mViewName = (TextView) itemView.findViewById(R.id.txtUsername);
 				mViewScreenName = (TextView) itemView.findViewById(R.id.txtScreenName);
@@ -714,7 +715,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					ani.setInterpolator(new AccelerateDecelerateInterpolator());
 					mViewShowAccountList.startAnimation(ani);
 				} else if (v.equals(mViewAvatar)) {
-					Page.templatePageUser(mCurrentUser.getUserId(), mCurrentUser.getScreenName(), (MainActivity) getActivity());
+					Page.templatePageUser(mCurrentUser.getUserId(), mCurrentUser.getScreenName(), (MainActivity) getActivity(), PageElement.FUNCTION_USER_TIMELINE);
 					closeDrawer();
 				}
 			}

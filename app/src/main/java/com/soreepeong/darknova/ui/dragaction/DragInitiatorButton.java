@@ -66,16 +66,8 @@ public class DragInitiatorButton extends Button{
 			return;
 
 		TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.DragInitiator);
-		for (int i = 0, i_ = a.getIndexCount(); i < i_; ++i){
-			switch (a.getIndex(i)){
-				case R.styleable.DragInitiator_action_type:
-					mDragActionType = a.getResourceId(i, R.id.DRAG_ACTION_TYPE_ALL);
-					break;
-				case R.styleable.DragInitiator_action_on_leave:
-					mDragInitiator.setActionOnCancel(a.getBoolean(i, false));
-					break;
-			}
-		}
+		mDragActionType = a.getResourceId(R.styleable.DragInitiator_action_type, R.id.DRAG_ACTION_TYPE_ALL);
+		mDragInitiator.setActionOnCancel(a.getBoolean(R.styleable.DragInitiator_action_on_leave, false));
 		a.recycle();
 	}
 

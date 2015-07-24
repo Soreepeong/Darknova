@@ -142,7 +142,7 @@
 			android:src="?attr/ic_content_drafts"/>
 
 		<ImageView
-			android:id="@+id/location"
+			android:id="@+id/user_location"
 			android:layout_width="wrap_content"
 			android:layout_height="48dp"
 			android:layout_gravity="top|end"

@@ -7,6 +7,11 @@
 		<attr name="action_type" format="reference" />
 		<attr name="action_on_leave" format="boolean" />
 	</declare-styleable>
+	<declare-styleable name="ScalingLayout">
+		<attr name="ratio_width" format="float"/>
+		<attr name="ratio_height" format="float"/>
+		<attr name="ratio_width_based" format="boolean"/>
+	</declare-styleable>
 	<attr name="new_tweet_bg" format="reference|color"/>
 	<attr name="colorPrimaryTransparent" format="color"/>
 </resources>

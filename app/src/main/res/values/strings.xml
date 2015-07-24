@@ -101,6 +101,7 @@
 
 	<string name="tweet_action_reply">Reply</string>
 	<string name="tweet_action_retweet">Retweet</string>
+	<string name="tweet_action_quote">Quote</string>
 	<string name="tweet_action_favorite">Favorite</string>
 
 	<string name="stream_notification_title">${app_name}: Stream</string>

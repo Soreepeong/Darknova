@@ -150,7 +150,7 @@ public class PageElement implements Parcelable {
 	public int getHeaderType() {
 		switch (function) {
 			case FUNCTION_USER_SINGLE:
-				return R.layout.row_header_userbig;
+				return R.layout.row_header_big_user;
 		}
 		return -1;
 	}

@@ -122,7 +122,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	private EditText mViewInterval, mViewPattern, mViewTestPattern;
 	private TextView mViewTimeStart, mViewTimeEnd;
 
-	private boolean mIsShown, mIsActionbarShown = true;
+	private boolean mIsShown;
 	private AttachmentAdapter mAttachmentAdapter;
 	private LinearLayoutManager mAttachmentLayoutManager;
 	private UserImageAdapter mUserAdapter;
@@ -168,7 +168,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 		mViewTemplateOptionBtn = (ImageView) mViewTemplateTweetEditor.findViewById(R.id.options);
 		mViewTemplateListBtn = (ImageView) mViewTemplateTweetEditor.findViewById(R.id.template_list);
-		mViewLocationBtn = (ImageView) mViewTemplateTweetEditor.findViewById(R.id.location);
+		mViewLocationBtn = (ImageView) mViewTemplateTweetEditor.findViewById(R.id.user_location);
 		mViewAttachList = (RecyclerView) mViewTemplateTweetEditor.findViewById(R.id.attach_list);
 		mViewEditor = (EditText) mViewTemplateTweetEditor.findViewById(R.id.editor);
 
@@ -425,29 +425,8 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		mInReplyTo = t;
 	}
 
-	public void showWithActionBar() {
-		mIsActionbarShown = true;
-		if (mIsShown) {
-			if (mViewTemplateTweetEditor.getVisibility() == View.VISIBLE) return;
-			mViewTemplateTweetEditor.setVisibility(View.VISIBLE);
-			mViewTemplateTweetEditor.startAnimation(AnimationUtils.loadAnimation(getActivity(), R.anim.show_upward));
-			mViewEditor.requestFocus();
-		} else
-			mListener.onNewTweetVisibilityChanged(false);
-	}
-
-	public void hideWithActionBar() {
-		mIsActionbarShown = false;
-		if (mListener != null)
-			mListener.onNewTweetVisibilityChanged(true);
-		if (mViewTemplateTweetEditor.getVisibility() != View.VISIBLE) return;
-		ResTools.hideWithAnimation(mViewTemplateTweetEditor, R.anim.hide_downward, true);
-	}
-
 	public void initializeNewTweet() {
 		mIsShown = true;
-		if (!mIsActionbarShown)
-			return;
 		mNoReloadLastWorking = true;
 		if (mViewTemplateTweetEditor.getVisibility() == View.VISIBLE) return;
 		loadTemplateTweet(mDefaultPreference.getLong(PREF_LAST_WORKING_TEMPLATE_ID, -1));
@@ -465,8 +444,6 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 	public void showNewTweet() {
 		mIsShown = true;
-		if (!mIsActionbarShown)
-			return;
 		if (mViewTemplateTweetEditor.getVisibility() == View.VISIBLE) return;
 
 		mViewTemplateTweetEditor.setVisibility(View.VISIBLE);
@@ -512,7 +489,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	}
 
 	public boolean isNewTweetVisible() {
-		return mIsShown && mIsActionbarShown;
+		return mIsShown;
 	}
 
 	public void insertText(String sText) {
@@ -828,6 +805,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 				TemplateTweetAttachment a = new TemplateTweetAttachment(mCurrentPhotoPath == null ? data.getData() : Uri.fromFile(mCurrentPhotoPath), getActivity().getContentResolver(), mTemplateTweet);
 				mAttachmentAdapter.insertItem(a);
 				a.resolve(getActivity(), mAttachmentAdapter);
+				switchViews(null);
 				if (mCurrentPhotoPath != null) {
 					Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
 					Uri contentUri = Uri.fromFile(mCurrentPhotoPath);

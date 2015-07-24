@@ -85,7 +85,7 @@
 		android:orientation="vertical">
 
 		<TextView
-			android:id="@+id/lblUserName"
+			android:id="@+id/user_name"
 			style="@style/TextAppearance.AppCompat.Medium"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
@@ -232,7 +232,7 @@
 		android:background="#C0000000"
 		android:clickable="true"
 		android:orientation="horizontal"
-		android:weightSum="4">
+		android:weightSum="3">
 
 		<Button
 			android:id="@+id/tweetActionReply"
@@ -260,18 +260,6 @@
 			android:text="@string/tweet_action_retweet" />
 		<Button
 			android:id="@+id/tweetActionFavorite"
-			android:layout_width="0dp"
-			android:layout_height="80dp"
-			android:layout_gravity="start|center_vertical"
-			android:layout_weight="1"
-			android:background="@drawable/ripple_bg"
-			android:drawableTop="?attr/ic_action_star_rate"
-			android:gravity="top|center_horizontal"
-			android:paddingBottom="8dp"
-			android:paddingTop="8dp"
-			android:text="@string/tweet_action_favorite" />
-		<Button
-			android:id="@+id/tweetActionFavorite2"
 			android:layout_width="0dp"
 			android:layout_height="80dp"
 			android:layout_gravity="start|center_vertical"

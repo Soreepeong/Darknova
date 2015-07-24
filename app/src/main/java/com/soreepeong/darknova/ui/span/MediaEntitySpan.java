@@ -29,6 +29,6 @@ public class MediaEntitySpan extends TouchableSpan implements EntitySpan {
 		if (mEntity.expanded_url.contains(Long.toString(mTweet.id)))
 			MediaPreviewActivity.previewTweetImages(v.getContext(), mTweet, 0);
 		else
-			MediaPreviewActivity.previewLink(v.getContext(), mEntity);
+			MediaPreviewActivity.previewImage(v.getContext(), mEntity);
 	}
 }

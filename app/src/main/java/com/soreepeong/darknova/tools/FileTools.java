@@ -55,12 +55,12 @@ public class FileTools {
 		File tempFile = new File(file.getAbsolutePath() + "_resizing");
 		OutputStream out = null;
 		InputStream in = null;
-		int quality = 80;
+		int quality = 90;
 		try {
 			while (quality >= 0) {
 				out = new FileOutputStream(tempFile);
 				android.util.Log.e("Darknova", "quality " + quality + " @ " + tempFile.getName());
-				decoded.compress(Bitmap.CompressFormat.WEBP, quality, out);
+				decoded.compress(Bitmap.CompressFormat.JPEG, quality, out);
 				StreamTools.close(out);
 				android.util.Log.e("Darknova", "size " + tempFile.length() + " @ " + tempFile.getName());
 				if (tempFile.length() <= targetLength)

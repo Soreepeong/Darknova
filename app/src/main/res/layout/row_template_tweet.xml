@@ -40,7 +40,7 @@
 		android:orientation="vertical">
 
 		<TextView
-			android:id="@+id/lblUserName"
+			android:id="@+id/user_name"
 			style="@style/TextAppearance.AppCompat.Medium"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
