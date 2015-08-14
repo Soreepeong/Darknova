@@ -8,6 +8,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 import com.soreepeong.darknova.services.TemplateTweetProvider;
+import com.soreepeong.darknova.tools.WeakValueHashMap;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ public class TemplateTweet implements Parcelable {
 			return new TemplateTweet[size];
 		}
 	};
+	private static final WeakValueHashMap<Long, TemplateTweet> mTemplateTweets = new WeakValueHashMap<>();
 	public final List<Long> mUserIdList = new ArrayList<>();
 	public final List<TemplateTweetAttachment> mAttachments = new ArrayList<>();
 	public final long id;
@@ -54,7 +56,7 @@ public class TemplateTweet implements Parcelable {
 	public boolean use_coordinates, autoresolve_coordinates;
 	private boolean mIsPosting;
 
-	public TemplateTweet(ContentResolver resolver, List<Long> userIdList) {
+	private TemplateTweet(ContentResolver resolver, List<Long> userIdList) {
 		if (userIdList != null)
 			mUserIdList.addAll(userIdList);
 
@@ -75,7 +77,7 @@ public class TemplateTweet implements Parcelable {
 		}
 	}
 
-	public TemplateTweet(long id, ContentResolver resolver) {
+	private TemplateTweet(long id, ContentResolver resolver) {
 		Cursor c = resolver.query(TemplateTweetProvider.URI_TEMPLATES, null, "id=?", new String[]{Long.toString(id)}, null);
 		if (!c.moveToFirst())
 			throw new RuntimeException("No such ID exists");
@@ -109,12 +111,12 @@ public class TemplateTweet implements Parcelable {
 		c = resolver.query(TemplateTweetProvider.URI_ATTACHMENTS, null, "template_id=?", new String[]{Long.toString(id)}, null);
 		if (c.moveToFirst())
 			do {
-				mAttachments.add(new TemplateTweetAttachment(c, resolver));
+				mAttachments.add(TemplateTweetAttachment.obtain(c, resolver));
 			} while (c.moveToNext());
 		c.close();
 	}
 
-	public TemplateTweet(Cursor c, ContentResolver resolver) {
+	private TemplateTweet(Cursor c, ContentResolver resolver) {
 		id = c.getLong(c.getColumnIndex("_id"));
 		type = c.getInt(c.getColumnIndex("type"));
 		created_at = c.getLong(c.getColumnIndex("created_at"));
@@ -144,7 +146,7 @@ public class TemplateTweet implements Parcelable {
 		c = resolver.query(TemplateTweetProvider.URI_ATTACHMENTS, null, "template_id=?", new String[]{Long.toString(id)}, null);
 		if (c.moveToFirst())
 			do {
-				mAttachments.add(new TemplateTweetAttachment(c, resolver));
+				mAttachments.add(TemplateTweetAttachment.obtain(c, resolver));
 			} while (c.moveToNext());
 		c.close();
 	}
@@ -172,6 +174,36 @@ public class TemplateTweet implements Parcelable {
 		in.readList(mAttachments, TemplateTweetAttachment.class.getClassLoader());
 	}
 
+	public static TemplateTweet obtain(ContentResolver resolver, List<Long> userIdList){
+		TemplateTweet res = new TemplateTweet(resolver, userIdList);
+		synchronized (mTemplateTweets){
+			if(mTemplateTweets.get(res.id) != null)
+				return mTemplateTweets.get(res.id);
+			mTemplateTweets.put(res.id, res);
+			return res;
+		}
+	}
+
+	public static TemplateTweet obtain(long id, ContentResolver resolver){
+		TemplateTweet res = new TemplateTweet(id, resolver);
+		synchronized (mTemplateTweets){
+			if(mTemplateTweets.get(res.id) != null)
+				return mTemplateTweets.get(res.id);
+			mTemplateTweets.put(res.id, res);
+			return res;
+		}
+	}
+
+	public static TemplateTweet obtain(Cursor c, ContentResolver resolver){
+		TemplateTweet res = new TemplateTweet(c, resolver);
+		synchronized (mTemplateTweets){
+			if(mTemplateTweets.get(res.id) != null)
+				return mTemplateTweets.get(res.id);
+			mTemplateTweets.put(res.id, res);
+			return res;
+		}
+	}
+
 	public void removeSelf(ContentResolver resolver) {
 		resolver.delete(TemplateTweetProvider.URI_TEMPLATES, "_id=?", new String[]{Long.toString(id)});
 	}
@@ -179,6 +211,11 @@ public class TemplateTweet implements Parcelable {
 	@Override
 	public boolean equals(Object o) {
 		return o instanceof TemplateTweet && ((TemplateTweet) o).id == id;
+	}
+
+	@Override
+	public int hashCode() {
+		return (int) (id ^ (id >> 32));
 	}
 
 	public void updateSelf(ContentResolver resolver) {
@@ -252,16 +289,10 @@ public class TemplateTweet implements Parcelable {
 					if (a.mMediaId == 0) {
 						if (a.media_type == TemplateTweetProvider.MEDIA_TYPE_VIDEO) {
 							long length = a.mLocalFile.length();
-							android.util.Log.d("AttachmentUploader", "INIT");
 							a.mMediaId = e.uploadMediaChunkInit(length, "video/mp4", mUserIdList);
-							android.util.Log.d("AttachmentUploader", "INIT " + a.mMediaId);
-							for (int i = 0; i * CHUNK_SIZE < length; i++) {
-								android.util.Log.d("AttachmentUploader", "Chunk " + i + ": START (" + i * CHUNK_SIZE + "~" + Math.min((i + 1) * CHUNK_SIZE, length) + ") " + (Math.min((i + 1) * CHUNK_SIZE, length) - i * CHUNK_SIZE));
+							for (int i = 0; i * CHUNK_SIZE < length; i++)
 								e.uploadMediaChunkAppend(a.mMediaId, i, a.mLocalFile, i * CHUNK_SIZE, Math.min((i + 1) * CHUNK_SIZE, length));
-								android.util.Log.d("AttachmentUploader", "Chunk " + i + ": END");
-							}
 							a.mMediaId = e.uploadMediaFinalize(a.mMediaId);
-							android.util.Log.d("AttachmentUploader", "FIN " + a.mMediaId);
 						} else
 							a.mMediaId = e.uploadMedia(a.mLocalFile, mUserIdList);
 					}

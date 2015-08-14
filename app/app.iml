@@ -96,16 +96,18 @@
     <orderEntry type="jdk" jdkName="Android API 22 Platform" jdkType="Android SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" exported="" name="jackson-core-2.5.3" level="project" />
-    <orderEntry type="library" exported="" name="android-gif-drawable-1.1.7" level="project" />
-    <orderEntry type="library" exported="" name="advrecyclerview-0.7.1" level="project" />
     <orderEntry type="library" exported="" name="juniversalchardet-1.0.3" level="project" />
-    <orderEntry type="library" exported="" name="commons-lang3-3.4" level="project" />
     <orderEntry type="library" exported="" name="support-v4-22.2.1" level="project" />
     <orderEntry type="library" exported="" name="recyclerview-v7-22.2.1" level="project" />
     <orderEntry type="library" exported="" name="layouts-1.9" level="project" />
     <orderEntry type="library" exported="" name="support-annotations-22.2.1" level="project" />
     <orderEntry type="library" exported="" name="acra-4.6.2" level="project" />
-    <orderEntry type="library" exported="" name="design-22.2.1" level="project" />
     <orderEntry type="library" exported="" name="appcompat-v7-22.2.1" level="project" />
+    <orderEntry type="library" exported="" name="android-gif-drawable-1.1.7" level="project" />
+    <orderEntry type="library" exported="" name="advrecyclerview-0.7.1" level="project" />
+    <orderEntry type="library" exported="" name="commons-lang3-3.4" level="project" />
+    <orderEntry type="library" exported="" name="snakeyaml-1.12" level="project" />
+    <orderEntry type="library" exported="" name="twitter-text-1.6.1" level="project" />
+    <orderEntry type="library" exported="" name="design-22.2.1" level="project" />
   </component>
 </module>

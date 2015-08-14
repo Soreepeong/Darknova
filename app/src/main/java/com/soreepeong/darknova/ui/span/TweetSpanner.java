@@ -42,10 +42,14 @@ public class TweetSpanner {
 				continue;
 			prevEntityIndiceStart = e.indice_left;
 			Object span = null;
-			if (previousSpans != null)
-				for (EntitySpan sp : previousSpans)
-					if (e.equals(sp.getEntity()))
-						span = sp;
+			if (previousSpans != null){
+				for(int i = 0; i < previousSpans.length; i++)
+					if (previousSpans[i] != null && e.equals(previousSpans[i].getEntity())){
+						span = previousSpans[i];
+						previousSpans[i] = null;
+						break;
+					}
+			}
 			if (span == null) {
 				if (e instanceof Entities.MediaEntity) {
 					span = new MediaEntitySpan((Entities.MediaEntity) e, tweet);
@@ -67,10 +71,13 @@ public class TweetSpanner {
 				span = null;
 				Tweeter u = Tweeter.getTweeter(((Entities.MentionsEntity) e).id,
 						((Entities.MentionsEntity) e).screen_name);
-				if (previousSpans != null)
-					for (UserImageSpan sp : previousImageSpans)
-						if (u.equals(sp.getTweeter()))
-							span = sp;
+				if (previousImageSpans != null)
+					for(int i = 0; i < previousImageSpans.length; i++)
+						if (previousImageSpans[i] != null && u.equals(previousImageSpans[i].getTweeter())){
+							span = previousImageSpans[i];
+							previousImageSpans[i] = null;
+							break;
+						}
 				if (span == null)
 					span = new UserImageSpan(
 							u,
@@ -123,10 +130,14 @@ public class TweetSpanner {
 				continue;
 			prevEntityIndiceStart = e.indice_left;
 			Object span = null;
-			if (previousSpans != null)
-				for (EntitySpan sp : previousSpans)
-					if (e.equals(sp.getEntity()))
-						span = sp;
+			if (previousSpans != null){
+				for(int i = 0; i < previousSpans.length; i++)
+					if (previousSpans[i] != null && e.equals(previousSpans[i].getEntity())){
+						span = previousSpans[i];
+						previousSpans[i] = null;
+						break;
+					}
+			}
 			if (span == null) {
 				if (e instanceof Entities.UrlEntity) {
 					span = new UrlEntitySpan((Entities.UrlEntity) e);
@@ -146,10 +157,13 @@ public class TweetSpanner {
 				span = null;
 				Tweeter u = Tweeter.getTweeter(((Entities.MentionsEntity) e).id,
 						((Entities.MentionsEntity) e).screen_name);
-				if (previousSpans != null)
-					for (UserImageSpan sp : previousImageSpans)
-						if (u.equals(sp.getTweeter()))
-							span = sp;
+				if (previousImageSpans != null)
+					for(int i = 0; i < previousImageSpans.length; i++)
+						if (previousImageSpans[i] != null && u.equals(previousImageSpans[i].getTweeter())){
+							span = previousImageSpans[i];
+							previousImageSpans[i] = null;
+							break;
+						}
 				if (span == null)
 					span = new UserImageSpan(
 							u,
@@ -172,6 +186,9 @@ public class TweetSpanner {
 				continue;
 			prevEntityIndiceStart = e.indice_left;
 			String urlDisplay = e._show_expanded ? (e._expanded_url != null ? e._expanded_url : e.expanded_url) : e.display_url;
+			if(urlDisplay == null) urlDisplay = e.display_url;
+			if(urlDisplay == null) urlDisplay = e.expanded_url;
+			if(urlDisplay == null) urlDisplay = e.url;
 			String replacement = urlDisplay;
 			if (e._page_title != null) {
 				replacement += " (" + e._page_title + ")";

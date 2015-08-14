@@ -311,6 +311,10 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 			Iterator<Tweeter> i = map.values().iterator();
 			while (i.hasNext()) {
 				Tweeter t = i.next();
+				if (t == null) {
+					i.remove();
+					continue;
+				}
 				if (t.screen_name.toLowerCase().startsWith(text.toLowerCase()) || (t.name != null && t.name.toLowerCase().startsWith(text.toLowerCase())))
 					res.add(new UserSuggestion(t, t.screen_name, t.name, text, mSearchOptimizedPattern));
 				else if (!textallowed.startsWith("_") && (t.screen_name.toLowerCase().startsWith(textallowed.toLowerCase()) || (t.name != null && t.name.toLowerCase().startsWith(textallowed.toLowerCase()))))

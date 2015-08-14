@@ -5,31 +5,7 @@
 			  android:orientation="vertical">
 
 	<FrameLayout
-		android:id="@+id/retweet_info"
-		android:layout_width="match_parent"
-		android:layout_height="wrap_content"
-		android:layout_margin="8dp">
-
-		<ImageView
-			android:id="@+id/retweeter_picture"
-			android:layout_width="24sp"
-			android:layout_height="24sp"
-			android:layout_marginLeft="36sp"
-			android:layout_marginStart="36sp"
-			android:background="@android:color/white"/>
-
-		<TextView
-			android:layout_width="wrap_content"
-			android:layout_height="24sp"
-			android:layout_marginLeft="68sp"
-			android:layout_marginStart="68sp"
-			android:gravity="start|center_vertical"
-			android:text="~ retweeted"
-			android:textAppearance="?android:textAppearanceSmall"/>
-
-	</FrameLayout>
-
-	<FrameLayout
+		android:id="@+id/user_area"
 		android:layout_width="match_parent"
 		android:layout_height="60sp"
 		android:layout_margin="8dp">
@@ -37,8 +13,7 @@
 		<ImageView
 			android:id="@+id/user_picture"
 			android:layout_width="60sp"
-			android:layout_height="60sp"
-			android:background="@android:color/white"/>
+			android:layout_height="60sp" />
 
 		<TextView
 			android:id="@+id/user_id"
@@ -62,9 +37,48 @@
 			android:layout_marginTop="12sp"
 			android:text="@string/placeholder"
 			android:textAppearance="?android:textAppearanceMedium"/>
+
+		<LinearLayout
+			android:id="@+id/divItemType"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="end"
+			android:gravity="end|top"
+			android:padding="6dp">
+
+			<ImageView
+				android:id="@+id/imgInfoProtected"
+				android:layout_width="16sp"
+				android:layout_height="16sp"
+				android:src="?attr/ic_action_lock"/>
+
+			<ImageView
+				android:id="@+id/imgInfoVerified"
+				android:layout_width="16sp"
+				android:layout_height="16sp"
+				android:src="?attr/ic_navigation_check"/>
+
+			<ImageView
+				android:id="@+id/imgInfoFavorited"
+				android:layout_width="16sp"
+				android:layout_height="16sp"
+				android:src="?attr/ic_action_star_rate"/>
+
+			<ImageView
+				android:id="@+id/imgInfoRetweeted"
+				android:layout_width="16sp"
+				android:layout_height="16sp"
+				android:src="?attr/ic_av_repeat"/>
+
+			<ImageView
+				android:id="@+id/imgInfoReplied"
+				android:layout_width="16sp"
+				android:layout_height="16sp"
+				android:src="?attr/ic_content_reply"/>
+		</LinearLayout>
 	</FrameLayout>
 
-	<TextView
+	<com.soreepeong.darknova.ui.view.ClickableSpanTextView
 		android:id="@+id/text"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
@@ -87,6 +101,35 @@
 		android:background="@android:color/white"/>
 
 	<LinearLayout
+		style="?android:buttonBarStyle"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:orientation="horizontal">
+
+		<Button
+			android:id="@+id/retweet_count"
+			style="?android:buttonBarButtonStyle"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:gravity="center"
+			android:text="0 retweets"/>
+
+		<Button
+			android:id="@+id/favorite_count"
+			style="?android:buttonBarButtonStyle"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="0 favorites"
+			/>
+
+	</LinearLayout>
+
+	<View
+		android:layout_width="match_parent"
+		android:layout_height="1dp"
+		android:background="@android:color/white"/>
+
+	<LinearLayout
 		android:layout_width="match_parent"
 		android:layout_height="48dp"
 		android:orientation="horizontal">
@@ -94,7 +137,7 @@
 		<ImageButton
 			android:id="@+id/reply"
 			android:layout_width="0sp"
-			android:layout_height="match_parent"
+			android:layout_height="48dp"
 			android:layout_weight="1"
 			android:background="@drawable/ripple_bg"
 			android:padding="8dp"
@@ -111,17 +154,6 @@
 			android:scaleType="fitCenter"
 			android:src="?attr/ic_av_repeat"/>
 
-		<TextView
-			android:id="@+id/retweet_count"
-			android:layout_width="32sp"
-			android:layout_height="match_parent"
-			android:layout_gravity="end"
-			android:background="@drawable/ripple_bg"
-			android:gravity="center"
-			android:padding="8dp"
-			android:text="0"
-			android:textAppearance="?android:textAppearanceButton"/>
-
 		<ImageButton
 			android:id="@+id/favorite"
 			android:layout_width="0sp"
@@ -131,17 +163,6 @@
 			android:padding="8dp"
 			android:scaleType="fitCenter"
 			android:src="?attr/ic_action_star_rate"/>
-
-		<TextView
-			android:id="@+id/favorite_count"
-			android:layout_width="wrap_content"
-			android:layout_height="match_parent"
-			android:layout_gravity="end"
-			android:background="@drawable/ripple_bg"
-			android:gravity="center"
-			android:padding="8dp"
-			android:text="0"
-			android:textAppearance="?android:textAppearanceButton"/>
 
 		<ImageButton
 			android:id="@+id/share"

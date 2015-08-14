@@ -588,8 +588,8 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 				case "retweet_count":
 					res.retweet_count = parser.getIntValue();
 					break;
-				case "favourites_count":
-					res.favourites_count = parser.getIntValue();
+				case "favorite_count":
+					res.favorite_count = parser.getIntValue();
 					break;
 				case "source":
 					res.source = Html.fromHtml(parser.getText()).toString();
@@ -696,6 +696,25 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			return parseTweetArray(parser, callback);
 		} catch (ParseException | IOException e) {
 			throw new RequestException("getTweetArrayRequest", e);
+		} finally {
+			StreamTools.close(in);
+			request.close();
+		}
+	}
+
+	public Tweet getTweet(long id) throws RequestException {
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "statuses/show.json?id="+id, auth, false, null);
+		if (request == null) return null;
+		InputStream in = null;
+		try {
+			request.submitRequest();
+			if (request.getStatusCode() != 200)
+				throw new RequestException("getTweet", request);
+			JsonParser parser = JSON.createParser(in = request.getInputStream());
+			parser.nextToken();
+			return parseTweet(parser);
+		} catch (ParseException | IOException e) {
+			throw new RequestException("getTweet", e);
 		} finally {
 			StreamTools.close(in);
 			request.close();
@@ -950,6 +969,28 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			return parseTweet(parser);
 		} catch (ParseException | IOException e) {
 			throw new RequestException("postFavorite", e);
+		} finally {
+			StreamTools.close(in);
+			request.close();
+		}
+	}
+
+	public Tweet postRemove(long id) throws RequestException {
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "statuses/destroy/"+id+".json", auth, true, null);
+		if (request == null) return null;
+		InputStream in = null;
+		try {
+			request.submitRequest();
+			if (request.getStatusCode() != 200)
+				throw new RequestException("postRemove", request);
+			JsonParser parser = JSON.createParser(in = request.getInputStream());
+			parser.nextToken();
+			Tweet t = parseTweet(parser);
+			t.removed = true;
+			Tweet.updateTweet(t);
+			return t;
+		} catch (ParseException | IOException e) {
+			throw new RequestException("postRemove", e);
 		} finally {
 			StreamTools.close(in);
 			request.close();
@@ -1331,6 +1372,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					Tweet removed = Tweet.getTweet(new JSONObject(line).getJSONObject("delete").getJSONObject("status").getLong("id"));
 					removed.removed = true;
 					removed.info.lastUpdated = System.currentTimeMillis();
+					Tweet.updateTweet(removed);
 					mCallback.onStreamTweetEvent(mEngine, "delete", null, null, removed, 0);
 				} else if (line.startsWith("{\"friends\":[")) {
 					JSONArray arr = new JSONObject(line).getJSONArray("friends");

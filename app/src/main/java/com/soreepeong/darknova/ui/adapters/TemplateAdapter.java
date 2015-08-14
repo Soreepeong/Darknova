@@ -83,7 +83,7 @@ public class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHo
 		TemplateTweet t = mTemplates.get(position);
 		if (t == null) {
 			mCursor.moveToPosition(position);
-			mTemplates.put(position, t = new TemplateTweet(mCursor, mResolver));
+			mTemplates.put(position, t = TemplateTweet.obtain(mCursor, mResolver));
 		}
 		return t;
 	}
@@ -93,7 +93,7 @@ public class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHo
 		TemplateTweet t = getItem(position);
 		if (t == null) {
 			mCursor.moveToPosition(position);
-			mTemplates.put(position, t = new TemplateTweet(mCursor, mResolver));
+			mTemplates.put(position, t = TemplateTweet.obtain(mCursor, mResolver));
 		}
 		StringBuilder sb;
 		sb = new StringBuilder();

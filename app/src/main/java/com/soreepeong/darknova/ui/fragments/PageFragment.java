@@ -278,7 +278,6 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 
 	public void createAdapter() {
 		mViewList.setAdapter(mAdapter);
-		restorePositions();
 	}
 
 	public void applyEmptyIndicator() {
@@ -382,6 +381,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 				if (TwitterStreamServiceReceiver.isStreamOn(engine) && e.containsStream(engine))
 					requireRefresh = true;
 			}
+			mFragment.restorePositions();
 			if (isNewlyLoadedPage && requireRefresh)
 				mFragment.onRefresh();
 			mFragment.mAdapter.notifyDataSetChanged();

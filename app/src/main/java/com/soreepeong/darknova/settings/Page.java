@@ -156,6 +156,15 @@ public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.
 		mainActivity.getSearchSuggestionFragment().increaseSearchCountRecord(currentUser.getUserId(), search);
 	}
 
+	public static void templatePageTweet(Tweet t, MainActivity mainActivity) {
+		if (t.retweeted_status != null) t = t.retweeted_status;
+		Page.Builder<Tweet> builder = new Page.Builder<>(t.user.screen_name + ": " + t.text, R.drawable.ic_bigeyed);
+		TwitterEngine currentUser = mainActivity.getDrawerFragment().getCurrentUser();
+		builder.e().add(new PageElement(currentUser, PageElement.FUNCTION_TWEET_SINGLE, t.id, null));
+		builder.setParentPage(mainActivity.getCurrentPage().getRepresentingPage());
+		mainActivity.selectPage(Page.addIfNoExist(builder.build()));
+	}
+
 	public static void savePages() {
 		synchronized (mPages) {
 			SharedPreferences.Editor editor = mPagePreferences.edit();

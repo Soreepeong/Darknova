@@ -10,6 +10,8 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.support.annotation.NonNull;
 
+import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.settings.PageElement;
 import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.WeakValueHashMap;
 
@@ -367,7 +369,7 @@ public class Tweeter implements ObjectWithId, Parcelable {
 		void onUserInformationChanged(Tweeter tweeter);
 	}
 
-	public static class AlwaysAvailableUsers implements OnUserInformationChangedListener, Handler.Callback, TwitterEngine.OnUserlistChangedListener {
+	public static class AlwaysAvailableUsers implements OnUserInformationChangedListener, Handler.Callback, TwitterEngine.OnUserlistChangedListener, Page.OnPageListChangedListener {
 		private static final int LOAD = 0;
 		private static final int SAVE = 1;
 		private final ArrayList<Tweeter> mTweeterList = new ArrayList<>();
@@ -380,14 +382,24 @@ public class Tweeter implements ObjectWithId, Parcelable {
 			HandlerThread mHandlerThread = new HandlerThread("always-available-users");
 			mHandlerThread.start();
 			TwitterEngine.addOnUserlistChangedListener(this);
+			Page.addOnPageChangedListener(this);
 			mCacheSaver = new Handler(mHandlerThread.getLooper(), this);
 			mCacheSaver.sendEmptyMessage(LOAD);
 		}
 
 		@Override
+		public void onUserlistChanged(List<TwitterEngine> engines, List<TwitterEngine> oldEngines) {
+			update();
+		}
+
+		@Override
+		public void onPageListChanged() {
+			update();
+		}
+
+		@Override
 		public void onUserInformationChanged(Tweeter tweeter) {
-			mCacheSaver.removeMessages(SAVE);
-			mCacheSaver.sendEmptyMessageDelayed(SAVE, 500);
+			save();
 			TwitterEngine.applyAccountInformationChanges();
 		}
 
@@ -442,15 +454,25 @@ public class Tweeter implements ObjectWithId, Parcelable {
 			return false;
 		}
 
-		@Override
-		public void onUserlistChanged(List<TwitterEngine> engines, List<TwitterEngine> oldEngines) {
+		public void save(){
+			mCacheSaver.removeMessages(SAVE);
+			mCacheSaver.sendEmptyMessageDelayed(SAVE, 500);
+		}
+
+		private void update(){
 			Iterator<Tweeter> i = mTweeterList.iterator();
+			ArrayList<TwitterEngine> engines = TwitterEngine.getAll();
 			a:
 			while (i.hasNext()) {
 				Tweeter t = i.next();
 				for (TwitterEngine e : engines)
 					if (e.getUserId() == t.user_id)
 						continue a;
+				for(Page<? extends ObjectWithId> p : Page.getList()){
+					for(PageElement e : p.elements)
+						if(t.user_id == e.id)
+							continue a;
+				}
 				i.remove();
 				t.removeOnChangeListener(this);
 			}
@@ -463,6 +485,20 @@ public class Tweeter implements ObjectWithId, Parcelable {
 				mTweeterList.add(t);
 				t.addOnChangeListener(this);
 			}
+			a:
+			for(Page<? extends ObjectWithId> p : Page.getList()){
+				for(PageElement e : p.elements){
+					if(e.id == 0 || e.name == null)
+						continue;
+					Tweeter u = getTweeter(e.id, e.name);
+					for (Tweeter t : mTweeterList)
+						if (t.user_id == u.user_id)
+							continue a;
+					mTweeterList.add(u);
+					u.addOnChangeListener(this);
+				}
+			}
+			save();
 		}
 	}
 

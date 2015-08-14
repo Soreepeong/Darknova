@@ -71,6 +71,7 @@ import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.ui.MultiContentFragmentActivity;
 import com.soreepeong.darknova.ui.adapters.TemplateAdapter;
+import com.twitter.Regex;
 
 import org.apmem.tools.layouts.FlowLayout;
 
@@ -83,6 +84,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
 
 import pl.droidsonroids.gif.GifDrawable;
 
@@ -288,9 +290,9 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	private void loadTemplateTweet(long id) {
 		Cursor c = getActivity().getContentResolver().query(TemplateTweetProvider.URI_TEMPLATES, null, "_id=?", new String[]{Long.toString(id)}, null);
 		if (c.moveToFirst())
-			mTemplateTweet = new TemplateTweet(c, getActivity().getContentResolver());
+			mTemplateTweet = TemplateTweet.obtain(c, getActivity().getContentResolver());
 		else {
-			mTemplateTweet = new TemplateTweet(getActivity().getContentResolver(), mTemplateTweet == null ? null : mTemplateTweet.mUserIdList);
+			mTemplateTweet = TemplateTweet.obtain(getActivity().getContentResolver(), mTemplateTweet == null ? null : mTemplateTweet.mUserIdList);
 			id = mTemplateTweet.id;
 		}
 		c.close();
@@ -794,15 +796,22 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	public void afterTextChanged(Editable s) {
 		if (s.toString().trim().isEmpty())
 			mViewClearBtn.setText(R.string.new_tweet_hide);
-		else
-			mViewClearBtn.setText(s.toString().trim().length() + "/" + 140);
+		else{
+			String o = s.toString().trim();
+			Matcher m = Regex.VALID_URL.matcher(o);
+			int length = o.length();
+			while (m.find())
+				length = length - m.group().length() + (int) TwitterEngine.getConfigurationLong(m.group(Regex.VALID_URL_GROUP_PROTOCOL) != null && m.group(Regex.VALID_URL_GROUP_PROTOCOL).toLowerCase().equals("https") ? "short_url_length_https" : "short_url_length_http", 23);
+			length += mTemplateTweet.mAttachments.isEmpty() ? 0 : TwitterEngine.getConfigurationLong("characters_reserved_per_media", 23);
+			mViewClearBtn.setText("" + (140 - length));
+		}
 	}
 
 	@Override
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		if (requestCode == PICK_MEDIA && resultCode == Activity.RESULT_OK) {
 			try {
-				TemplateTweetAttachment a = new TemplateTweetAttachment(mCurrentPhotoPath == null ? data.getData() : Uri.fromFile(mCurrentPhotoPath), getActivity().getContentResolver(), mTemplateTweet);
+				TemplateTweetAttachment a = TemplateTweetAttachment.obtain(mCurrentPhotoPath == null ? data.getData() : Uri.fromFile(mCurrentPhotoPath), getActivity().getContentResolver(), mTemplateTweet);
 				mAttachmentAdapter.insertItem(a);
 				a.resolve(getActivity(), mAttachmentAdapter);
 				switchViews(null);
@@ -1096,7 +1105,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 				if (getAdapterPosition() <= 0 || getAdapterPosition() > getItemCount())
 					return;
 				mCursor.moveToPosition(getAdapterPosition() - 1);
-				TemplateTweetAttachment a = new TemplateTweetAttachment(Uri.fromFile(new File(mCursor.getString(2))), getActivity().getContentResolver(), mTemplateTweet);
+				TemplateTweetAttachment a = TemplateTweetAttachment.obtain(Uri.fromFile(new File(mCursor.getString(2))), getActivity().getContentResolver(), mTemplateTweet);
 				mAttachmentAdapter.insertItem(a);
 				a.resolve(getActivity(), mAttachmentAdapter);
 				switchViews(null);
@@ -1268,10 +1277,12 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			mTemplateTweet.mAttachments.clear();
 			if (!wasAvailable && canAddMore())
 				notifyDataSetChanged();
+			afterTextChanged(mViewEditor.getText());
 		}
 
 		public void removeItem(int index) {
 			getActivity().getContentResolver().delete(TemplateTweetProvider.URI_ATTACHMENTS, "_id=?", new String[]{Long.toString(mTemplateTweet.mAttachments.remove(index).id)});
+			afterTextChanged(mViewEditor.getText());
 			notifyDataSetChanged();
 		}
 
@@ -1279,6 +1290,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			if (!canAddMore())
 				return;
 			mTemplateTweet.mAttachments.add(a);
+			afterTextChanged(mViewEditor.getText());
 			notifyDataSetChanged();
 		}
 
@@ -1307,8 +1319,12 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			if (!mTemplateTweet.mAttachments.contains(attachment))
 				return;
 			boolean isImageMedia = true;
-			for (TemplateTweetAttachment a : mTemplateTweet.mAttachments)
+			for(int i = 0, i_ = mTemplateTweet.mAttachments.size(); i<i_; i++){
+				TemplateTweetAttachment a = mTemplateTweet.mAttachments.get(i);
+				if(a.equals(attachment) && a != attachment)
+					mTemplateTweet.mAttachments.set(i, a = attachment);
 				isImageMedia &= a.media_type == TemplateTweetProvider.MEDIA_TYPE_IMAGE;
+			}
 			if (mTemplateTweet.mAttachments.size() > 4 || (mTemplateTweet.mAttachments.size() >= 2 && !isImageMedia))
 				DarknovaApplication.showToast(R.string.new_tweet_attach_remove_required);
 			notifyDataSetChanged();

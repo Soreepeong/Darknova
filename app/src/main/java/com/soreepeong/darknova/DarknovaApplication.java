@@ -61,14 +61,14 @@ public class DarknovaApplication extends Application implements Handler.Callback
 		// For preparing image cache earlier
 		mImageCache = ImageCache.getCache(this, null);
 
-		// BEFORE TwitterEngine: addOnUserlistChangedListener from AlwaysAvailableUsers on preparation
-		Tweeter.initializeAlwaysAvailableUsers(this);
-
 		// No dependency
 		TwitterEngine.prepare(this, "TwitterEngine");
 
 		// AFTER TwitterEngine
 		Page.initialize(this, "Page");
+
+		// AFTER everything
+		Tweeter.initializeAlwaysAvailableUsers(this);
 	}
 
 	@Override

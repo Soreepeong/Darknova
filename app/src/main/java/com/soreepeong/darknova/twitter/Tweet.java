@@ -24,7 +24,7 @@ public class Tweet implements ObjectWithId, Parcelable {
 	public long created_at;
 	public String text;
 	public int retweet_count;
-	public int favourites_count;
+	public int favorite_count;
 	public String source;
 	public boolean possibly_sensitive;
 	public boolean removed;
@@ -55,20 +55,22 @@ public class Tweet implements ObjectWithId, Parcelable {
 		created_at = in.readLong();
 		text = in.readString();
 		retweet_count = in.readInt();
-		favourites_count = in.readInt();
+		favorite_count = in.readInt();
 		source = in.readString();
 		possibly_sensitive = in.readByte() != 0x00;
 		removed = in.readByte() != 0x00;
 		user = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
 		retweeted_status = (Tweet) in.readValue(Tweet.class.getClassLoader());
 		entities = (Entities) in.readValue(Entities.class.getClassLoader());
-		in_reply_to_status = (Tweet) in.readValue(Tweet.class.getClassLoader());
+		in_reply_to_status = Tweet.getTweet(in.readLong());
 		in_reply_to_user = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
 		in.readMap(perUserInfo, ForUserInfo.class.getClassLoader());
 		in.readList(accessedBy, Long.class.getClassLoader());
 	}
 
 	public static Tweet getTweet(long id){
+		if(id == 0)
+			return null;
 		Tweet t = mTweets.get(id);
 		if(t != null)
 			return t;
@@ -93,7 +95,7 @@ public class Tweet implements ObjectWithId, Parcelable {
 					t.created_at = tweet.created_at;
 					t.text = tweet.text;
 					t.retweet_count = tweet.retweet_count;
-					t.favourites_count = tweet.favourites_count;
+					t.favorite_count = tweet.favorite_count;
 					t.source = tweet.source;
 					t.possibly_sensitive = tweet.possibly_sensitive;
 					t.user = tweet.user;
@@ -162,14 +164,14 @@ public class Tweet implements ObjectWithId, Parcelable {
 		dest.writeLong(created_at);
 		dest.writeString(text);
 		dest.writeInt(retweet_count);
-		dest.writeInt(favourites_count);
+		dest.writeInt(favorite_count);
 		dest.writeString(source);
 		dest.writeByte((byte) (possibly_sensitive ? 0x01 : 0x00));
 		dest.writeByte((byte) (removed ? 0x01 : 0x00));
 		dest.writeValue(user);
 		dest.writeValue(retweeted_status);
 		dest.writeValue(entities);
-		dest.writeValue(in_reply_to_status);
+		dest.writeLong(in_reply_to_status == null ? 0 : in_reply_to_status.id);
 		dest.writeValue(in_reply_to_user);
 		dest.writeMap(perUserInfo);
 		dest.writeList(accessedBy);
@@ -178,6 +180,11 @@ public class Tweet implements ObjectWithId, Parcelable {
 	@Override
 	public long getId() {
 		return id;
+	}
+
+	@Override
+	public String toString() {
+		return "@" + (user != null ? user.screen_name : "(null)") + ": " + text;
 	}
 
 	public static class ForUserInfo implements Parcelable{

@@ -180,6 +180,10 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 		Page.removeOnPageChangedListener(this);
 		for (Tweeter t : mPageAdapter.mListedUsers)
 			t.removeOnChangeListener(mPageAdapter);
+		for (Page<? extends ObjectWithId> p : mPageAdapter.mListedPages)
+			for (PageElement e : p.elements)
+				if (e.id != 0 && e.name != null)
+					Tweeter.getTweeter(e.id, e.name).removeOnChangeListener(mPageAdapter);
 		TwitterEngine.removeOnUserlistChangedListener(this);
 		TwitterStreamServiceReceiver.removeOnStreamTurnListener(this);
 		mImageCache = null;
@@ -405,13 +409,25 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				e.getTweeter().addOnChangeListener(this);
 				mListedUsers.add(e.getTweeter());
 			}
+			for (Page<? extends ObjectWithId> p : data)
+				for (PageElement e : p.elements)
+					if (e.id != 0 && e.name != null)
+						Tweeter.getTweeter(e.id, e.name).addOnChangeListener(this);
 			setHasStableIds(true);
 		}
 
 		public void updateUnderlyingData(List<Page<? extends ObjectWithId>> data, ArrayList<TwitterEngine> users) {
 			if (data != null) {
+				for (Page<? extends ObjectWithId> p : mListedPages)
+					for (PageElement e : p.elements)
+						if (e.id != 0 && e.name != null)
+							Tweeter.getTweeter(e.id, e.name).removeOnChangeListener(this);
 				mListedPages.clear();
 				mListedPages.addAll(data);
+				for (Page<? extends ObjectWithId> p : data)
+					for (PageElement e : p.elements)
+						if (e.id != 0 && e.name != null)
+							Tweeter.getTweeter(e.id, e.name).addOnChangeListener(this);
 			}
 			if (users != null) {
 				for (Tweeter t : mListedUsers)
@@ -702,13 +718,22 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					((View) mViewShowAccountList.getParent()).setOnClickListener(this);
 			}
 
+			private void applyAccountListButton() {
+				int currentState = mIsPageListing ? R.attr.ic_navigation_expand_more : R.attr.ic_navigation_expand_less;
+				int lastState = mViewShowAccountList.getTag() == null ? 0 : (int) mViewShowAccountList.getTag();
+				if (lastState != currentState) {
+					mViewShowAccountList.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), currentState));
+					mViewShowAccountList.setTag(currentState);
+				}
+			}
+
 			@Override
 			public void onClick(View v) {
 				if (v.equals(mViewShowAccountList.getParent())) {
 					mListEditMode = false;
 					mIsPageListing = !mIsPageListing;
 					notifyDataSetChanged();
-					mViewShowAccountList.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), mIsPageListing ? R.attr.ic_navigation_expand_more : R.attr.ic_navigation_expand_less));
+					applyAccountListButton();
 
 					RotateAnimation ani = new RotateAnimation(-180, 0, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
 					ani.setDuration(300);
@@ -722,6 +747,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 
 			@Override
 			public void bindViewHolder(int position) {
+				applyAccountListButton();
 				if (mCurrentUser != null) {
 					Tweeter user = mCurrentUser.getTweeter();
 					if (mImageCache != null) {
@@ -794,6 +820,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				if (mImageCache != null) {
 					long twitterEngineId = mListedPages.get(position).elements.get(0).twitterEngineId;
 					long id = mListedPages.get(position).elements.get(0).id;
+					String name = mListedPages.get(position).elements.get(0).name;
 					for (int i = mListedPages.get(position).elements.size() - 1; i > 0; i--) {
 						if (twitterEngineId != mListedPages.get(position).elements.get(i).twitterEngineId)
 							twitterEngineId = 0;
@@ -805,13 +832,14 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 						mListedPages.get(position).elements.get(0).getTwitterEngine().getTweeter().addToDataLoadQueue(mListedPages.get(position).elements.get(0).getTwitterEngine());
 					} else
 						mImageCache.assignImageView(imageViewUser, null, null);
-					if (id != 0) {
+					if (id != 0 && name != null) {
 						mImageCache.assignImageView(imageView, Tweeter.getTweeter(id, mListedPages.get(position).elements.get(0).name).getProfileImageUrl(), null, mImageCache.CIRCULAR_IMAGE_PREPROCESSOR);
 						Tweeter.getTweeter(id, mListedPages.get(position).elements.get(0).name).addToDataLoadQueue(mListedPages.get(position).elements.get(0).getTwitterEngine());
 					} else {
 						mImageCache.assignImageView(imageView, null, null);
 						imageView.setImageDrawable(getResourceDrawable(mListedPages.get(position).iconResId, imageView.getLayoutParams().width, imageView.getLayoutParams().height));
 					}
+					Tweeter.fillLoadQueuedData();
 				} else {
 					imageViewUser.setImageDrawable(null);
 					imageView.setImageDrawable(null);

@@ -16,6 +16,7 @@ import com.soreepeong.darknova.DarknovaApplication;
 import com.soreepeong.darknova.services.TemplateTweetProvider;
 import com.soreepeong.darknova.tools.FileTools;
 import com.soreepeong.darknova.tools.StreamTools;
+import com.soreepeong.darknova.tools.WeakValueHashMap;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 
 import java.io.File;
@@ -45,6 +46,7 @@ public class TemplateTweetAttachment implements Parcelable {
 			return new TemplateTweetAttachment[size];
 		}
 	};
+	private static final WeakValueHashMap<Long, TemplateTweetAttachment> mAttachments = new WeakValueHashMap<>();
 	private static final Handler mMainHandler = new Handler(Looper.getMainLooper());
 	public final File mLocalFile;
 	public final Uri original_url;
@@ -57,7 +59,7 @@ public class TemplateTweetAttachment implements Parcelable {
 
 	// _id, template_id, original_url, media_type
 
-	public TemplateTweetAttachment(Uri unresolved, ContentResolver resolver, TemplateTweet template) {
+	private TemplateTweetAttachment(Uri unresolved, ContentResolver resolver, TemplateTweet template) {
 		ContentValues cv = new ContentValues();
 		cv.put("template_id", template_id = template.id);
 		cv.put("original_url", (original_url = unresolved).toString());
@@ -65,7 +67,7 @@ public class TemplateTweetAttachment implements Parcelable {
 		mLocalFile = new File(resolver.getType(TemplateTweetProvider.URI_ATTACHMENTS) + "/" + id);
 	}
 
-	public TemplateTweetAttachment(Cursor cursor, ContentResolver resolver) {
+	private TemplateTweetAttachment(Cursor cursor, ContentResolver resolver) {
 		original_url = Uri.parse(cursor.getString(cursor.getColumnIndex("original_url")));
 		id = cursor.getLong(cursor.getColumnIndex("_id"));
 		template_id = cursor.getLong(cursor.getColumnIndex("template_id"));
@@ -81,6 +83,26 @@ public class TemplateTweetAttachment implements Parcelable {
 		media_type = in.readInt();
 		mLocalFile = new File(in.readString());
 		mLocalFileExists = mLocalFile.exists();
+	}
+
+	public static TemplateTweetAttachment obtain(Uri unresolved, ContentResolver resolver, TemplateTweet template) {
+		TemplateTweetAttachment res = new TemplateTweetAttachment(unresolved, resolver, template);
+		synchronized (mAttachments){
+			if(mAttachments.get(res.id) != null)
+				return mAttachments.get(res.id);
+			mAttachments.put(res.id, res);
+			return res;
+		}
+	}
+
+	public static TemplateTweetAttachment obtain(Cursor cursor, ContentResolver resolver) {
+		TemplateTweetAttachment res = new TemplateTweetAttachment(cursor, resolver);
+		synchronized (mAttachments){
+			if(mAttachments.get(res.id) != null)
+				return mAttachments.get(res.id);
+			mAttachments.put(res.id, res);
+			return res;
+		}
 	}
 
 	public void updateSelf(ContentResolver resolver) {
@@ -188,6 +210,16 @@ public class TemplateTweetAttachment implements Parcelable {
 		dest.writeLong(template_id);
 		dest.writeInt(media_type);
 		dest.writeString(mLocalFile.getAbsolutePath());
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		return o instanceof TemplateTweetAttachment && ((TemplateTweetAttachment) o).id == id;
+	}
+
+	@Override
+	public int hashCode() {
+		return (int) (id ^ (id >> 32L));
 	}
 
 	public interface AttachmentResolveResult {

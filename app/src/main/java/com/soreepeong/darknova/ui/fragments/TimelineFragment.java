@@ -4,7 +4,9 @@ import android.animation.Animator;
 import android.animation.ObjectAnimator;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Paint;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
@@ -18,6 +20,7 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
+import android.text.format.DateFormat;
 import android.text.method.LinkMovementMethod;
 import android.view.HapticFeedbackConstants;
 import android.view.LayoutInflater;
@@ -26,6 +29,7 @@ import android.view.ViewGroup;
 import android.view.animation.AlphaAnimation;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
@@ -58,6 +62,7 @@ import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -235,7 +240,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			else if (!forceUpdate)
 				return;
 		}
-		int unread = Collections.binarySearch(mList, Tweet.getTweet(mPage.mPageNewestSeenItemId), Collections.reverseOrder());
+		int unread = mPage.mPageNewestSeenItemId == 0 ? -1 : Collections.binarySearch(mList, Tweet.getTweet(mPage.mPageNewestSeenItemId), Collections.reverseOrder());
 		if (unread < 0) unread = -1 - unread;
 		unread = Math.min(unread, mList.size());
 		mViewUnreadTweetCount.setText(getString(R.string.page_unread).replace("%", Integer.toString(unread)));
@@ -298,6 +303,15 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 	@Override
 	public void onPageLeave() {
 		super.onPageLeave();
+		if(mIsPagePrepared){
+			calculateListPositions();
+			SharedPreferences.Editor edit = mPagePositionPreferences.edit();
+			edit.putInt("lastoffset", mPage.mPageLastOffset);
+			edit.putLong("seen_id", mPage.mPageNewestSeenItemId);
+			edit.putBoolean("isattop", mPage.mIsListAtTop);
+			edit.putLong("id", mPage.mPageLastItemId);
+			edit.apply();
+		}
 		mIsActive = false;
 		setQuickFilter(null);
 	}
@@ -305,12 +319,14 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 	@Override
 	public void onPause() {
 		calculateListPositions();
-		SharedPreferences.Editor edit = mPagePositionPreferences.edit();
-		edit.putInt("lastoffset", mPage.mPageLastOffset);
-		edit.putLong("seen_id", mPage.mPageNewestSeenItemId);
-		edit.putBoolean("isattop", mPage.mIsListAtTop);
-		edit.putLong("id", mPage.mPageLastItemId);
-		edit.apply();
+		if(mIsPagePrepared){
+			SharedPreferences.Editor edit = mPagePositionPreferences.edit();
+			edit.putInt("lastoffset", mPage.mPageLastOffset);
+			edit.putLong("seen_id", mPage.mPageNewestSeenItemId);
+			edit.putBoolean("isattop", mPage.mIsListAtTop);
+			edit.putLong("id", mPage.mPageLastItemId);
+			edit.apply();
+		}
 		mHandler.removeCallbacksAndMessages(null);
 		Thread listApplier = mListApplier;
 		if (listApplier != null) {
@@ -652,6 +668,20 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			super.doInBackground(params);
 			if (isNewlyLoadedPage) {
 				loadListCache();
+			}
+			if(mPage.elements.size() == 1 && mPage.elements.get(0).function == PageElement.FUNCTION_TWEET_SINGLE){
+				Tweet t = Tweet.getTweet(mPage.elements.get(0).id);
+				while(true){
+					if(t.retweeted_status != null) t = t.retweeted_status;
+					int index = Collections.binarySearch(mList, t, Collections.reverseOrder());
+					if (index < 0) {
+						index = -index - 1;
+						mList.add(index, t);
+					}
+					t = t.in_reply_to_status;
+					if(t == null || t.info.stub)
+						break;
+				}
 			}
 			try {
 				TwitterStreamServiceReceiver.waitForService();
@@ -1033,7 +1063,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		public void onNewTweetReceived(Tweet tweet) {
 			mProgress++;
 			mPage.addNewTweet(tweet, false);
-			if (mProgress > 10 && System.currentTimeMillis() - mLastPublishTime >= 750) {
+			if (System.currentTimeMillis() - mLastPublishTime >= 750) {
 				applyTweetChanges();
 				publishProgress();
 				mLastPublishTime = System.currentTimeMillis();
@@ -1074,6 +1104,23 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 						case PageElement.FUNCTION_USER_FAVORITES:
 							res = mElement.getTwitterEngine().getUserFavorites(mElement.id, mLoadCount, since_id, max_id, true, PageRefresher.this);
 							break;
+						case PageElement.FUNCTION_TWEET_SINGLE:
+							Tweet t = Tweet.getTweet(mPage.elements.get(0).id);
+							int i = 0;
+							while(!Thread.interrupted() && i < 10){
+								if(t.retweeted_status != null) t = t.retweeted_status;
+								if(t.info.stub){
+									t = mElement.getTwitterEngine().getTweet(t.id);
+									i++;
+									if(t == null)
+										break;
+								}
+								onNewTweetReceived(t);
+								t = t.in_reply_to_status;
+								if(t == null)
+									break;
+							}
+							break;
 					}
 					mProgress += mLoadCount - (res == null ? 0 : res.size());
 					publishProgress();
@@ -1104,8 +1151,200 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			switch (viewType) {
 				case R.layout.row_tweet:
 					return new TweetViewHolder(inflater.inflate(viewType, parent, false));
+				case R.layout.row_header_big_tweet:
+					return new TweetBigViewHolder(inflater.inflate(viewType, parent, false));
 			}
 			return super.onCreateViewHolder(parent, viewType);
+		}
+
+		@Override
+		public int getItemViewType(int position) {
+			int type = super.getItemViewType(position);
+			if(type == R.layout.row_tweet){
+				long itm = mList.get(adapterPositionToListIndex(position)).id;
+				for(PageElement e : mPage.elements)
+					if(e.id == itm && e.function == PageElement.FUNCTION_TWEET_SINGLE)
+						return R.layout.row_header_big_tweet;
+			}
+			return type;
+		}
+
+		class TweetBigViewHolder extends CustomViewHolder implements View.OnLongClickListener {
+			private final ImageView mImage, imgInfoFavorited, imgInfoProtected, imgInfoRetweeted, imgInfoReplied, imgInfoVerified;
+			private final TextView mUserId, mUserName, mText, mDescription;
+			private final Button mRetweets, mFavorites;
+			private final ImageButton mReply, mRetweet, mFavorite, mShare;
+			private final View mUser;
+			private Tweet mLastBoundTweet;
+
+			public TweetBigViewHolder(View v) {
+				super(v);
+				mImage = (ImageView) itemView.findViewById(R.id.user_picture);
+				imgInfoFavorited = (ImageView) v.findViewById(R.id.imgInfoFavorited);
+				imgInfoProtected = (ImageView) v.findViewById(R.id.imgInfoProtected);
+				imgInfoRetweeted = (ImageView) v.findViewById(R.id.imgInfoRetweeted);
+				imgInfoReplied = (ImageView) v.findViewById(R.id.imgInfoReplied);
+				imgInfoVerified = (ImageView) v.findViewById(R.id.imgInfoVerified);
+				mUser = itemView.findViewById(R.id.user_area);
+				mUserId = (TextView) itemView.findViewById(R.id.user_id);
+				mUserName = (TextView) itemView.findViewById(R.id.user_name);
+				mText = (TextView) itemView.findViewById(R.id.text);
+				mDescription = (TextView) itemView.findViewById(R.id.description);
+				mRetweets = (Button) itemView.findViewById(R.id.retweet_count);
+				mFavorites = (Button) itemView.findViewById(R.id.favorite_count);
+				mReply = (ImageButton) itemView.findViewById(R.id.reply);
+				mRetweet = (ImageButton) itemView.findViewById(R.id.retweet);
+				mFavorite = (ImageButton) itemView.findViewById(R.id.favorite);
+				mShare = (ImageButton) itemView.findViewById(R.id.share);
+				mRetweets.setOnClickListener(this);
+				mFavorites.setOnClickListener(this);
+				mReply.setOnClickListener(this);
+				mReply.setOnLongClickListener(this);
+				mRetweet.setOnClickListener(this);
+				mRetweet.setOnLongClickListener(this);
+				mFavorite.setOnClickListener(this);
+				mShare.setOnClickListener(this);
+				mUser.setOnClickListener(this);
+			}
+
+			@Override
+			public void onClick(View v) {
+				final Tweet t = mLastBoundTweet;
+				if(v.equals(mRetweets)){
+				}else if(v.equals(mFavorites)){
+				}else if(v.equals(mReply)){
+					HashMap<Tweeter, Boolean> map = new HashMap<>();
+					String s = "@" + t.user.screen_name + " ";
+					map.put(t.user, true);
+					for(Entities.Entity ent : t.entities.list)
+						if(ent instanceof Entities.MentionsEntity)
+							if(map.put(((Entities.MentionsEntity)ent).tweeter, true) != null)
+								s += "@" + ((Entities.MentionsEntity)ent).tweeter.screen_name + " ";
+					((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
+					((MainActivity) getActivity()).getNewTweetFragment().insertText(s);
+					((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
+				}else if(v.equals(mRetweet)){
+					if (t.retweeted_status == null && t.user._protected) {
+						((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
+						((MainActivity) getActivity()).getNewTweetFragment().insertText("QT @" + (t.user._protected ? "***" : t.user.screen_name) + ": " + t.text);
+						((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
+					} else {
+						new AlertDialog.Builder(getActivity())
+								.setMessage("Retweet?")
+								.setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+									@Override
+									public void onClick(DialogInterface dialog, int which) {
+										final ArrayList<TwitterEngine> postFrom = ((MainActivity) getActivity()).getNewTweetFragment().getPostFromList();
+										final long id = t.id;
+										new Thread() {
+											@Override
+											public void run() {
+												try {
+													for (TwitterEngine e : postFrom)
+														e.postRetweet(id);
+												} catch (Exception e) {
+													e.printStackTrace();
+												}
+											}
+										}.start();
+									}
+								})
+								.setNegativeButton(android.R.string.no, null)
+								.show();
+					}
+				}else if(v.equals(mFavorite)){
+					final ArrayList<TwitterEngine> postFrom = ((MainActivity) getActivity()).getNewTweetFragment().getPostFromList();
+					final long id = t.id;
+					new Thread() {
+						@Override
+						public void run() {
+							try {
+								for (TwitterEngine e : postFrom)
+									e.postFavorite(id);
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+						}
+					}.start();
+				}else if(v.equals(mShare)){
+					Intent sharingIntent = new Intent(android.content.Intent.ACTION_SEND);
+					sharingIntent.setType("text/plain");
+					sharingIntent.putExtra(android.content.Intent.EXTRA_TEXT, t.toString());
+					startActivity(Intent.createChooser(sharingIntent, t.toString()));
+				}else if(v.equals(mUser)){
+					Page.templatePageUser(t.user.user_id, t.user.screen_name, (MainActivity) getActivity(), PageElement.FUNCTION_USER_TIMELINE);
+				}
+			}
+
+			private String getDescriptionString(Tweet tweet) {
+				String sTime;
+				sTime = DateFormat.getLongDateFormat(getActivity()).format(new Date(tweet.created_at));
+				return getString(R.string.tweet_description).replace("${time}", sTime).replace("${via}", tweet.source);
+			}
+
+			public void updateSelectionStatus(Tweet tweet) {
+				itemView.setSelected(mSelectedList.contains(tweet));
+			}
+
+			@Override
+			public void updateView() {
+				int position = adapterPositionToListIndex(getLayoutPosition());
+				if (position < 0 || position >= (mQuickFilteredList != null ? mQuickFilteredList.size() : mList.size()))
+					return;
+				FilteredTweet filtered = mQuickFilteredList != null ? (FilteredTweet) mQuickFilteredList.get(position) : null;
+				Tweet tweet = filtered != null ? filtered.mObject : mList.get(position);
+				if (tweet != mLastBoundTweet)
+					return;
+				if (filtered != null && filtered.spannedText != null) {
+					for (UserImageSpan s : filtered.spannedText.getSpans(0, filtered.spannedText.length(), UserImageSpan.class))
+						s.setLineHeight(mText.getLineHeight());
+					mText.setText(filtered.spannedText);
+				} else
+					mText.setText(TweetSpanner.make(tweet.retweeted_status == null ? tweet : tweet.retweeted_status, mImageCache, mText.getLineHeight(), mText.getText()));
+				mDescription.setText(getDescriptionString(tweet));
+				mUserName.setText(filtered != null && filtered.spannedName != null ? filtered.spannedName : tweet.user.name);
+				mUserId.setText(filtered != null && filtered.spannedId != null ? filtered.spannedId : tweet.user.screen_name);
+				updateSelectionStatus(tweet);
+				mText.setPaintFlags((mText.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG) | (tweet.removed ? Paint.STRIKE_THRU_TEXT_FLAG : 0));
+				mRetweets.setVisibility(tweet.retweet_count > 0 ? View.VISIBLE : View.GONE);
+				mFavorites.setVisibility(tweet.favorite_count > 0 ? View.VISIBLE : View.GONE);
+				mRetweets.setText(tweet.retweet_count + " Retweets");
+				mFavorites.setText(tweet.favorite_count + " Favorites");
+			}
+
+			public void bindViewHolder(int position) {
+				FilteredTweet filtered = mQuickFilteredList != null ? (FilteredTweet) mQuickFilteredList.get(position) : null;
+				Tweet tweet = mQuickFilteredList != null ? filtered.mObject : mList.get(position);
+				if (mLastBoundTweet == tweet) { // skip - already prepared
+					updateView();
+					return;
+				}
+				mLastBoundTweet = tweet;
+				updateView();
+				imgInfoReplied.setVisibility(tweet.in_reply_to_status == null ? View.GONE : View.VISIBLE);
+				imgInfoFavorited.setVisibility(tweet.favoriteExists() ? View.VISIBLE : View.GONE);
+				imgInfoRetweeted.setVisibility(tweet.retweetExists() ? View.VISIBLE : View.GONE);
+				imgInfoVerified.setVisibility(tweet.user.verified ? View.VISIBLE : View.GONE);
+				imgInfoProtected.setVisibility(tweet.user._protected ? View.VISIBLE : View.GONE);
+				mImageCache.assignImageView(mImage, tweet.user.getProfileImageUrl(), null);
+			}
+
+			@Override
+			public boolean onLongClick(View v) {
+				final Tweet t = mLastBoundTweet;
+				if(v.equals(mRetweet)){
+					((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
+					((MainActivity) getActivity()).getNewTweetFragment().insertText("QT @" + (t.user._protected ? "***" : t.user.screen_name) + ": " + t.text);
+					((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
+					return true;
+				}else if(v.equals(mReply)){
+					((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
+					((MainActivity) getActivity()).getNewTweetFragment().insertText("@" + t.user.screen_name + " ");
+					((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
+					return true;
+				}
+				return false;
+			}
 		}
 
 		class TweetViewHolder extends CustomViewHolder implements DragInitiatorCallbacks, View.OnLongClickListener {
@@ -1155,6 +1394,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 
 				dragInitiatorButton.setDragInitiatorCallbacks(this);
 				dragInitiatorButton.setOnClickListener(this);
+				dragInitiatorButton.setOnLongClickListener(this);
 				tweetActionReply.setOnClickListener(this);
 				tweetActionRetweet.setOnClickListener(this);
 				tweetActionFavorite.setOnClickListener(this);
@@ -1229,6 +1469,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 					lblUserName.setText(filtered != null && filtered.spannedId != null ? TextUtils.concat(filtered.spannedId, "/", filtered.spannedName) : tweet.user.screen_name + "/" + tweet.user.name);
 					// lblData.setText(filtered != null && filtered.spannedText != null ? filtered.spannedText : tweet.text);
 				}
+				lblData.setPaintFlags((lblData.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG) | ((tweet.removed || (tweet.retweeted_status != null && tweet.retweeted_status.removed)) ? Paint.STRIKE_THRU_TEXT_FLAG : 0));
 				updateSelectionStatus(tweet);
 			}
 
@@ -1278,8 +1519,10 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				final Tweet t = mQuickFilteredList == null ? (Tweet) getItem(position) : ((FilteredTweet) getItem(position)).mObject;
 				if (t == null)
 					return;
-				if (v.equals(tweetActionRetweet)) {
-					if (mIsLongPress || t.user._protected) {
+				if(v.equals(itemView)){
+					Page.templatePageTweet(t, (MainActivity) getActivity());
+				}else if (v.equals(tweetActionRetweet)) {
+					if (mIsLongPress || (t.retweeted_status == null && t.user._protected)) {
 						((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
 						final Tweet t2 = t.retweeted_status == null ? t : t.retweeted_status;
 						((MainActivity) getActivity()).getNewTweetFragment().insertText("QT @" + (t2.user._protected ? "***" : t2.user.screen_name) + ": " + t2.text);
@@ -1309,16 +1552,36 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 								.show();
 					}
 				} else if (v.equals(tweetActionReply)) {
-					((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
-					((MainActivity) getActivity()).getNewTweetFragment().insertText("@" + t.user.screen_name + " ");
-					((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
-				} else if (v.equals(tweetActionFavorite)) {
-					try {
-						for (TwitterEngine e : ((MainActivity) getActivity()).getNewTweetFragment().getPostFromList())
-							e.postFavorite(t.id);
-					} catch (Exception e) {
-						e.printStackTrace();
+					if(mIsLongPress){
+						((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
+						((MainActivity) getActivity()).getNewTweetFragment().insertText("@" + t.user.screen_name + " ");
+						((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
+					}else{
+						HashMap<Tweeter, Boolean> map = new HashMap<>();
+						String s = "@" + t.user.screen_name + " ";
+						map.put(t.user, true);
+						for(Entities.Entity ent : t.entities.list)
+							if(ent instanceof Entities.MentionsEntity)
+								if(map.put(((Entities.MentionsEntity)ent).tweeter, true) != null)
+									s += "@" + ((Entities.MentionsEntity)ent).tweeter.screen_name + " ";
+						((MainActivity) getActivity()).getNewTweetFragment().setInReplyTo(t);
+						((MainActivity) getActivity()).getNewTweetFragment().insertText(s);
+						((MainActivity) getActivity()).getNewTweetFragment().showNewTweet();
 					}
+				} else if (v.equals(tweetActionFavorite)) {
+					final ArrayList<TwitterEngine> postFrom = ((MainActivity) getActivity()).getNewTweetFragment().getPostFromList();
+					final long id = t.id;
+					new Thread() {
+						@Override
+						public void run() {
+							try {
+								for (TwitterEngine e : postFrom)
+									e.postFavorite(id);
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+						}
+					}.start();
 				} else if (v.equals(dragInitiatorButton)) {
 					if (!mSelectedList.contains(t)) {
 						mSelectedList.add(t);
@@ -1375,8 +1638,33 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 					v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
 					tweetActionRetweet.setText(R.string.tweet_action_quote);
 				} else if (v.equals(tweetActionReply)) {
-					return true;
+					mIsLongPress = true;
+					v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
 				} else if (v.equals(tweetActionFavorite)) {
+					return true;
+				}else if(v.equals(dragInitiatorButton)){
+					new AlertDialog.Builder(getActivity())
+							.setMessage("Remove?")
+							.setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+								@Override
+								public void onClick(DialogInterface dialog, int which) {
+									final ArrayList<TwitterEngine> postFrom = ((MainActivity) getActivity()).getNewTweetFragment().getPostFromList();
+									final long id = t.id;
+									new Thread() {
+										@Override
+										public void run() {
+											try {
+												for (TwitterEngine e : postFrom)
+													e.postRemove(id);
+											} catch (Exception e) {
+												e.printStackTrace();
+											}
+										}
+									}.start();
+								}
+							})
+							.setNegativeButton(android.R.string.no, null)
+							.show();
 					return true;
 				}
 				return false;
@@ -1386,9 +1674,11 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			public void onDragPrepare(DragInitiator dragInitiator) {
 				int itemPosition = getAdapterPosition();
 				final Tweet t = mQuickFilteredList == null ? (Tweet) getItem(itemPosition) : ((FilteredTweet) getItem(itemPosition)).mObject;
+				if(t == null)
+					return;
 				dragInitiator.setKeepContainerOnClick(!mSelectedList.contains(t));
 				mIsLongPress = false;
-				tweetActionRetweet.setText(t.user._protected ? R.string.tweet_action_quote : R.string.tweet_action_retweet);
+				tweetActionRetweet.setText(t.user._protected && t.retweeted_status == null ? R.string.tweet_action_quote : R.string.tweet_action_retweet);
 			}
 
 			@Override

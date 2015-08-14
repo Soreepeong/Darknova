@@ -87,7 +87,7 @@ public class ShareReceiverActivity extends AppCompatActivity implements Template
 				t.text += i.data;
 				continue;
 			}
-			TemplateTweetAttachment attachment = new TemplateTweetAttachment(i.uri, getContentResolver(), t);
+			TemplateTweetAttachment attachment = TemplateTweetAttachment.obtain(i.uri, getContentResolver(), t);
 			attachment.resolve(this, new TemplateTweetAttachment.AttachmentResolveResult() {
 				@Override
 				public void onResolved(TemplateTweetAttachment attachment) {
@@ -148,12 +148,12 @@ public class ShareReceiverActivity extends AppCompatActivity implements Template
 			List<Long> mIds = null;
 			if (lastTweetId != -1) {
 				try {
-					mIds = new TemplateTweet(lastTweetId, getContentResolver()).mUserIdList;
+					mIds = TemplateTweet.obtain(lastTweetId, getContentResolver()).mUserIdList;
 				} catch (Throwable e) {
 					e.printStackTrace();
 				}
 			}
-			TemplateTweet newTweet = new TemplateTweet(getContentResolver(), mIds);
+			TemplateTweet newTweet = TemplateTweet.obtain(getContentResolver(), mIds);
 			PreferenceManager.getDefaultSharedPreferences(this).edit().putLong(TemplateTweetEditorFragment.PREF_LAST_WORKING_TEMPLATE_ID, newTweet.id).apply();
 			addToTemplate(newTweet);
 		}

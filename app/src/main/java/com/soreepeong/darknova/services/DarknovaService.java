@@ -7,6 +7,7 @@ import android.app.Service;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -97,7 +98,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				if (c.moveToFirst()) {
 					wholeLoop:
 					do {
-						final TemplateTweet t = new TemplateTweet(c, resolver);
+						final TemplateTweet t = TemplateTweet.obtain(c, resolver);
 						if (t.mUserIdList.isEmpty())
 							continue;
 						if (mTemplateOneshot.contains(t))
@@ -165,6 +166,8 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 
 		getContentResolver().registerContentObserver(TemplateTweetProvider.URI_BASE, true, mTemplateTweetObserver);
 		mTemplateTweetObserver.onChange(false);
+
+		loadStreamState();
 	}
 
 	@Override
@@ -299,6 +302,27 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				}
 			}
 		}
+		saveStreamState();
+	}
+
+	private void saveStreamState(){
+		SharedPreferences.Editor edit = getSharedPreferences("stream-state", MODE_PRIVATE).edit();
+		synchronized (mActiveStreams) {
+			edit.clear();
+			if(!mIsWaitingForQuit)
+				for(TwitterEngine e : mActiveStreams){
+					if(e.isStreamUsed())
+						edit.putBoolean("u" + e.getUserId(), true);
+				}
+		}
+		edit.apply();
+	}
+
+	private void loadStreamState(){
+		SharedPreferences state = getSharedPreferences("stream-state", MODE_PRIVATE);
+		for(TwitterEngine e : TwitterEngine.getAll())
+			if(state.getBoolean("u" + e.getUserId(), false))
+				e.setUseStream(true);
 	}
 
 	@Override
@@ -380,6 +404,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				if (ongoingStreamExists && !mHandler.hasMessages(MESSAGE_ACTUAL_STREAM_QUIT)) {
 					mHandler.sendEmptyMessageDelayed(MESSAGE_ACTUAL_STREAM_QUIT, DELAY_QUIT_TIME);
 					mIsWaitingForQuit = true;
+					saveStreamState();
 					showStreamTicker(getString(R.string.stream_quit_ongoing_notification));
 				}
 				applyStreamIndicator(null);
@@ -388,6 +413,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 			case MESSAGE_STREAM_QUIT_CANCEL: {
 				mHandler.removeMessages(MESSAGE_ACTUAL_STREAM_QUIT);
 				mIsWaitingForQuit = false;
+				saveStreamState();
 				applyStreamIndicator(null);
 				return true;
 			}

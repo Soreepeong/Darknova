@@ -76,8 +76,9 @@ public class TwitterStreamServiceReceiver {
 				@Override
 				public void run() {
 					synchronized (mStreamCallbacks) {
-						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks)
+						for (TwitterEngine.TwitterStreamCallback c : mStreamCallbacks){
 							c.onStreamTweetEvent(engine, event, source, target, tweet, created_at);
+						}
 					}
 				}
 			});
@@ -169,7 +170,12 @@ public class TwitterStreamServiceReceiver {
 							mStreamCallback.onStreamError(e, (Throwable) b.getSerializable("e"));
 							break;
 						case DarknovaService.MESSAGE_STREAM_CALLBACK_TWEET_EVENT:
-							mStreamCallback.onStreamTweetEvent(e, b.getString("event"), (Tweeter) b.getParcelable("source"), (Tweeter) b.getParcelable("target"), (Tweet) b.getParcelable("tweet"), b.getLong("created_at"));
+							Tweet t = b.getParcelable("tweet");
+							if(t != null){
+								mStreamCallback.onStreamTweetEvent(e, b.getString("event"), (Tweeter) b.getParcelable("source"), (Tweeter) b.getParcelable("target"), t, b.getLong("created_at"));
+								Tweet.updateTweet(t);
+								android.util.Log.d("Darknova Stream", b.getString("event") + ": " + t.toString());
+							}
 							break;
 						case DarknovaService.MESSAGE_STREAM_CALLBACK_USER_EVENT:
 							mStreamCallback.onStreamUserEvent(e, b.getString("event"), (Tweeter) b.getParcelable("source"), (Tweeter) b.getParcelable("target"), b.getLong("created_at"));

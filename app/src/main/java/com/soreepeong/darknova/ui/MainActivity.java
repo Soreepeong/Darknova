@@ -291,14 +291,16 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	@Override
 	public void onPageSelected(int position) {
 		mSuggestionFragment.hideAndIconify();
-		if (getFragmentAt(mLastViewPagerPage) != null)
+		boolean changed = mLastViewPagerPage != position;
+		if (changed && getFragmentAt(mLastViewPagerPage) != null)
 			getFragmentAt(mLastViewPagerPage).onPageLeave();
 		mNavigationDrawerFragment.onPageSelected(position);
 		mLastViewPagerPage = position;
 		mActionBar.setTitle(mPagerAdapter.getPageTitle(position));
 		mActionBar.setSubtitle(mPagerAdapter.getPageSubtitle(position));
 
-		getFragmentAt(position).onPageEnter();
+		if(changed)
+			getFragmentAt(position).onPageEnter();
 
 		invalidateOptionsMenu();
 	}
