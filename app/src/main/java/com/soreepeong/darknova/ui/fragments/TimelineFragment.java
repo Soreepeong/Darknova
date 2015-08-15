@@ -671,6 +671,8 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			}
 			if(mPage.elements.size() == 1 && mPage.elements.get(0).function == PageElement.FUNCTION_TWEET_SINGLE){
 				Tweet t = Tweet.getTweet(mPage.elements.get(0).id);
+				if (t.info.stub)
+					requireRefresh = true;
 				while(true){
 					if(t.retweeted_status != null) t = t.retweeted_status;
 					int index = Collections.binarySearch(mList, t, Collections.reverseOrder());
@@ -1295,12 +1297,22 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				Tweet tweet = filtered != null ? filtered.mObject : mList.get(position);
 				if (tweet != mLastBoundTweet)
 					return;
+				if (tweet.info.stub) {
+					mText.setText("");
+					mDescription.setText("Refreshing...");
+					mUserName.setText("?");
+					mUserId.setText("?");
+					mText.setPaintFlags(mText.getPaintFlags() & ~Paint.STRIKE_THRU_TEXT_FLAG);
+					mRetweets.setVisibility(View.GONE);
+					mFavorites.setVisibility(View.GONE);
+					return;
+				}
 				if (filtered != null && filtered.spannedText != null) {
 					for (UserImageSpan s : filtered.spannedText.getSpans(0, filtered.spannedText.length(), UserImageSpan.class))
 						s.setLineHeight(mText.getLineHeight());
 					mText.setText(filtered.spannedText);
 				} else
-					mText.setText(TweetSpanner.make(tweet.retweeted_status == null ? tweet : tweet.retweeted_status, mImageCache, mText.getLineHeight(), mText.getText()));
+					mText.setText(TweetSpanner.make(tweet, mImageCache, mText.getLineHeight(), mText.getText()));
 				mDescription.setText(getDescriptionString(tweet));
 				mUserName.setText(filtered != null && filtered.spannedName != null ? filtered.spannedName : tweet.user.name);
 				mUserId.setText(filtered != null && filtered.spannedId != null ? filtered.spannedId : tweet.user.screen_name);
@@ -1321,6 +1333,15 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				}
 				mLastBoundTweet = tweet;
 				updateView();
+				if (tweet.info.stub) {
+					imgInfoReplied.setVisibility(View.GONE);
+					imgInfoFavorited.setVisibility(View.GONE);
+					imgInfoRetweeted.setVisibility(View.GONE);
+					imgInfoVerified.setVisibility(View.GONE);
+					imgInfoProtected.setVisibility(View.GONE);
+					mImageCache.assignImageView(mImage, null, null);
+					return;
+				}
 				imgInfoReplied.setVisibility(tweet.in_reply_to_status == null ? View.GONE : View.VISIBLE);
 				imgInfoFavorited.setVisibility(tweet.favoriteExists() ? View.VISIBLE : View.GONE);
 				imgInfoRetweeted.setVisibility(tweet.retweetExists() ? View.VISIBLE : View.GONE);

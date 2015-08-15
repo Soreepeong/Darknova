@@ -325,6 +325,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		protected final WeakHashMap<_T, HashMap<PageElement, Byte>> mLoadMoreItems = new WeakHashMap<>();
 		protected boolean isNewlyLoadedPage = false;
 		protected List<_T> mList;
+		protected boolean requireRefresh = false;
 
 		public OnCreateBackground(_FRAGMENT_T mFragment) {
 			this.mFragment = mFragment;
@@ -354,7 +355,6 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 				mFragment.mBackgroundLoader = null;
 				return;
 			}
-			boolean requireRefresh = false;
 			mFragment.mIsPagePrepared = true;
 			if (mFragment.getView() == null)
 				return;

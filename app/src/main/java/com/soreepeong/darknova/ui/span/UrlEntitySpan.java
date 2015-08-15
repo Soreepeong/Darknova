@@ -12,8 +12,12 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 
 import com.soreepeong.darknova.core.HTTPRequest;
+import com.soreepeong.darknova.settings.Page;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Entities;
+import com.soreepeong.darknova.twitter.Tweet;
+import com.soreepeong.darknova.twitter.Tweeter;
+import com.soreepeong.darknova.ui.MainActivity;
 import com.soreepeong.darknova.ui.MediaPreviewActivity;
 
 import java.lang.ref.WeakReference;
@@ -26,6 +30,7 @@ import java.util.regex.Pattern;
  * @author Soreepeong
  */
 public class UrlEntitySpan extends TouchableSpan implements EntitySpan, SelfInvalidatingSpan {
+	private static final Pattern mStatusPattern = Pattern.compile("^https?://(?:[^/]*\\.)?twitter\\.com/([a-z0-9_]{1,15})/status/([0-9]+)(?:/.*)?$", Pattern.CASE_INSENSITIVE);
 	private final Entities.UrlEntity mEntity;
 	private long mExpandStartTime;
 	private WeakReference<Callback> mCallback;
@@ -42,6 +47,20 @@ public class UrlEntitySpan extends TouchableSpan implements EntitySpan, SelfInva
 
 	@Override
 	public void onClick(View v) {
+		Matcher m = mStatusPattern.matcher(mEntity._expanded_url != null ? mEntity._expanded_url : mEntity.expanded_url);
+		if (m.matches()) {
+			try {
+				Tweet t = Tweet.getTweet(Long.parseLong(m.group(2)));
+				if (t.user == null) {
+					t.user = Tweeter.getTemporary();
+					t.user.screen_name = m.group(1);
+				}
+				Page.templatePageTweet(t, (MainActivity) v.getContext());
+				return;
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
 		MediaPreviewActivity.previewImage(v.getContext(), mEntity);
 	}
 
