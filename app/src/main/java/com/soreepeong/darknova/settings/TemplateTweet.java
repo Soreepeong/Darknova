@@ -220,6 +220,14 @@ public class TemplateTweet implements Parcelable {
 
 	public void updateSelf(ContentResolver resolver) {
 		ContentValues cv = new ContentValues();
+		resolver.delete(TemplateTweetProvider.URI_FROM_USERS, "template_id=?", new String[]{Long.toString(id)});
+		cv.put("template_id", id);
+		for (long user_id : mUserIdList) {
+			cv.put("user_id", user_id);
+			resolver.insert(TemplateTweetProvider.URI_FROM_USERS, cv);
+		}
+
+		cv.clear();
 		cv.put("type", type);
 		cv.put("enabled", enabled);
 		cv.put("remove_after", remove_after);
@@ -237,14 +245,6 @@ public class TemplateTweet implements Parcelable {
 		cv.put("use_coordinates", use_coordinates);
 		cv.put("autoresolve_coordinates", autoresolve_coordinates);
 		resolver.update(TemplateTweetProvider.URI_TEMPLATES, cv, "_id=?", new String[]{Long.toString(id)});
-		resolver.delete(TemplateTweetProvider.URI_FROM_USERS, "template_id=?", new String[]{Long.toString(id)});
-
-		cv.clear();
-		cv.put("template_id", id);
-		for (long user_id : mUserIdList) {
-			cv.put("user_id", user_id);
-			resolver.insert(TemplateTweetProvider.URI_FROM_USERS, cv);
-		}
 	}
 
 	@Override

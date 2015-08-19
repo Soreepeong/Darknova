@@ -24,6 +24,7 @@ import android.os.Parcelable;
 import android.os.RemoteException;
 import android.support.v4.app.NotificationCompat;
 
+import com.soreepeong.darknova.DarknovaApplication;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
@@ -130,6 +131,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 											mTemplateOneshot.remove(t);
 											template.enabled = false;
 											t.updateSelf(getContentResolver());
+											DarknovaApplication.showToast("Tweet Fail: " + why.getMessage() + "\r\n" + t.text);
 											// TODO Notify why
 										}
 									}
