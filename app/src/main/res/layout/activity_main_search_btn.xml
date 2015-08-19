@@ -2,7 +2,7 @@
 <ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
 			  android:layout_width="@dimen/abc_action_bar_default_height_material"
 			  android:layout_height="@dimen/abc_action_bar_default_height_material"
-				android:src="?attr/ic_content_filter_list"
 			 android:background="@drawable/ripple_bg"
-			 android:padding="@dimen/abc_action_bar_default_padding_material"
+			 android:padding="@dimen/abc_action_bar_default_padding_start_material"
+			 android:src="?attr/ic_content_filter_list"
 	/>

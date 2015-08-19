@@ -1035,6 +1035,8 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 
 						@Override
 						public void onAnimationEnd(Animator animation) {
+							if (mViewProgress == null)
+								return;
 							AlphaAnimation aa = new AlphaAnimation(1, 0);
 							aa.setDuration(300);
 							aa.setFillAfter(true);

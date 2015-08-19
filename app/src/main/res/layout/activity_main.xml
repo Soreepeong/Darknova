@@ -23,7 +23,7 @@
 				android:layout_width="match_parent"
 				android:layout_height="?attr/actionBarSize"
 				android:background="@drawable/actionbar_bg"
-				android:elevation="@dimen/fab_elevation"
+				android:elevation="@dimen/design_fab_elevation"
 				app:action_on_leave="true"
 				app:action_type="@+id/drag_action_type_actionbar"/>
 
@@ -39,7 +39,7 @@
 				android:layout_height="wrap_content"
 				android:layout_gravity="end|bottom"
 				android:layout_margin="16dp"
-				android:elevation="@dimen/fab_elevation"
+				android:elevation="@dimen/design_fab_elevation"
 				android:src="?attr/ic_content_create"
 				/>
 
@@ -49,7 +49,7 @@
 				android:layout_width="match_parent"
 				android:layout_height="match_parent"
 				android:layout_marginTop="?actionBarSize"
-				android:elevation="@dimen/fab_elevation"
+				android:elevation="@dimen/design_fab_elevation"
 				tools:layout="@layout/fragment_search_suggestion"/>
 
 			<com.soreepeong.darknova.ui.dragaction.DragActionOutsideDetectFrameLayout
