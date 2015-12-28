@@ -45,6 +45,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
 
 /**
@@ -56,10 +58,11 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 
 	public static final int MESSAGE_STREAM_START = 101;
 	public static final int MESSAGE_STREAM_STOP = 102;
-	public static final int MESSAGE_STREAM_QUIT_REGISTER = 103;
-	public static final int MESSAGE_STREAM_QUIT_CANCEL = 104;
-	public static final int MESSAGE_STREAM_SET_CALLBACK = 105;
-	public static final int MESSAGE_BREAK_CONNECTION = 106;
+	public static final int MESSAGE_STREAM_QUIT = 103;
+	public static final int MESSAGE_STREAM_QUIT_REGISTER = 104;
+	public static final int MESSAGE_STREAM_QUIT_CANCEL = 105;
+	public static final int MESSAGE_BREAK_CONNECTION = 107;
+	public static final int MESSAGE_BREAK_CONNECTION_REGISTER = 108;
 
 	public static final int MESSAGE_STREAM_CALLBACK_NEW_TWEET = 1001;
 	public static final int MESSAGE_STREAM_CALLBACK_START = 1002;
@@ -75,13 +78,14 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	public static final int MESSAGE_CLEAR_NOTIFICATION = 1;
 
 	public static final int MESSAGE_UPDATE_NOTIFICATION = 10000;
-	public static final int MESSAGE_ACTUAL_STREAM_QUIT = 10001;
-	public static final int MESSAGE_ACTUAL_STREAM_BREAK = 10002;
+	public static final int MESSAGE_SET_CALLBACK = 10001;
 	public static final int MESSAGE_USER_REMOVED_STREAM_STOP = 10003;
-	public static final int MESSAGE_USER_REMOVED_STREAM_STOP_WAIT_DURATION = 1000;
+	public static final int MESSAGE_USER_REMOVED_STREAM_STOP_WAIT_DURATION = 10004;
+
 	public static final String NOTIFICATION_LIST_FILE = "notification-list";
 	private static final int DELAY_QUIT_TIME = 5 * 60000; // 5 min.
 	private final Handler mHandler = new Handler(this);
+	private final Executor mBackgroundExecutor = Executors.newFixedThreadPool(5);
 	private final Messenger mMessenger = new Messenger(mHandler);
 	private final ArrayList<TwitterEngine> mActiveStreams = new ArrayList<>();
 	private final ArrayList<TwitterEngine> mRemovalPendingStreamingUsers = new ArrayList<>();
@@ -257,13 +261,6 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 		showNotification();
 	}
 
-	public void clearActivityNotifications() {
-		synchronized (mActivities) {
-			mActivities.clear();
-			applyActivityNotificationChange();
-		}
-	}
-
 	public void addActiveStream(TwitterEngine e) {
 		synchronized (mActiveStreams) {
 			if (!mActiveStreams.contains(e)) {
@@ -330,162 +327,189 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	@Override
 	public boolean handleMessage(final Message msg) {
 		switch (msg.what) {
-			case MESSAGE_USER_REMOVED_STREAM_STOP: {
-				synchronized (mRemovalPendingStreamingUsers) {
-					if (mRemovalPendingStreamingUsers.remove(msg.obj)) {
-						((TwitterEngine) msg.obj).setUseStream(false);
-						removeActiveStream((TwitterEngine) msg.obj);
-					}
-				}
-				return true;
-			}
-			case MESSAGE_BREAK_CONNECTION: {
-				if (!mActiveStreams.isEmpty()) {
-					mHandler.removeMessages(MESSAGE_ACTUAL_STREAM_BREAK);
-					mHandler.sendMessageDelayed(Message.obtain(mHandler, MESSAGE_ACTUAL_STREAM_BREAK, (int) (msg.getWhen() >> 32), (int) msg.getWhen()), 5000); // change after 5s of inactivity
-				}
-				return true;
-			}
-			case MESSAGE_ACTUAL_STREAM_BREAK: {
-				long breakTime = ((long) msg.arg1 << 32) | msg.arg2;
-				synchronized (mActiveStreams) {
-					for (TwitterEngine e : mActiveStreams)
-						if (breakTime > e.getLastActivityTime())
-							e.breakStreamAndRetryConnect();
-				}
-				return true;
-			}
-			case MESSAGE_STREAM_SET_CALLBACK: {
-				synchronized (mCallbackModifyLock) {
-					mCallback = msg.replyTo;
-					for (TwitterEngine e : mActiveStreams) {
-						Message msgs = Message.obtain(null, MESSAGE_STREAM_CALLBACK_USE_STREAM_ON);
-						Bundle b = new Bundle();
-						b.putLong("user_id", e.getUserId());
-						msgs.setData(b);
-						try {
-							mCallback.send(msgs);
-						} catch (RemoteException re) {
-							re.printStackTrace();
-							mCallback = null;
-						}
-					}
-					try {
-						mCallback.send(Message.obtain(null, MESSAGE_STREAM_CALLBACK_PREPARED));
-					} catch (RemoteException re) {
-						re.printStackTrace();
-						mCallback = null;
-					}
-				}
-				return true;
-			}
-			case MESSAGE_STREAM_START: {
-				long user_id = ((msg.arg1 & 0xffffffffL) << 32) | (msg.arg2 & 0xffffffffL);
-				TwitterEngine e = TwitterEngine.get(user_id);
-				if (e != null) {
-					e.setUseStream(true);
-				}
-				return true;
-			}
-			case MESSAGE_STREAM_STOP: {
-				long user_id = ((msg.arg1 & 0xffffffffL) << 32) | (msg.arg2 & 0xffffffffL);
-				TwitterEngine e = TwitterEngine.get(user_id);
-				if (e != null) {
-					e.setUseStream(false);
-				}
-				return true;
-			}
-			case MESSAGE_CLEAR_NOTIFICATION: {
-				clearActivityNotifications();
-				return true;
-			}
-			case MESSAGE_STREAM_QUIT_REGISTER: {
-				boolean ongoingStreamExists = false;
-				for (TwitterEngine e : mActiveStreams)
-					ongoingStreamExists |= e.isStreamUsed();
-				if (ongoingStreamExists && !mHandler.hasMessages(MESSAGE_ACTUAL_STREAM_QUIT)) {
-					mHandler.sendEmptyMessageDelayed(MESSAGE_ACTUAL_STREAM_QUIT, DELAY_QUIT_TIME);
-					mIsWaitingForQuit = true;
-					saveStreamState();
-					showStreamTicker(getString(R.string.stream_quit_ongoing_notification));
-				}
-				applyStreamIndicator(null);
-				return true;
-			}
-			case MESSAGE_STREAM_QUIT_CANCEL: {
-				mHandler.removeMessages(MESSAGE_ACTUAL_STREAM_QUIT);
-				mIsWaitingForQuit = false;
-				saveStreamState();
-				applyStreamIndicator(null);
-				return true;
-			}
-			case MESSAGE_ACTUAL_STREAM_QUIT: {
-				mHandler.removeMessages(MESSAGE_ACTUAL_STREAM_QUIT);
-				stopForeground(true);
-				mIsForegroundService = true;
-				synchronized (mActiveStreams) {
-					for (TwitterEngine e : mActiveStreams)
-						e.setUseStream(false);
-				}
-				return true;
-			}
-			case MESSAGE_UPDATE_NOTIFICATION: {
-				synchronized (mActivities) {
-					NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-					if (mActivities.isEmpty()) {
-						mNotificationManager.cancel(R.id.NOTIFICATION_ACTIVITIES);
-						return true;
-					}
-					NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this);
-					Intent intentShowMainActivity = new Intent(NotificationBroadcastReceiver.CLEAR_NOTIFICATIONS);
-					intentShowMainActivity.putExtra("show", "MainActivity");
-					intentShowMainActivity.putExtra("from", "notification");
-					intentShowMainActivity.putExtra("activities", mActivities);
-
-					StringBuilder tickers = new StringBuilder();
-					for (ActivityNotification noti : mActivities)
-						if (!noti.isTickerShowed())
-							tickers.append(noti.getTicker(this)).append("\n");
-					if (!tickers.toString().trim().isEmpty()) {
-						mBuilder.setTicker(tickers.toString().trim());
-						applyActivityNotificationChange();
-					}
-
-					if (mActivities.size() == 1) {
-						ActivityNotification noti = mActivities.get(0);
-						if (noti.setLargeIcon(mBuilder, mImageCache, this))
-							mBuilder.setLargeIcon(BitmapFactory.decodeResource(getResources(), noti.getStatusBarIcon()));
-						mBuilder.setContentText(noti.getTicker(this));
-						mBuilder.setStyle(noti.getStyle(mBuilder, this));
-						mBuilder.setContentTitle(noti.getNotificationTitle(this));
-						mBuilder.setSmallIcon(noti.getStatusBarIcon());
-					} else {
-						NotificationCompat.InboxStyle inboxStyle = new NotificationCompat.InboxStyle(mBuilder);
-						String summary = StringTools.fillStringResFormat(this, R.string.notification_new_activities_summary, "count", "" + mActivities.size());
-						inboxStyle.setBigContentTitle(summary);
-						inboxStyle.setSummaryText(mActivities.size() > 7 ? StringTools.fillStringResFormat(this, R.string.notification_new_activities_more, "count", "" + (mActivities.size() - 7)) : "");
-						for (int i = mActivities.size() - 1, j = 0; i >= 0 && j < 7; i--, j++)
-							inboxStyle.addLine(mActivities.get(i).getTicker(this));
-
-						mBuilder.setStyle(inboxStyle);
-						mBuilder.setContentTitle(getString(R.string.notification_new_activities));
-						mBuilder.setContentText(summary);
-						mBuilder.setSmallIcon(R.drawable.ic_mention); // TODO "ic_activity"
-					}
-
-					mBuilder.setAutoCancel(true);
-
-					mBuilder.setDeleteIntent(PendingIntent.getBroadcast(this, 0, new Intent(NotificationBroadcastReceiver.CLEAR_NOTIFICATIONS, null), 0));
-					mBuilder.setContentIntent(PendingIntent.getBroadcast(this, 0, intentShowMainActivity, 0));
-
-
-					mNotificationManager.notify(R.id.NOTIFICATION_ACTIVITIES, mBuilder.build());
-
-				}
-				return true;
-			}
+			case MESSAGE_USER_REMOVED_STREAM_STOP:
+				return handleUserRemoval(msg);
+			case MESSAGE_BREAK_CONNECTION:
+			case MESSAGE_BREAK_CONNECTION_REGISTER:
+				return handleBreakConnection(msg);
+			case MESSAGE_SET_CALLBACK:
+				return handleSetApplicationCallback(msg);
+			case MESSAGE_STREAM_START:
+				return handleStartStream(msg);
+			case MESSAGE_STREAM_STOP:
+				return handleStopStream(msg);
+			case MESSAGE_CLEAR_NOTIFICATION:
+				return handleClearNotifications(msg);
+			case MESSAGE_STREAM_QUIT_REGISTER:
+			case MESSAGE_STREAM_QUIT_CANCEL:
+			case MESSAGE_STREAM_QUIT:
+				return handleStreamQuit(msg);
+			case MESSAGE_UPDATE_NOTIFICATION:
+				return handleUpdateNotifications(msg);
 		}
 		return false;
+	}
+
+	private boolean handleUserRemoval(Message msg) {
+		synchronized (mRemovalPendingStreamingUsers) {
+			if (mRemovalPendingStreamingUsers.remove(msg.obj)) {
+				((TwitterEngine) msg.obj).setUseStream(false);
+				removeActiveStream((TwitterEngine) msg.obj);
+			}
+		}
+		return true;
+	}
+
+	private boolean handleBreakConnection(Message msg) {
+		if (msg.what == MESSAGE_BREAK_CONNECTION) {
+			long breakTime = ((long) msg.arg1 << 32) | msg.arg2;
+			synchronized (mActiveStreams) {
+				for (TwitterEngine e : mActiveStreams)
+					if (breakTime > e.getLastActivityTime())
+						e.breakStreamAndRetryConnect();
+			}
+		} else {
+			if (!mActiveStreams.isEmpty()) {
+				mHandler.removeMessages(MESSAGE_BREAK_CONNECTION);
+				mHandler.sendMessageDelayed(Message.obtain(mHandler, MESSAGE_BREAK_CONNECTION, (int) (msg.getWhen() >> 32), (int) msg.getWhen()), 5000); // change after 5s of inactivity
+			}
+		}
+		return true;
+	}
+
+	private boolean handleStreamQuit(Message msg) {
+		if (msg.what == MESSAGE_STREAM_QUIT_REGISTER) {
+			boolean ongoingStreamExists = false;
+			for (TwitterEngine e : mActiveStreams)
+				ongoingStreamExists |= e.isStreamUsed();
+			if (ongoingStreamExists && !mHandler.hasMessages(MESSAGE_STREAM_QUIT)) {
+				mHandler.sendEmptyMessageDelayed(MESSAGE_STREAM_QUIT, DELAY_QUIT_TIME);
+				mIsWaitingForQuit = true;
+				saveStreamState();
+				showStreamTicker(getString(R.string.stream_quit_ongoing_notification));
+			}
+			applyStreamIndicator(null);
+		} else if (msg.what == MESSAGE_STREAM_QUIT_CANCEL) {
+			mHandler.removeMessages(MESSAGE_STREAM_QUIT);
+			mIsWaitingForQuit = false;
+			saveStreamState();
+			applyStreamIndicator(null);
+		} else if (msg.what == MESSAGE_STREAM_QUIT) {
+			mHandler.removeMessages(MESSAGE_STREAM_QUIT);
+			stopForeground(true);
+			mIsForegroundService = true;
+			synchronized (mActiveStreams) {
+				for (TwitterEngine e : mActiveStreams)
+					e.setUseStream(false);
+			}
+		}
+		return true;
+	}
+
+	private boolean handleSetApplicationCallback(Message msg) {
+		synchronized (mCallbackModifyLock) {
+			mCallback = msg.replyTo;
+			for (TwitterEngine e : mActiveStreams) {
+				Message msgs = Message.obtain(null, MESSAGE_STREAM_CALLBACK_USE_STREAM_ON);
+				Bundle b = new Bundle();
+				b.putLong("user_id", e.getUserId());
+				msgs.setData(b);
+				try {
+					mCallback.send(msgs);
+				} catch (RemoteException re) {
+					re.printStackTrace();
+					mCallback = null;
+				}
+			}
+			try {
+				mCallback.send(Message.obtain(null, MESSAGE_STREAM_CALLBACK_PREPARED));
+			} catch (RemoteException re) {
+				re.printStackTrace();
+				mCallback = null;
+			}
+		}
+		return true;
+	}
+
+	private boolean handleStartStream(Message msg) {
+		long user_id = ((msg.arg1 & 0xffffffffL) << 32) | (msg.arg2 & 0xffffffffL);
+		TwitterEngine e = TwitterEngine.get(user_id);
+		if (e != null) {
+			e.setUseStream(true);
+		}
+		return true;
+	}
+
+	private boolean handleStopStream(Message msg) {
+		long user_id = ((msg.arg1 & 0xffffffffL) << 32) | (msg.arg2 & 0xffffffffL);
+		TwitterEngine e = TwitterEngine.get(user_id);
+		if (e != null) {
+			e.setUseStream(false);
+		}
+		return true;
+	}
+
+	private boolean handleClearNotifications(Message msg) {
+		synchronized (mActivities) {
+			mActivities.clear();
+			applyActivityNotificationChange();
+		}
+		return true;
+	}
+
+	private boolean handleUpdateNotifications(Message msg) {
+		synchronized (mActivities) {
+			NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+			if (mActivities.isEmpty()) {
+				mNotificationManager.cancel(R.id.NOTIFICATION_ACTIVITIES);
+				return true;
+			}
+			NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this);
+			Intent intentShowMainActivity = new Intent(NotificationBroadcastReceiver.CLEAR_NOTIFICATIONS);
+			intentShowMainActivity.putExtra("show", "MainActivity");
+			intentShowMainActivity.putExtra("from", "notification");
+			intentShowMainActivity.putExtra("activities", mActivities);
+
+			StringBuilder tickers = new StringBuilder();
+			for (ActivityNotification noti : mActivities)
+				if (!noti.isTickerShowed())
+					tickers.append(noti.getTicker(this)).append("\n");
+			if (!tickers.toString().trim().isEmpty()) {
+				mBuilder.setTicker(tickers.toString().trim());
+				applyActivityNotificationChange();
+			}
+
+			if (mActivities.size() == 1) {
+				ActivityNotification noti = mActivities.get(0);
+				if (noti.setLargeIcon(mBuilder, mImageCache, this))
+					mBuilder.setLargeIcon(BitmapFactory.decodeResource(getResources(), noti.getStatusBarIcon()));
+				mBuilder.setContentText(noti.getTicker(this));
+				mBuilder.setStyle(noti.getStyle(mBuilder, this));
+				mBuilder.setContentTitle(noti.getNotificationTitle(this));
+				mBuilder.setSmallIcon(noti.getStatusBarIcon());
+			} else {
+				NotificationCompat.InboxStyle inboxStyle = new NotificationCompat.InboxStyle(mBuilder);
+				String summary = StringTools.fillStringResFormat(this, R.string.notification_new_activities_summary, "count", "" + mActivities.size());
+				inboxStyle.setBigContentTitle(summary);
+				inboxStyle.setSummaryText(mActivities.size() > 7 ? StringTools.fillStringResFormat(this, R.string.notification_new_activities_more, "count", "" + (mActivities.size() - 7)) : "");
+				for (int i = mActivities.size() - 1, j = 0; i >= 0 && j < 7; i--, j++)
+					inboxStyle.addLine(mActivities.get(i).getTicker(this));
+
+				mBuilder.setStyle(inboxStyle);
+				mBuilder.setContentTitle(getString(R.string.notification_new_activities));
+				mBuilder.setContentText(summary);
+				mBuilder.setSmallIcon(R.drawable.ic_mention); // TODO "ic_activity"
+			}
+
+			mBuilder.setAutoCancel(true);
+
+			mBuilder.setDeleteIntent(PendingIntent.getBroadcast(this, 0, new Intent(NotificationBroadcastReceiver.CLEAR_NOTIFICATIONS, null), 0));
+			mBuilder.setContentIntent(PendingIntent.getBroadcast(this, 0, intentShowMainActivity, 0));
+
+
+			mNotificationManager.notify(R.id.NOTIFICATION_ACTIVITIES, mBuilder.build());
+			return true;
+		}
 	}
 
 	@Override
@@ -592,7 +616,6 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	}
 
 	public void sendCallbackMessages(TwitterEngine e, int what, Bundle bundle) {
-		mHandler.removeMessages(MESSAGE_ACTUAL_STREAM_BREAK);
 		synchronized (mCallbackModifyLock) {
 			if (mCallback != null) {
 				Message msg = Message.obtain(null, what);

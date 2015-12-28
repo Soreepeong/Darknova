@@ -125,7 +125,7 @@ public class TwitterStreamServiceReceiver {
 		public void onServiceConnected(ComponentName name, IBinder service) {
 			mBoundService = new Messenger(service);
 
-			Message msg = Message.obtain(null, DarknovaService.MESSAGE_STREAM_SET_CALLBACK);
+			Message msg = Message.obtain(null, DarknovaService.MESSAGE_SET_CALLBACK);
 			msg.replyTo = new Messenger(new Handler() {
 				@Override
 				public void handleMessage(Message msg) {

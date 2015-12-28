@@ -64,9 +64,15 @@ import java.util.regex.Pattern;
 public abstract class PageFragment<_T extends ObjectWithId> extends Fragment implements Handler.Callback, TwitterEngine.TwitterStreamCallback, SwipeRefreshLayout.OnRefreshListener {
 
 	protected static final Interpolator mProgressInterpolator = new DecelerateInterpolator();
+	protected static final RecyclerView.RecycledViewPool mRecyclerViewPool = new RecyclerView.RecycledViewPool();
 	private static final SparseArray<TimedStorage<View>> mCachedPageViews = new SparseArray<>();
 	private static final ThreadScheduler mRefreshScheduler = new ThreadScheduler(4, "Refresher");
 	protected static int mColorAccent;
+
+	static {
+		mRecyclerViewPool.setMaxRecycledViews(R.layout.row_tweet, 32);
+	}
+
 	protected final ArrayList<Tweet> mSelectedList = new ArrayList<>();
 	protected final WeakHashMap<_T, HashMap<PageElement, Byte>> mLoadMoreItems = new WeakHashMap<>();
 	protected Handler mHandler;
@@ -277,7 +283,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 	}
 
 	public void createAdapter() {
-		mViewList.setAdapter(mAdapter);
+		mViewList.swapAdapter(mAdapter, false);
 	}
 
 	public void applyEmptyIndicator() {
@@ -406,6 +412,140 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		}
 	}
 
+	abstract static class CustomViewHolder<_T extends ObjectWithId> extends RecyclerView.ViewHolder implements View.OnClickListener {
+		protected PageFragment<_T> mFragment;
+		protected PageFragment<_T>.PageItemAdapter mAdapter;
+
+		public CustomViewHolder(View v) {
+			super(v);
+			v.setOnClickListener(this);
+			v.setClickable(true);
+			v.setFocusable(true);
+			v.setTag(R.id.VIEWHOLDER_ID, this);
+		}
+
+		public void setFragment(PageFragment<_T> frag) {
+			mFragment = frag;
+			mAdapter = frag.mAdapter;
+		}
+
+		public void updateView() {
+		}
+
+		public abstract void bindViewHolder(int position);
+	}
+
+	static class NonElementHeaderViewHolder extends CustomViewHolder {
+		public NonElementHeaderViewHolder(View itemView) {
+			super(itemView);
+		}
+
+		@Override
+		public void onClick(View v) {
+			NonElementHeader header = (NonElementHeader) mAdapter.getItem(getAdapterPosition());
+			switch (header.getLayoutId()) {
+				case R.layout.row_header_empty_page:
+					mFragment.onRefresh();
+					return;
+				case R.layout.row_header_no_match:
+					((MainActivity) mFragment.getActivity()).getSearchSuggestionFragment().setQuickFilter("");
+			}
+		}
+
+		@Override
+		public void bindViewHolder(int position) {
+
+		}
+	}
+
+	static class UserHeaderViewHolder<_T extends ObjectWithId> extends CustomViewHolder<_T> {
+		private final TextView mId, mName, mBio, mHomepage, mLocation;
+		private final ImageView mUserImage, mUserBannerImage;
+		private final Button mFollowers, mFriends, mTweets, mFavorites;
+		private final View mIsProtected, mIsVerified;
+		private Tweeter user;
+
+		// TODO Design
+
+		public UserHeaderViewHolder(View itemView) {
+			super(itemView);
+			mId = (TextView) itemView.findViewById(R.id.user_id);
+			mName = (TextView) itemView.findViewById(R.id.user_name);
+			mLocation = (TextView) itemView.findViewById(R.id.user_location);
+			mHomepage = (TextView) itemView.findViewById(R.id.user_homepage);
+			mBio = (TextView) itemView.findViewById(R.id.user_bio);
+			mUserImage = (ImageView) itemView.findViewById(R.id.user_image);
+			mUserBannerImage = (ImageView) itemView.findViewById(R.id.user_banner);
+			mFollowers = (Button) itemView.findViewById(R.id.followers);
+			mFriends = (Button) itemView.findViewById(R.id.friends);
+			mTweets = (Button) itemView.findViewById(R.id.tweets);
+			mFavorites = (Button) itemView.findViewById(R.id.favorites);
+			mIsProtected = itemView.findViewById(R.id.imgInfoProtected);
+			mIsVerified = itemView.findViewById(R.id.imgInfoVerified);
+			mUserImage.setOnClickListener(this);
+			mUserBannerImage.setOnClickListener(this);
+			mTweets.setOnClickListener(this);
+			mFavorites.setOnClickListener(this);
+		}
+
+		@Override
+		public void onClick(View v) {
+			if (v.equals(mUserImage)) {
+				if (user.profile_image_url != null)
+					MediaPreviewActivity.previewImage(v.getContext(), user.profile_image_url[user.profile_image_url.length - 1]);
+			} else if (v.equals(mUserBannerImage)) {
+				if (user.profile_banner_url != null)
+					MediaPreviewActivity.previewImage(v.getContext(), user.profile_banner_url[user.profile_banner_url.length - 1]);
+			} else if (v.equals(mTweets)) {
+				Page.templatePageUser(user.user_id, user.screen_name, (MainActivity) mFragment.getActivity(), PageElement.FUNCTION_USER_TIMELINE, Page.indexOf(mFragment.mPage));
+			} else if (v.equals(mFavorites)) {
+				Page.templatePageUser(user.user_id, user.screen_name, (MainActivity) mFragment.getActivity(), PageElement.FUNCTION_USER_FAVORITES, Page.indexOf(mFragment.mPage));
+			}
+		}
+
+		@Override
+		public void bindViewHolder(int position) {
+			PageElement.ElementHeader header = (PageElement.ElementHeader) mAdapter.getItem(position);
+			user = Tweeter.getTweeter(header.getElement().id, header.getElement().name);
+			mId.setText(user.screen_name);
+			mName.setText(user.name);
+			if (user.location == null || user.location.isEmpty())
+				mLocation.setVisibility(View.GONE);
+			else {
+				mLocation.setVisibility(View.VISIBLE);
+				mLocation.setText(user.location);
+			}
+			if (user.description == null || user.description.isEmpty())
+				mBio.setVisibility(View.GONE);
+			else {
+				mBio.setVisibility(View.VISIBLE);
+				mBio.setText(TweetSpanner.includeEntities(user.description, user.entities_description, mFragment.mImageCache, mHomepage.getLineHeight(), mBio.getText()));
+			}
+			if (user.url == null || user.url.isEmpty())
+				mHomepage.setVisibility(View.GONE);
+			else {
+				mHomepage.setVisibility(View.VISIBLE);
+				mHomepage.setText(user.url == null ? "" : TweetSpanner.includeEntities(user.url, user.entities_url, mFragment.mImageCache, mHomepage.getLineHeight(), mHomepage.getText()));
+			}
+			mFragment.mImageCache.assignImageView(mUserImage, user.getProfileImageUrl(), null);
+			mFragment.mImageCache.assignImageView(mUserBannerImage, user.getProfileBannerUrl(), null);
+			mFollowers.setText(user.followers_count + " followers");
+			mFriends.setText(user.friends_count + " friends");
+			mTweets.setText(user.statuses_count + "\ntweets");
+			mFavorites.setText(user.favourites_count + "\nfavorites");
+			mIsProtected.setVisibility(user._protected ? View.VISIBLE : View.GONE);
+			mIsVerified.setVisibility(user.verified ? View.VISIBLE : View.GONE);
+			for (PageElement e : mFragment.mPage.elements)
+				if (e.function == PageElement.FUNCTION_USER_TIMELINE) {
+					mTweets.setEnabled(false);
+					mFavorites.setEnabled(true);
+				} else if (e.function == PageElement.FUNCTION_USER_FAVORITES) {
+					mTweets.setEnabled(true);
+					mFavorites.setEnabled(false);
+				}
+		}
+	}
+
 	public abstract class FilteredItem implements Comparable<FilteredItem> {
 		protected _T mObject;
 		protected boolean isFilteredBySelection;
@@ -443,7 +583,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		}
 	}
 
-	public abstract class PageItemAdapter extends RecyclerView.Adapter<PageItemAdapter.CustomViewHolder> {
+	public abstract class PageItemAdapter extends RecyclerView.Adapter<CustomViewHolder<_T>> {
 
 		public final ArrayList<NonElementHeader> mNonElementHeaders = new ArrayList<>();
 		public final ArrayList<PageElement.ElementHeader> mElementHeaders = new ArrayList<>();
@@ -595,7 +735,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		}
 
 		@Override
-		public CustomViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+		public CustomViewHolder<_T> onCreateViewHolder(ViewGroup parent, int viewType) {
 			final LayoutInflater inflater = LayoutInflater.from(parent.getContext());
 			View v = inflater.inflate(viewType, parent, false);
 			switch (viewType) {
@@ -606,141 +746,16 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		}
 
 		@Override
-		public void onBindViewHolder(CustomViewHolder holder, int position) {
+		public void onBindViewHolder(CustomViewHolder<_T> holder, int position) {
+			holder.setFragment(PageFragment.this);
 			holder.bindViewHolder(adapterPositionToListIndex(position));
 		}
 
-		public CustomViewHolder getViewHolder(int position) {
+		public CustomViewHolder<_T> getViewHolder(int position) {
 			if (!isPageReady()) return null;
 			View o = mViewList.getChildAt(position - mListLayout.findFirstVisibleItemPosition());
 			if (o == null) return null;
-			return (CustomViewHolder) o.getTag(R.id.VIEWHOLDER_ID);
-		}
-
-		abstract class CustomViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
-			public CustomViewHolder(View v) {
-				super(v);
-				v.setOnClickListener(this);
-				v.setClickable(true);
-				v.setFocusable(true);
-				v.setTag(R.id.VIEWHOLDER_ID, this);
-			}
-
-			public void updateView() {
-			}
-
-			public abstract void bindViewHolder(int position);
-		}
-
-		class NonElementHeaderViewHolder extends CustomViewHolder {
-			public NonElementHeaderViewHolder(View itemView) {
-				super(itemView);
-			}
-
-			@Override
-			public void onClick(View v) {
-				NonElementHeader header = (NonElementHeader) getItem(getAdapterPosition());
-				switch (header.getLayoutId()) {
-					case R.layout.row_header_empty_page:
-						onRefresh();
-						return;
-					case R.layout.row_header_no_match:
-						((MainActivity) getActivity()).getSearchSuggestionFragment().setQuickFilter("");
-				}
-			}
-
-			@Override
-			public void bindViewHolder(int position) {
-
-			}
-		}
-
-		class UserHeaderViewHolder extends CustomViewHolder {
-			private final TextView mId, mName, mBio, mHomepage, mLocation;
-			private final ImageView mUserImage, mUserBannerImage;
-			private final Button mFollowers, mFriends, mTweets, mFavorites;
-			private final View mIsProtected, mIsVerified;
-			private Tweeter user;
-
-			// TODO Design
-
-			public UserHeaderViewHolder(View itemView) {
-				super(itemView);
-				mId = (TextView) itemView.findViewById(R.id.user_id);
-				mName = (TextView) itemView.findViewById(R.id.user_name);
-				mLocation = (TextView) itemView.findViewById(R.id.user_location);
-				mHomepage = (TextView) itemView.findViewById(R.id.user_homepage);
-				mBio = (TextView) itemView.findViewById(R.id.user_bio);
-				mUserImage = (ImageView) itemView.findViewById(R.id.user_image);
-				mUserBannerImage = (ImageView) itemView.findViewById(R.id.user_banner);
-				mFollowers = (Button) itemView.findViewById(R.id.followers);
-				mFriends = (Button) itemView.findViewById(R.id.friends);
-				mTweets = (Button) itemView.findViewById(R.id.tweets);
-				mFavorites = (Button) itemView.findViewById(R.id.favorites);
-				mIsProtected = itemView.findViewById(R.id.imgInfoProtected);
-				mIsVerified = itemView.findViewById(R.id.imgInfoVerified);
-				mUserImage.setOnClickListener(this);
-				mUserBannerImage.setOnClickListener(this);
-				mTweets.setOnClickListener(this);
-				mFavorites.setOnClickListener(this);
-			}
-
-			@Override
-			public void onClick(View v) {
-				if (v.equals(mUserImage)) {
-					if (user.profile_image_url != null)
-						MediaPreviewActivity.previewImage(v.getContext(), user.profile_image_url[user.profile_image_url.length - 1]);
-				} else if (v.equals(mUserBannerImage)) {
-					if (user.profile_banner_url != null)
-						MediaPreviewActivity.previewImage(v.getContext(), user.profile_banner_url[user.profile_banner_url.length - 1]);
-				} else if (v.equals(mTweets)) {
-					Page.templatePageUser(user.user_id, user.screen_name, (MainActivity) getActivity(), PageElement.FUNCTION_USER_TIMELINE, Page.indexOf(mPage));
-				} else if (v.equals(mFavorites)) {
-					Page.templatePageUser(user.user_id, user.screen_name, (MainActivity) getActivity(), PageElement.FUNCTION_USER_FAVORITES, Page.indexOf(mPage));
-				}
-			}
-
-			@Override
-			public void bindViewHolder(int position) {
-				PageElement.ElementHeader header = (PageElement.ElementHeader) getItem(position);
-				user = Tweeter.getTweeter(header.getElement().id, header.getElement().name);
-				mId.setText(user.screen_name);
-				mName.setText(user.name);
-				if (user.location == null || user.location.isEmpty())
-					mLocation.setVisibility(View.GONE);
-				else {
-					mLocation.setVisibility(View.VISIBLE);
-					mLocation.setText(user.location);
-				}
-				if (user.description == null || user.description.isEmpty())
-					mBio.setVisibility(View.GONE);
-				else {
-					mBio.setVisibility(View.VISIBLE);
-					mBio.setText(TweetSpanner.includeEntities(user.description, user.entities_description, mImageCache, mHomepage.getLineHeight(), mBio.getText()));
-				}
-				if (user.url == null || user.url.isEmpty())
-					mHomepage.setVisibility(View.GONE);
-				else {
-					mHomepage.setVisibility(View.VISIBLE);
-					mHomepage.setText(user.url == null ? "" : TweetSpanner.includeEntities(user.url, user.entities_url, mImageCache, mHomepage.getLineHeight(), mHomepage.getText()));
-				}
-				mImageCache.assignImageView(mUserImage, user.getProfileImageUrl(), null);
-				mImageCache.assignImageView(mUserBannerImage, user.getProfileBannerUrl(), null);
-				mFollowers.setText(user.followers_count + " followers");
-				mFriends.setText(user.friends_count + " friends");
-				mTweets.setText(user.statuses_count + "\ntweets");
-				mFavorites.setText(user.favourites_count + "\nfavorites");
-				mIsProtected.setVisibility(user._protected ? View.VISIBLE : View.GONE);
-				mIsVerified.setVisibility(user.verified ? View.VISIBLE : View.GONE);
-				for (PageElement e : mPage.elements)
-					if (e.function == PageElement.FUNCTION_USER_TIMELINE) {
-						mTweets.setEnabled(false);
-						mFavorites.setEnabled(true);
-					} else if (e.function == PageElement.FUNCTION_USER_FAVORITES) {
-						mTweets.setEnabled(true);
-						mFavorites.setEnabled(false);
-					}
-			}
+			return (CustomViewHolder<_T>) o.getTag(R.id.VIEWHOLDER_ID);
 		}
 	}
 }

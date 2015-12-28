@@ -4,8 +4,7 @@ apply plugin: 'com.android.application'
 
 android {
 	compileSdkVersion 23
-	buildToolsVersion '23.0.0'
-    compileOptions.encoding = 'UTF-8'
+	buildToolsVersion '23.0.2'
 
 	def versionPropsFile = file('version.properties')
 
@@ -48,10 +47,10 @@ android {
 dependencies {
 	compile fileTree(include: ['*.jar'], dir: 'libs')
 	compile 'com.twitter:twitter-text:1.6.1'
-	compile 'com.android.support:appcompat-v7:23.0.0'
-	compile 'com.android.support:recyclerview-v7:23.0.0'
-	compile 'com.android.support:support-v4:23.0.0'
-	compile 'com.android.support:design:23.0.0'
+	compile 'com.android.support:appcompat-v7:23.1.1'
+	compile 'com.android.support:recyclerview-v7:23.1.1'
+	compile 'com.android.support:support-v4:23.1.1'
+	compile 'com.android.support:design:23.1.1'
 	compile 'com.fasterxml.jackson.core:jackson-core:2.6.1'
 	compile 'org.apmem.tools:layouts:1.9@aar'
 	compile 'com.h6ah4i.android.widget.advrecyclerview:advrecyclerview:0.7.4'

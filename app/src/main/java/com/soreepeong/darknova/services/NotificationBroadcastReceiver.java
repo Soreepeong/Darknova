@@ -35,7 +35,7 @@ public class NotificationBroadcastReceiver extends BroadcastReceiver {
 			case ConnectivityManager.CONNECTIVITY_ACTION: {
 				if (b != null) {
 					try {
-						new Messenger(b).send(Message.obtain(null, DarknovaService.MESSAGE_BREAK_CONNECTION));
+						new Messenger(b).send(Message.obtain(null, DarknovaService.MESSAGE_BREAK_CONNECTION_REGISTER));
 					} catch (RemoteException re) {
 						re.printStackTrace();
 					}
@@ -58,7 +58,7 @@ public class NotificationBroadcastReceiver extends BroadcastReceiver {
 			case STOP_STREAMING: {
 				if (b != null) {
 					try {
-						new Messenger(b).send(Message.obtain(null, DarknovaService.MESSAGE_ACTUAL_STREAM_QUIT));
+						new Messenger(b).send(Message.obtain(null, DarknovaService.MESSAGE_STREAM_QUIT));
 					} catch (RemoteException re) {
 						re.printStackTrace();
 					}

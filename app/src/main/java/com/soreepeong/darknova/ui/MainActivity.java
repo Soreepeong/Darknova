@@ -45,7 +45,6 @@ import java.util.ArrayList;
  */
 public class MainActivity extends AppCompatActivity implements ViewPager.OnPageChangeListener, NavigationDrawerFragment.NavigationDrawerCallbacks, View.OnClickListener, TemplateTweetEditorFragment.OnNewTweetVisibilityChangedListener, Page.OnPageListChangedListener, MultiContentFragmentActivity, View.OnLongClickListener {
 
-
 	private ViewPager mPager;
 	private TimelineFragmentPagerAdapter mPagerAdapter;
 	private NavigationDrawerFragment mNavigationDrawerFragment;

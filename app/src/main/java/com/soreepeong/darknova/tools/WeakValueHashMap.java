@@ -76,8 +76,6 @@ public class WeakValueHashMap<K, V> extends AbstractMap<K, V> {
 		return getReferenceValue(references.put(key, valueRef));
 	}
 
-	;
-
 	@Override
 	public V get(Object key) {
 		processQueue();

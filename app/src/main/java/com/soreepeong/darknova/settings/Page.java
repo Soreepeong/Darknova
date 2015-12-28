@@ -31,11 +31,17 @@ import java.util.WeakHashMap;
  * @author Soreepeong
  */
 public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.TwitterStreamCallback {
+	private static final int MAX_BACKGROUND_NEW_ITEMS = 40;
+	private static final List<Page<? extends ObjectWithId>> mPages = Collections.synchronizedList(new ArrayList<Page<? extends ObjectWithId>>());
 	@SuppressWarnings("unused")
 	public static final Parcelable.Creator<Page> CREATOR = new Parcelable.Creator<Page>() {
 		@Override
 		public Page createFromParcel(Parcel in) {
-			return new Page(in);
+			Page p = new Page(in);
+			for (Page p2 : mPages)
+				if (p2.equals(p))
+					return p2;
+			return p;
 		}
 
 		@Override
@@ -43,8 +49,6 @@ public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.
 			return new Page[size];
 		}
 	};
-	private static final int MAX_BACKGROUND_NEW_ITEMS = 40;
-	private static final List<Page<? extends ObjectWithId>> mPages = Collections.synchronizedList(new ArrayList<Page<? extends ObjectWithId>>());
 	private static final ArrayList<OnPageListChangedListener> mPagesListener = new ArrayList<>();
 	private static final Comparator<PageElement> elementComparator = new Comparator<PageElement>() {
 		@Override

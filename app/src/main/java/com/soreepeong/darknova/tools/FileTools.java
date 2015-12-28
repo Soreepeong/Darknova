@@ -26,6 +26,23 @@ import java.nio.channels.FileChannel;
  */
 public class FileTools {
 
+	public static byte[] readFile(File f, int max_size) {
+		FileInputStream in = null;
+		if (f.length() > max_size)
+			return null;
+		byte b[] = new byte[(int) f.length()];
+		try {
+			in = new FileInputStream(f);
+			if (b.length != in.read(b))
+				return null;
+		} catch (Exception e) {
+			return null;
+		} finally {
+			StreamTools.close(in);
+		}
+		return b;
+	}
+
 	/**
 	 * Copies file from {@param sourceFile} to {@param destFile}
 	 *

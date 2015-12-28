@@ -129,10 +129,7 @@ public class JapaneseCharacter {
 		if (('\u4e00' <= c) && (c <= '\u9fa5')) {
 			return true;
 		}
-		if (('\u3005' <= c) && (c <= '\u3007')) {
-			return true;
-		}
-		return false;
+		return ('\u3005' <= c) && (c <= '\u3007');
 	}
 
 	/**
@@ -146,10 +143,7 @@ public class JapaneseCharacter {
 			return true;
 		else if (('\u0021' <= c) && (c <= '\u003a'))
 			return true;
-		else if (('\u0041' <= c) && (c <= '\u005a'))
-			return true;
-		else
-			return false;
+		else return ('\u0041' <= c) && (c <= '\u005a');
 	}
 
 	/**
