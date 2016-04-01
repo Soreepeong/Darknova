@@ -87,7 +87,6 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		mPager = (ViewPager) findViewById(R.id.pager);
 		mPager.setAdapter(mPagerAdapter);
 		mPager.addOnPageChangeListener(this);
-		mPager.setOffscreenPageLimit(2);
 
 		mNavigationDrawerFragment = (NavigationDrawerFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_drawer);
 		mTemplateTweetEditorFragment = (TemplateTweetEditorFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_template_tweet);

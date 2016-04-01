@@ -12,7 +12,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.provider.MediaStore;
 
-import com.soreepeong.darknova.DarknovaApplication;
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.services.TemplateTweetProvider;
 import com.soreepeong.darknova.tools.FileTools;
 import com.soreepeong.darknova.tools.StreamTools;
@@ -154,12 +154,12 @@ public class TemplateTweetAttachment implements Parcelable {
 						});
 					if (media_type == TemplateTweetProvider.MEDIA_TYPE_VIDEO) {
 						if (mLocalFile.length() > TwitterEngine.MAX_VIDEO_MEDIA_SIZE) {
-							DarknovaApplication.showToast("Video file too big (>15MB)");
+							Darknova.showToast("Video file too big (>15MB)");
 							throw new IOException("File too big");
 						}
 					} else if (media_type == TemplateTweetProvider.MEDIA_TYPE_GIF) {
 						if (mLocalFile.length() > TwitterEngine.MAX_IMAGE_MEDIA_SIZE) {
-							DarknovaApplication.showToast("Animated GIF file too big (>5MB)");
+							Darknova.showToast("Animated GIF file too big (>5MB)");
 							throw new IOException("File too big");
 						}
 					} else {

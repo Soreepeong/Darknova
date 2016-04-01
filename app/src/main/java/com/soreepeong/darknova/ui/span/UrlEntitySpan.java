@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  * @author Soreepeong
  */
 public class UrlEntitySpan extends TouchableSpan implements EntitySpan, SelfInvalidatingSpan {
-	private static final Pattern mStatusPattern = Pattern.compile("^https?://(?:[^/]*\\.)?twitter\\.com/([a-z0-9_]{1,15})/status/([0-9]+)(?:/.*)?$", Pattern.CASE_INSENSITIVE);
+	private static final Pattern mStatusPattern = Pattern.compile("^https?://(?:[^/]*\\.)?twitter\\.com/([a-z0-9_]{1,15})/status/([0-9]+)(?:/.*)?(?:\\?.*)?(?:#.*)?$", Pattern.CASE_INSENSITIVE);
 	private final Entities.UrlEntity mEntity;
 	private long mExpandStartTime;
 	private WeakReference<Callback> mCallback;

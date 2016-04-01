@@ -27,13 +27,13 @@ import org.acra.annotation.ReportsCrashes;
 		formUri = "http://soreepeong.com/darknova/error-report.php",
 		mode = ReportingInteractionMode.TOAST,
 		resToastText = R.string.crash_toast_text)
-public class DarknovaApplication extends Application implements Handler.Callback {
+public class Darknova extends Application implements Handler.Callback{
 
 	private static final int MESSAGE_SHOW_TOAST = 1;
-	public static Context mContext;
+	public static Context ctx;
 	private static volatile long mRuntimeUniqueIdCounter = 0;
 	private static Handler mHandler;
-	private static ImageCache mImageCache;
+	public static ImageCache img;
 
 	public static long uniqid(){
 		return mRuntimeUniqueIdCounter++;
@@ -50,7 +50,7 @@ public class DarknovaApplication extends Application implements Handler.Callback
 	@Override
 	public void onCreate() {
 		super.onCreate();
-		mContext = this;
+		ctx = this;
 		ACRA.init(this);
 		mHandler = new Handler(this);
 		StringTools.ARRAY_RELATIVE_TIME_STRINGS = getString(R.string.times).split("/");
@@ -59,7 +59,7 @@ public class DarknovaApplication extends Application implements Handler.Callback
 		StringTools.loadHanjaArray(getResources());
 
 		// For preparing image cache earlier
-		mImageCache = ImageCache.getCache(this, null);
+		Darknova.img = ImageCache.getCache(this, null);
 
 		// No dependency
 		TwitterEngine.prepare(this, "TwitterEngine");
@@ -89,8 +89,8 @@ public class DarknovaApplication extends Application implements Handler.Callback
 	public void onTrimMemory(int level) {
 		super.onTrimMemory(level);
 		if (level >= TRIM_MEMORY_BACKGROUND) {
-			if (mImageCache != null)
-				mImageCache.clearStorage();
+			if(Darknova.img != null)
+				Darknova.img.clearStorage();
 		}
 		if (level >= TRIM_MEMORY_MODERATE) {
 			Page.stopAllPageHolders();

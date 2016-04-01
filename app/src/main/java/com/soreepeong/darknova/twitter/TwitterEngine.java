@@ -15,7 +15,7 @@ import android.text.Html;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import com.soreepeong.darknova.DarknovaApplication;
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.HTTPRequest;
 import com.soreepeong.darknova.core.OAuth;
@@ -142,7 +142,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 
 	public static void applyAccountInformationChanges() {
 		synchronized (mTwitter) {
-			AccountManager accountManager = AccountManager.get(DarknovaApplication.mContext);
+			AccountManager accountManager = AccountManager.get(Darknova.ctx);
 			for (TwitterEngine e : mTwitter) {
 				Tweeter tweeter = e.getTweeter();
 				if (!tweeter.info.stub && !tweeter.screen_name.equals(e.mRespectiveAccount.name)) {
@@ -155,7 +155,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 						}
 					} else {
 						remove(tweeter.user_id);
-						e.mRespectiveAccount = new Account(tweeter.screen_name, DarknovaApplication.mContext.getString(R.string.account_type));
+						e.mRespectiveAccount = new Account(tweeter.screen_name, Darknova.ctx.getString(R.string.account_type));
 						accountManager.addAccountExplicitly(e.mRespectiveAccount, null, null);
 						accountManager.setUserData(e.mRespectiveAccount, "oauth_token", e.auth.getToken());
 						accountManager.setUserData(e.mRespectiveAccount, "oauth_token_secret", e.auth.getSecretToken());
@@ -183,7 +183,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 
 	public static void remove(long who) {
 		synchronized (mTwitter) {
-			AccountManager accountManager = AccountManager.get(DarknovaApplication.mContext);
+			AccountManager accountManager = AccountManager.get(Darknova.ctx);
 			for (TwitterEngine e : mTwitter) {
 				if (e.getUserId() == who) {
 					if (Build.VERSION.SDK_INT >= 22)
@@ -200,8 +200,8 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 
 	public static Account addAccount(TwitterEngine newEngine) {
 		synchronized (mTwitter) {
-			final Account account = new Account(newEngine.getScreenName(), DarknovaApplication.mContext.getString(R.string.account_type));
-			final AccountManager am = AccountManager.get(DarknovaApplication.mContext);
+			final Account account = new Account(newEngine.getScreenName(), Darknova.ctx.getString(R.string.account_type));
+			final AccountManager am = AccountManager.get(Darknova.ctx);
 			final Bundle info = new Bundle();
 			info.putLong("user_id", newEngine.getUserId());
 			info.putString("screen_name", newEngine.getScreenName());
@@ -224,8 +224,8 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		int maxIndex = 0;
 		synchronized (mTwitter) {
 			mTwitter.clear();
-			final AccountManager accountManager = AccountManager.get(DarknovaApplication.mContext);
-			for (Account acc : accountManager.getAccountsByType(DarknovaApplication.mContext.getString(R.string.account_type))) {
+			final AccountManager accountManager = AccountManager.get(Darknova.ctx);
+			for(Account acc : accountManager.getAccountsByType(Darknova.ctx.getString(R.string.account_type))){
 				TwitterEngine engine = new TwitterEngine(accountManager.getUserData(acc, "consumer_key"), accountManager.getUserData(acc, "consumer_key_secret"));
 				engine.setOauthToken(accountManager.getUserData(acc, "oauth_token"), accountManager.getUserData(acc, "oauth_token_secret"));
 				engine.setUserInfo(Long.decode(accountManager.getUserData(acc, "user_id")), acc.name);

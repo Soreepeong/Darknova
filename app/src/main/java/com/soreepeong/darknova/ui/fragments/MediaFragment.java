@@ -31,6 +31,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.HTTPRequest;
 import com.soreepeong.darknova.core.ImageCache;
@@ -71,7 +72,6 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	int mMediaPlayerStatus;
 	private View mViewFragmentRoot;
 	private SurfaceView mViewSurface;
-	private ImageCache mImageCache;
 	private LargeImageView mViewImageViewer;
 	private View mViewLoadInfo, mViewPageInfo;
 	private TextView mViewLoadInfoText, mViewLoadProgressText, mViewPageZoom;
@@ -133,7 +133,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		mViewCancelButton.setOnClickListener(this);
 		mViewAnotherAppButton.setOnClickListener(this);
 		mViewSurface.getHolder().addCallback(this);
-		mImageCache = ImageCache.getCache(getActivity(), this);
+		ImageCache.getCache(getActivity(), this);
 		return mViewFragmentRoot;
 	}
 
@@ -492,9 +492,8 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 	@Override
 	public void onImageCacheReady(ImageCache cache) {
-		mImageCache = cache;
 		String path;
-		path = mImageCache.getCachedImagePath(mImage.mOriginalUrl);
+		path = Darknova.img.getCachedImagePath(mImage.mOriginalUrl);
 		if (path != null) {
 			mImageFile = new File(path);
 			if (mImageFile.exists() && getView() != null) {
@@ -516,7 +515,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		}
 		boolean resizedExists = false;
 		if (!mLoadOriginalMedia && mImage.mResizedUrl != null) {
-			path = mImageCache.getCachedImagePath(mImage.mResizedUrl);
+			path = Darknova.img.getCachedImagePath(mImage.mResizedUrl);
 			if (path != null && getView() != null) {
 				File resizedFile = new File(path);
 				if (resizedFile.exists()) {
@@ -600,7 +599,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			byte buffer[] = new byte[65536];
 			try {
 				mDownloader = HTTPRequest.getRequest(params[0], mImage.mAuthInfo, false, null);
-				mTempFile = File.createTempFile("downloader", null, mImageCache.getCacheFile());
+				mTempFile = File.createTempFile("downloader", null, Darknova.img.getCacheFile());
 				publishProgress();
 				Thread.sleep(50);
 				mDownloader.submitRequest();
@@ -757,15 +756,15 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 				mViewCancelButton.setText(R.string.mediapreview_retry);
 				mLoadInfoVisible = !mViewImageViewer.isLoaded();
 			} else {
-				String path = mImageCache.getCachedImagePath(url);
+				String path = Darknova.img.getCachedImagePath(url);
 				if (path == null)
-					path = mImageCache.makeTempPath(url);
+					path = Darknova.img.makeTempPath(url);
 				mImageFile = new File(path);
 				if (mImageFile.exists())
 					mImageFile.delete();
 				if (!file.renameTo(mImageFile))
 					mImageFile = file;
-				mImageCache.applySize(mImageFile);
+				Darknova.img.applySize(mImageFile);
 				mViewLoadInfoText.setText(R.string.mediapreview_reading);
 				mViewLoadProgressText.setText(StringTools.fileSize(mImageFile.length()));
 				if (mImage.mIsViewerPreviouslySet) {

@@ -24,7 +24,7 @@ import android.os.Parcelable;
 import android.os.RemoteException;
 import android.support.v4.app.NotificationCompat;
 
-import com.soreepeong.darknova.DarknovaApplication;
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
@@ -135,7 +135,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 											mTemplateOneshot.remove(t);
 											template.enabled = false;
 											t.updateSelf(getContentResolver());
-											DarknovaApplication.showToast("Tweet Fail: " + why.getMessage() + "\r\n" + t.text);
+											Darknova.showToast("Tweet Fail: " + why.getMessage() + "\r\n" + t.text);
 											// TODO Notify why
 										}
 									}
@@ -150,7 +150,6 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	};
 	private Messenger mCallback;
 	private Page mNotifyChecker;
-	private ImageCache mImageCache;
 	private File mNotificationListCacheFile;
 	private boolean mIsForegroundService;
 	private boolean mIsWaitingForQuit;
@@ -165,7 +164,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 		}
 		mNotifyChecker = builder.e().isEmpty() ? null : builder.build();
 		TwitterEngine.addOnUserlistChangedListener(this);
-		mImageCache = ImageCache.getCache(this, this);
+		ImageCache.getCache(this, this);
 
 		mNotificationListCacheFile = new File(getCacheDir(), NOTIFICATION_LIST_FILE);
 		loadActivityNotifications();
@@ -481,7 +480,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 
 			if (mActivities.size() == 1) {
 				ActivityNotification noti = mActivities.get(0);
-				if (noti.setLargeIcon(mBuilder, mImageCache, this))
+				if(noti.setLargeIcon(mBuilder, Darknova.img, this))
 					mBuilder.setLargeIcon(BitmapFactory.decodeResource(getResources(), noti.getStatusBarIcon()));
 				mBuilder.setContentText(noti.getTicker(this));
 				mBuilder.setStyle(noti.getStyle(mBuilder, this));
@@ -695,7 +694,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 
 	@Override
 	public void onImageCacheReady(ImageCache cache) {
-		mImageCache = cache;
+		Darknova.img = cache;
 		showNotification();
 	}
 

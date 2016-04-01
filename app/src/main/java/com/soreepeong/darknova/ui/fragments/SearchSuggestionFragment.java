@@ -27,6 +27,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
@@ -77,7 +78,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 	private ImageButton mViewQuickSearch;
 	private SuggestedUserAdapter mUserAdapter;
 	private SuggestedSearchAdapter mSearchAdapter;
-	private ImageCache mImageCache;
 	private SearchView mSearchView;
 	private MenuItem mMenuItem;
 	private Pattern mSearchOptimizedPattern;
@@ -100,7 +100,7 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 		mViewSearchList.setLayoutManager(new LinearLayoutManager(mViewSearchList.getContext()));
 		mViewUserRefresher.setOnRefreshListener(mUserAdapter);
 		mViewSearchRefresher.setOnRefreshListener(mSearchAdapter);
-		mImageCache = ImageCache.getCache(getActivity(), this);
+		ImageCache.getCache(getActivity(), this);
 		mColorAccent = ResTools.getColorByAttribute(getActivity(), R.attr.colorAccent);
 		mSearchPreferences = getActivity().getSharedPreferences("SearchLoader", 0);
 		if (mSearchHistoryFile == null) {
@@ -484,7 +484,6 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 
 	@Override
 	public void onImageCacheReady(ImageCache cache) {
-		mImageCache = cache;
 		mUserAdapter.notifyDataSetChanged();
 	}
 
@@ -939,13 +938,13 @@ public class SearchSuggestionFragment extends Fragment implements SearchView.OnQ
 					} else {
 						progress.setVisibility(View.GONE);
 						imageView.setVisibility(View.VISIBLE);
-						mImageCache.assignImageView(imageView, null, null);
+						Darknova.img.assignImageView(imageView, null, null);
 						imageView.setImageDrawable(ResTools.getDrawableByAttribute(getActivity(), R.attr.ic_action_search));
 					}
 				} else {
 					progress.setVisibility(View.GONE);
 					imageView.setVisibility(View.VISIBLE);
-					mImageCache.assignImageView(imageView, mUserList.get(position).user.getProfileImageUrl(), null);
+					Darknova.img.assignImageView(imageView, mUserList.get(position).user.getProfileImageUrl(), null);
 				}
 				userId.setText(mUserList.get(position).displayedUserId);
 				userName.setText(mUserList.get(position).displayedUserName == null ? "" : mUserList.get(position).displayedUserName);

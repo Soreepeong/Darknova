@@ -26,6 +26,7 @@ import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.core.OAuth;
@@ -52,7 +53,6 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 	private Handler mHandler = new Handler(this);
 	private Toolbar mViewActionbarToolbar;
 	private ActionBar mActionBar;
-	private ImageCache mImageCache;
 	private RecyclerView mViewImageList;
 	private SwipeableViewPager mViewPager;
 	private View mViewRoot;
@@ -66,18 +66,19 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 	private int[] mBackgroundColors = new int[]{0xA0000000, 0xFFFFFFFF, 0xFF000000};
 
 	public static void previewImage(Context context, Entities.UrlEntity e) {
-		Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(e.expanded_url), context, MediaPreviewActivity.class);
-		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-		intent.putExtra("darknova.caller", "darknova");
-		context.startActivity(intent);
+		previewImage(context, e.expanded_url, false);
 	}
 
-	public static void previewImage(Context context, String url) {
-		Intent intent = new Intent(context, MediaPreviewActivity.class);
-		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-		intent.setAction(Intent.ACTION_VIEW);
-		intent.setDataAndType(Uri.parse(url), "image/*");
-		intent.putExtra("darknova.caller", "darknova");
+	public static void previewImage(Context context, String url, boolean forceImage){
+		Intent intent;
+		if(forceImage || ImageExtractor.mRedirectingTwitterPicPattern.matcher(url).matches() || ImageExtractor.mFileNameGetter.matcher(url).matches()){
+			intent = new Intent(Intent.ACTION_VIEW);
+			intent.setDataAndType(Uri.parse(url), "image/*");
+			intent.setClass(context, MediaPreviewActivity.class);
+			intent.putExtra("darknova.caller", "darknova");
+		}else
+			intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
 		context.startActivity(intent);
 	}
 
@@ -91,7 +92,7 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		}
 		if (images.size() > 0) {
 			Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(images.get(0).mSourceUrl), context, MediaPreviewActivity.class);
-			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
 			intent.putExtra("pictures", images);
 			intent.putExtra("index", selectedIndex);
 			context.startActivity(intent);
@@ -109,8 +110,6 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 		}
 		setContentView(R.layout.activity_mediapreview);
 		mViewRoot = findViewById(R.id.root);
-
-		mImageCache = ImageCache.getCache(this, this);
 
 		mViewActionbarToolbar = (Toolbar) findViewById(R.id.toolbar_actionbar);
 		mViewImageList = (RecyclerView) findViewById(R.id.images_list);
@@ -136,6 +135,11 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 			mActionBar.setSubtitle(mImageList.get(position).mOriginalUrl);
 		}
 		mViewActionbarToolbar.setOnClickListener(this);
+	}
+
+	@Override
+	protected void onStart(){
+		super.onStart();
 	}
 
 	private boolean extractAction(Intent intent) {
@@ -172,7 +176,6 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 
 	@Override
 	public void onImageCacheReady(ImageCache cache) {
-		mImageCache = cache;
 		mAdapter.notifyDataSetChanged();
 	}
 
@@ -528,12 +531,12 @@ public class MediaPreviewActivity extends AppCompatActivity implements ImageCach
 			public void bindViewHolder(int position) {
 				Image img = mImageList.get(position);
 				String url = img.mThumbnailUrl;
-				if (mImageCache == null)
+				if(Darknova.img == null)
 					mViewThumbnail.setImageDrawable(null);
 				else if (url != null)
-					mImageCache.assignImageView(mViewThumbnail, url, img.mAuthInfo);
+					Darknova.img.assignImageView(mViewThumbnail, url, img.mAuthInfo);
 				else
-					mImageCache.assignImageView(mViewThumbnail, null, null);
+					Darknova.img.assignImageView(mViewThumbnail, null, null);
 			}
 
 			@Override

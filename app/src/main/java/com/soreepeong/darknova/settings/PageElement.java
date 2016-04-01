@@ -5,7 +5,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.support.annotation.NonNull;
 
-import com.soreepeong.darknova.DarknovaApplication;
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.twitter.Entities;
 import com.soreepeong.darknova.twitter.Tweet;
@@ -215,7 +215,7 @@ public class PageElement implements Parcelable {
 
 	public ElementHeader createHeader(int viewType) {
 		ElementHeader header = new ElementHeader();
-		header.mId = DarknovaApplication.uniqid();
+		header.mId = Darknova.uniqid();
 		header.mHeaderType = viewType;
 		return header;
 	}

@@ -16,6 +16,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.drawable.SquarePatchDrawable;
@@ -32,7 +33,6 @@ public class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHo
 	private final ContentResolver mResolver;
 	private final SparseArray<TemplateTweet> mTemplates = new SparseArray<>();
 	private final String[] mTemplateTypes;
-	private final ImageCache mImageCache;
 	private final Context mContext;
 	private final OnTemplateTweetSelectedListener mListener;
 	private Cursor mCursor;
@@ -50,7 +50,7 @@ public class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHo
 		mResolver = context.getContentResolver();
 		mResolver.registerContentObserver(TemplateTweetProvider.URI_BASE, true, mObserver);
 		mTemplateTypes = context.getResources().getStringArray(R.array.new_tweet_type_array);
-		mImageCache = ImageCache.getCache(context, this);
+		Darknova.img = ImageCache.getCache(context, this);
 		mListener = listener;
 		refill();
 	}
@@ -126,8 +126,8 @@ public class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHo
 				dr.addDrawable(ResTools.getDrawableByAttribute(mContext, R.attr.ic_content_clear));
 			} else {
 				sb.append(e.getScreenName());
-				if (mImageCache != null)
-					dr.addDrawable(mImageCache.getDrawable(e.getTweeter().getProfileImageUrl(), holder.picture.getLayoutParams().width, holder.picture.getLayoutParams().height, null));
+				if(Darknova.img != null)
+					dr.addDrawable(Darknova.img.getDrawable(e.getTweeter().getProfileImageUrl(), holder.picture.getLayoutParams().width, holder.picture.getLayoutParams().height, null));
 			}
 		}
 		holder.picture.setImageDrawable(dr);
@@ -153,7 +153,7 @@ public class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHo
 		}
 
 
-		if (mImageCache != null) {
+		if(Darknova.img != null){
 			holder.mAttachmentView.setVisibility(t.mAttachments.isEmpty() ? View.GONE : View.VISIBLE);
 			int i = 0;
 			for (; i < holder.mImageView.length && i < t.mAttachments.size(); i++) {
@@ -176,17 +176,17 @@ public class TemplateAdapter extends RecyclerView.Adapter<TemplateAdapter.ViewHo
 						holder.mTypeView[i].setImageDrawable(null);
 				}
 				if (a.mLocalFileExists) {
-					mImageCache.assignImageView(holder.mImageView[i], a.mLocalFile.getAbsolutePath(), null);
-					mImageCache.assignStatusIndicator(holder.mProgressView[i], a.mLocalFile.getAbsolutePath());
+					Darknova.img.assignImageView(holder.mImageView[i], a.mLocalFile.getAbsolutePath(), null);
+					Darknova.img.assignStatusIndicator(holder.mProgressView[i], a.mLocalFile.getAbsolutePath());
 				} else {
-					mImageCache.assignImageView(holder.mImageView[i], null, null);
-					mImageCache.assignStatusIndicator(holder.mProgressView[i], null);
+					Darknova.img.assignImageView(holder.mImageView[i], null, null);
+					Darknova.img.assignStatusIndicator(holder.mProgressView[i], null);
 				}
 			}
 			for (; i < holder.mImageView.length; i++) {
 				holder.mAttachmentView.getChildAt(i).setVisibility(View.GONE);
-				mImageCache.assignImageView(holder.mImageView[i], null, null);
-				mImageCache.assignStatusIndicator(holder.mProgressView[i], null);
+				Darknova.img.assignImageView(holder.mImageView[i], null, null);
+				Darknova.img.assignStatusIndicator(holder.mProgressView[i], null);
 			}
 		}
 	}

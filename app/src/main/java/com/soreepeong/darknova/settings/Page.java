@@ -5,7 +5,7 @@ import android.content.SharedPreferences;
 import android.os.Parcel;
 import android.os.Parcelable;
 
-import com.soreepeong.darknova.DarknovaApplication;
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.ObjectWithId;
@@ -82,7 +82,7 @@ public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.
 		synchronized (mPages) {
 			wholeLoop:
 			while (true) {
-				id = DarknovaApplication.uniqid();
+				id = Darknova.uniqid();
 				for (Page p : mPages)
 					if (p.mId == id)
 						continue wholeLoop;
@@ -122,7 +122,7 @@ public class Page<_T extends ObjectWithId> implements Parcelable, TwitterEngine.
 	}
 
 	protected Page(String key, SharedPreferences in) {
-		mId = in.getLong(key + ".id", DarknovaApplication.uniqid());
+		mId = in.getLong(key + ".id", Darknova.uniqid());
 		name = in.getString(key + ".name", null);
 		iconResId = in.getInt(key + ".iconResId", 0);
 		ArrayList<PageElement> newElements = new ArrayList<>();

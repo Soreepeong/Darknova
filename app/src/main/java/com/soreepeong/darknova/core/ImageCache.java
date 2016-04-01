@@ -224,8 +224,9 @@ public class ImageCache {
 						break;
 					case ExifInterface.ORIENTATION_NORMAL:
 					default:
-						if (sourceBitmap.getWidth() <= nMaxWidth && sourceBitmap.getHeight() <= nMaxHeight)
+						if(sourceBitmap.getWidth() <= nMaxWidth && sourceBitmap.getHeight() <= nMaxHeight){
 							return sourceBitmap;
+						}
 				}
 				float scale = Math.max(nMaxWidth / (float) sourceBitmap.getWidth(), nMaxHeight / (float) sourceBitmap.getHeight());
 				if (scale < 1)

@@ -43,6 +43,7 @@ import com.h6ah4i.android.widget.advrecyclerview.draggable.DraggableItemAdapter;
 import com.h6ah4i.android.widget.advrecyclerview.draggable.ItemDraggableRange;
 import com.h6ah4i.android.widget.advrecyclerview.draggable.RecyclerViewDragDropManager;
 import com.h6ah4i.android.widget.advrecyclerview.utils.AbstractDraggableItemViewHolder;
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
@@ -97,7 +98,6 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 	private boolean mUserLearnedDrawer;
 	private TwitterEngine mCurrentUser;
 	private long mCurrentUserId;
-	private ImageCache mImageCache;
 	private NavigationDrawerAdapter mPageAdapter;
 	private RecyclerViewDragDropManager mRecyclerViewDragDropManager;
 
@@ -127,7 +127,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 	public View onCreateView(LayoutInflater inflater, ViewGroup container,
 							 Bundle savedInstanceState) {
 
-		mImageCache = ImageCache.getCache(getActivity(), this);
+		ImageCache.getCache(getActivity(), this);
 
 		View view = inflater.inflate(R.layout.fragment_drawer, container, false);
 		mDrawerList = (RecyclerView) view.findViewById(R.id.left_drawer);
@@ -186,7 +186,6 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					Tweeter.getTweeter(e.id, e.name).removeOnChangeListener(mPageAdapter);
 		TwitterEngine.removeOnUserlistChangedListener(this);
 		TwitterStreamServiceReceiver.removeOnStreamTurnListener(this);
-		mImageCache = null;
 		super.onDestroyView();
 	}
 
@@ -321,7 +320,6 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 
 	@Override
 	public void onImageCacheReady(ImageCache cache) {
-		mImageCache = cache;
 		mPageAdapter.notifyDataSetChanged();
 	}
 
@@ -752,9 +750,9 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				applyAccountListButton();
 				if (mCurrentUser != null) {
 					Tweeter user = mCurrentUser.getTweeter();
-					if (mImageCache != null) {
-						mImageCache.assignImageView(mViewAvatar, user.getProfileImageUrl(), null, mImageCache.CIRCULAR_IMAGE_PREPROCESSOR);
-						mImageCache.assignImageView(mViewAccountBackground, R.drawable.wallpaper, user.getProfileBannerUrl(), null, null, null);
+					if(Darknova.img != null){
+						Darknova.img.assignImageView(mViewAvatar, user.getProfileImageUrl(), null, Darknova.img.CIRCULAR_IMAGE_PREPROCESSOR);
+						Darknova.img.assignImageView(mViewAccountBackground, R.drawable.wallpaper, user.getProfileBannerUrl(), null, null, null);
 					}
 					mViewName.setText(user.name);
 					mViewScreenName.setText(user.screen_name);
@@ -819,7 +817,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					actionButton.setEnabled(true);
 				}
 				setSelected(mCurrentPage == position);
-				if (mImageCache != null) {
+				if(Darknova.img != null){
 					long twitterEngineId = mListedPages.get(position).elements.get(0).twitterEngineId;
 					long id = mListedPages.get(position).elements.get(0).id;
 					String name = mListedPages.get(position).elements.get(0).name;
@@ -830,15 +828,15 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 							id = 0;
 					}
 					if (twitterEngineId != 0) {
-						mImageCache.assignImageView(imageViewUser, mListedPages.get(position).elements.get(0).getTwitterEngine().getTweeter().getProfileImageUrl(), null, mImageCache.CIRCULAR_IMAGE_PREPROCESSOR);
+						Darknova.img.assignImageView(imageViewUser, mListedPages.get(position).elements.get(0).getTwitterEngine().getTweeter().getProfileImageUrl(), null, Darknova.img.CIRCULAR_IMAGE_PREPROCESSOR);
 						mListedPages.get(position).elements.get(0).getTwitterEngine().getTweeter().addToDataLoadQueue(mListedPages.get(position).elements.get(0).getTwitterEngine());
 					} else
-						mImageCache.assignImageView(imageViewUser, null, null);
+						Darknova.img.assignImageView(imageViewUser, null, null);
 					if (id != 0 && name != null) {
-						mImageCache.assignImageView(imageView, Tweeter.getTweeter(id, mListedPages.get(position).elements.get(0).name).getProfileImageUrl(), null, mImageCache.CIRCULAR_IMAGE_PREPROCESSOR);
+						Darknova.img.assignImageView(imageView, Tweeter.getTweeter(id, mListedPages.get(position).elements.get(0).name).getProfileImageUrl(), null, Darknova.img.CIRCULAR_IMAGE_PREPROCESSOR);
 						Tweeter.getTweeter(id, mListedPages.get(position).elements.get(0).name).addToDataLoadQueue(mListedPages.get(position).elements.get(0).getTwitterEngine());
 					} else {
-						mImageCache.assignImageView(imageView, null, null);
+						Darknova.img.assignImageView(imageView, null, null);
 						imageView.setImageDrawable(getResourceDrawable(mListedPages.get(position).iconResId, imageView.getLayoutParams().width, imageView.getLayoutParams().height));
 					}
 					Tweeter.fillLoadQueuedData();
@@ -887,8 +885,8 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				setUseActionContainer(mListEditMode);
 				setSelected(mListedUsers.get(position).user_id == mCurrentUserId);
 
-				if (mImageCache != null)
-					mImageCache.assignImageView(imageView, mListedUsers.get(position).getProfileImageUrl(), null, mImageCache.CIRCULAR_IMAGE_PREPROCESSOR);
+				if(Darknova.img != null)
+					Darknova.img.assignImageView(imageView, mListedUsers.get(position).getProfileImageUrl(), null, Darknova.img.CIRCULAR_IMAGE_PREPROCESSOR);
 			}
 
 			@Override

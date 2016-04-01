@@ -57,7 +57,7 @@ import android.widget.TimePicker;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
-import com.soreepeong.darknova.DarknovaApplication;
+import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.services.TemplateTweetProvider;
@@ -110,7 +110,6 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	private ImageView mViewUserSelectExpander;
 	private ImageButton mViewWriteBtn;
 	private EditText mViewEditor;
-	private ImageCache mImageCache;
 	private OnNewTweetVisibilityChangedListener mListener;
 	private Tweet mInReplyTo;
 	private FlowLayout mViewAccount;
@@ -157,7 +156,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-		mImageCache = ImageCache.getCache(getActivity(), this);
+		ImageCache.getCache(getActivity(), this);
 		mDefaultPreference = PreferenceManager.getDefaultSharedPreferences(getActivity());
 		mEditorPreference = getActivity().getSharedPreferences("templatetweeteditorfragment", Context.MODE_MULTI_PROCESS);
 		mViewTemplateTweetEditor = (ViewGroup) inflater.inflate(R.layout.fragment_templatetweet, container, false);
@@ -374,7 +373,6 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			mMediaAdapter = null;
 		}
 		TwitterEngine.removeOnUserlistChangedListener(this);
-		mImageCache = null;
 	}
 
 	private void refillUserMaps(ArrayList<TwitterEngine> engines) {
@@ -392,7 +390,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			box.setTextOn(t.screen_name);
 			box.setText(t.screen_name);
 			t.addToDataLoadQueue(engine);
-			Drawable dr = (mImageCache == null || t.getProfileImageUrl() == null) ? new ColorDrawable(0xFF00FF00) : mImageCache.getDrawable(t.getProfileImageUrl(), R.dimen.account_button_icon_size, null);
+			Drawable dr = (Darknova.img == null || t.getProfileImageUrl() == null) ? new ColorDrawable(0xFF00FF00) : Darknova.img.getDrawable(t.getProfileImageUrl(), R.dimen.account_button_icon_size, null);
 			dr.setAlpha(box.isChecked() ? 255 : 80);
 			box.setCompoundDrawablesWithIntrinsicBounds(dr, null, null, null);
 			box.setOnCheckedChangeListener(this);
@@ -407,13 +405,13 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	public void onUserInformationChanged(Tweeter tweeter) {
 		ToggleButton box = mUserMaps.get(tweeter);
 		if (box == null) return;
-		Drawable dr = (mImageCache == null || tweeter.getProfileImageUrl() == null) ? new ColorDrawable(0xFF00FF00) : mImageCache.getDrawable(tweeter.getProfileImageUrl(), R.dimen.account_button_icon_size, null);
+		Drawable dr = (Darknova.img == null || tweeter.getProfileImageUrl() == null) ? new ColorDrawable(0xFF00FF00) : Darknova.img.getDrawable(tweeter.getProfileImageUrl(), R.dimen.account_button_icon_size, null);
 		dr.setAlpha(box.isChecked() ? 255 : 80);
 		box.setCompoundDrawablesWithIntrinsicBounds(dr, null, null, null);
 	}
 
 	public void onImageCacheReady(ImageCache cache) {
-		mImageCache = cache;
+		Darknova.img = cache;
 		refillUserMaps(TwitterEngine.getAll());
 		mAttachmentAdapter.notifyDataSetChanged();
 		mUserAdapter.notifyDataSetChanged();
@@ -1034,7 +1032,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 					mDetails.setTextColor(0xFFFFFFFF);
 					finalFormat = format;
 				}
-				mImageCache.assignImageView(mImageView, null, mCursor.getString(2), null, null, new ImageCache.OnImageAvailableListener() {
+				Darknova.img.assignImageView(mImageView, null, mCursor.getString(2), null, null, new ImageCache.OnImageAvailableListener(){
 					@Override
 					public void onImageAvailable(String url, BitmapDrawable bmp, Drawable d, int originalWidth, int originalHeight) {
 						if (finalFormat != null) {
@@ -1057,7 +1055,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 						}
 					}
 				});
-				mImageCache.assignStatusIndicator(mProgressView, mCursor.getString(2));
+				Darknova.img.assignStatusIndicator(mProgressView, mCursor.getString(2));
 			}
 
 			@Override
@@ -1232,8 +1230,8 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			if (mTweeters.size() > scale)
 				itemSize = itemSize / itemSizeScale;
 			holder.itemView.setLayoutParams(new GridLayoutManager.LayoutParams(itemSize, itemSize));
-			if (mImageCache != null)
-				mImageCache.assignImageView(((ImageView) holder.itemView), mTweeters.get(position).getTweeter().getProfileImageUrl(), null);
+			if(Darknova.img != null)
+				Darknova.img.assignImageView(((ImageView) holder.itemView), mTweeters.get(position).getTweeter().getProfileImageUrl(), null);
 		}
 
 		@Override
@@ -1326,7 +1324,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 				isImageMedia &= a.media_type == TemplateTweetProvider.MEDIA_TYPE_IMAGE;
 			}
 			if (mTemplateTweet.mAttachments.size() > 4 || (mTemplateTweet.mAttachments.size() >= 2 && !isImageMedia))
-				DarknovaApplication.showToast(R.string.new_tweet_attach_remove_required);
+				Darknova.showToast(R.string.new_tweet_attach_remove_required);
 			notifyDataSetChanged();
 			mTemplateTweet.updateSelf(getActivity().getContentResolver());
 		}
@@ -1367,7 +1365,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 					mTypeView.setImageDrawable(null);
 					return;
 				}
-				if (mImageCache != null) {
+				if(Darknova.img != null){
 					TemplateTweetAttachment a = mTemplateTweet.mAttachments.get(position);
 					switch (a.media_type) {
 						case TemplateTweetProvider.MEDIA_TYPE_GIF:
@@ -1381,11 +1379,11 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 							mTypeView.setImageDrawable(null);
 					}
 					if (a.mLocalFileExists) {
-						mImageCache.assignImageView(mImageView, a.mLocalFile.getAbsolutePath(), null);
-						mImageCache.assignStatusIndicator(mProgressView, a.mLocalFile.getAbsolutePath());
+						Darknova.img.assignImageView(mImageView, a.mLocalFile.getAbsolutePath(), null);
+						Darknova.img.assignStatusIndicator(mProgressView, a.mLocalFile.getAbsolutePath());
 					} else {
-						mImageCache.assignImageView(mImageView, null, null);
-						mImageCache.assignStatusIndicator(mProgressView, null);
+						Darknova.img.assignImageView(mImageView, null, null);
+						Darknova.img.assignStatusIndicator(mProgressView, null);
 					}
 				}
 			}

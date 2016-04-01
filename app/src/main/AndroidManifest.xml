@@ -16,7 +16,7 @@
 
 
 	<application
-		android:name=".DarknovaApplication"
+		android:name=".Darknova"
 		android:allowBackup="true"
 		android:icon="@drawable/ic_launcher"
 		android:label="@string/app_name"
