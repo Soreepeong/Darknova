@@ -145,10 +145,10 @@ public class TweetViewHolder extends CustomViewHolder<Tweet> implements DragInit
 	@Override
 	public void updateView(){
 		int position = mAdapter.adapterPositionToListIndex(getLayoutPosition());
-		if(position < 0 || position >= (mFragment.mQuickFilteredList != null ? mFragment.mQuickFilteredList.size() : mFragment.mList.size()))
+		if(position < 0 || position >= (mFragment.mQuickFilteredList != null ? mFragment.mQuickFilteredList.size() : mFragment.mPage.getList().size()))
 			return;
 		TimelineFragment.FilteredTweet filtered = mFragment.mQuickFilteredList != null ? (TimelineFragment.FilteredTweet) mFragment.mQuickFilteredList.get(position) : null;
-		Tweet tweet = filtered != null ? filtered.mObject : mFragment.mList.get(position);
+		Tweet tweet = filtered != null ? filtered.mObject : mFragment.mPage.getList().get(position);
 		if(tweet != mLastBoundTweet)
 			return;
 		if(filtered != null && filtered.spannedText != null){
@@ -173,9 +173,9 @@ public class TweetViewHolder extends CustomViewHolder<Tweet> implements DragInit
 
 	public void bindViewHolder(int position){
 		TimelineFragment.FilteredTweet filtered = mFragment.mQuickFilteredList != null ? (TimelineFragment.FilteredTweet) mFragment.mQuickFilteredList.get(position) : null;
-		if(mFragment.mList == null)
+		if(mFragment.mPage.getList() == null)
 			return;
-		Tweet tweet = mFragment.mQuickFilteredList != null ? filtered.mObject : mFragment.mList.get(position);
+		Tweet tweet = mFragment.mQuickFilteredList != null ? filtered.mObject : mFragment.mPage.getList().get(position);
 		if(mLastBoundTweet == tweet){ // skip - already prepared
 			updateView();
 			return;

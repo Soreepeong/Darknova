@@ -145,9 +145,10 @@ public class TweetBigViewHolder extends CustomViewHolder<Tweet> implements View.
 	}
 
 	private String getDescriptionString(Tweet tweet){
-		String sTime;
-		sTime = DateFormat.getLongDateFormat(mFragment.getActivity()).format(new Date(tweet.created_at));
-		return mFragment.getString(R.string.tweet_description).replace("${time}", sTime).replace("${via}", tweet.source);
+		Date d = new Date(tweet.created_at);
+		String sDate = DateFormat.getTimeFormat(mFragment.getActivity()).format(d);
+		String sTime = DateFormat.getLongDateFormat(mFragment.getActivity()).format(d);
+		return mFragment.getString(R.string.tweet_description_long).replace("${time}", sTime).replace("${date}", sDate).replace("${via}", tweet.source);
 	}
 
 	public void updateSelectionStatus(Tweet tweet){
@@ -157,10 +158,10 @@ public class TweetBigViewHolder extends CustomViewHolder<Tweet> implements View.
 	@Override
 	public void updateView(){
 		int position = mAdapter.adapterPositionToListIndex(getLayoutPosition());
-		if(position < 0 || position >= (mFragment.mQuickFilteredList != null ? mFragment.mQuickFilteredList.size() : mFragment.mList.size()))
+		if(position < 0 || position >= (mFragment.mQuickFilteredList != null ? mFragment.mQuickFilteredList.size() : mFragment.mPage.getList().size()))
 			return;
 		TimelineFragment.FilteredTweet filtered = mFragment.mQuickFilteredList != null ? (TimelineFragment.FilteredTweet) mFragment.mQuickFilteredList.get(position) : null;
-		Tweet tweet = filtered != null ? filtered.mObject : mFragment.mList.get(position);
+		Tweet tweet = filtered != null ? filtered.mObject : mFragment.mPage.getList().get(position);
 		if(tweet != mLastBoundTweet)
 			return;
 		if(tweet.info.stub){
@@ -192,7 +193,7 @@ public class TweetBigViewHolder extends CustomViewHolder<Tweet> implements View.
 
 	public void bindViewHolder(int position){
 		TimelineFragment.FilteredTweet filtered = mFragment.mQuickFilteredList != null ? (TimelineFragment.FilteredTweet) mFragment.mQuickFilteredList.get(position) : null;
-		Tweet tweet = mFragment.mQuickFilteredList != null ? filtered.mObject : mFragment.mList.get(position);
+		Tweet tweet = mFragment.mQuickFilteredList != null ? filtered.mObject : mFragment.mPage.getList().get(position);
 		if(mLastBoundTweet == tweet){ // skip - already prepared
 			updateView();
 			return;

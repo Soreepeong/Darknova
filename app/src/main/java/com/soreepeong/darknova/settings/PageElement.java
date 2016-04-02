@@ -165,6 +165,21 @@ public class PageElement implements Parcelable {
 		return false;
 	}
 
+	public String type(){
+		switch(function){
+			case FUNCTION_HOME_TIMELINE:
+			case FUNCTION_MENTIONS:
+			case FUNCTION_RETWEETS_OF_ME:
+			case FUNCTION_SEARCH:
+			case FUNCTION_LIST_TWEETS:
+			case FUNCTION_USER_TIMELINE:
+			case FUNCTION_USER_FAVORITES:
+			case FUNCTION_TWEET_SINGLE:
+				return PageTweet.class.getName();
+		}
+		return null;
+	}
+
 	public boolean canHave(Tweet tweet) {
 		switch (function) {
 			case FUNCTION_HOME_TIMELINE:

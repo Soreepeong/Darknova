@@ -38,6 +38,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -1093,6 +1096,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 				mStreamThread.start();
 			} else if (!use && (mStreamThread != null && mStreamThread.isAlive())) {
 				mStreamThread.stopStream();
+				mStreamThread = null;
 			}
 		}
 	}
@@ -1270,6 +1274,10 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 			Thread.currentThread().setName("StreamThread for " + mEngine.getScreenName());
 			int errorWaitTime = 0;
 			mCallback.onStreamStart(mEngine);
+			final int bufferCapacity = 4;
+			final ArrayBlockingQueue<ByteBuffer> inputEmpty = new ArrayBlockingQueue<>(bufferCapacity);
+			final ArrayBlockingQueue<ByteBuffer> inputFilled = new ArrayBlockingQueue<>(bufferCapacity);
+			Thread inputReader = null;
 			try {
 				while (!mStopRequested) {
 					Thread.sleep(errorWaitTime);
@@ -1312,19 +1320,46 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 						try {
 							mStreamLastActivityTime = System.currentTimeMillis();
 							mCallback.onStreamConnected(mEngine);
-							final byte[] buffer = new byte[8192];
+
+							inputEmpty.clear();
+							inputFilled.clear();
+							for(int i = inputEmpty.size(); i > 0; i--)
+								inputEmpty.add(ByteBuffer.allocate(8192));
+
 							int searchFrom = 0;
-							ByteBuffer data = ByteBuffer.allocate(buffer.length);
+							ByteBuffer data = ByteBuffer.allocate(8192);
+
+							inputReader = new Thread(){
+								@Override
+								public void run(){
+									try{
+										while(!Thread.interrupted()){
+											ByteBuffer read = inputEmpty.poll(10, TimeUnit.SECONDS);
+											int length = in.read(read.array(), 0, Math.max(1, Math.min(read.capacity(), in.available())));
+											read.rewind();
+											read.limit(length);
+											inputFilled.offer(read, 10, TimeUnit.SECONDS);
+										}
+									}catch(InterruptedException | IOException e){
+										StreamThread.this.interrupt();
+									}
+								}
+							};
+
+							inputReader.start();
+
 							while (!mStopRequested) {
-								int read = in.read(buffer, 0, Math.max(1, Math.min(buffer.length, in.available())));
+								ByteBuffer read = inputFilled.poll(30, TimeUnit.SECONDS);
+								if(read == null)
+									throw new TimeoutException("Stream read timeout");
 								if (Thread.interrupted())
 									break;
-								if (data.remaining() < read) {
+								if(data.remaining() < read.limit()){
 									ByteBuffer tmp = ByteBuffer.allocate(data.capacity() * 2);
 									tmp.put(data.array(), 0, data.position());
 									data = tmp;
 								}
-								data.put(buffer, 0, read);
+								data.put(read);
 								while (true) {
 									int pos = ArrayTools.indexOf(data.array(), searchFrom, data.position(), CRLF, CRLF_FAILURE);
 									if (pos == -1) {
@@ -1341,9 +1376,11 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 								}
 								if (data.position() > MAX_STREAM_HOLD)
 									stopStream();
+								inputFilled.offer(read);
 							}
 						} finally {
 							conn.close();
+							inputReader.interrupt();
 							StreamTools.close(in);
 						}
 						errorWaitTime = 0; // interrupted
@@ -1360,6 +1397,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					mCallback.onStreamStop(mEngine);
 					mStopCallbacked = true;
 				}
+
 			}
 		}
 

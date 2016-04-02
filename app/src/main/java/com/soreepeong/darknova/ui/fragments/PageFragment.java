@@ -21,6 +21,7 @@ import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.widget.ImageView;
@@ -29,7 +30,6 @@ import android.widget.TextView;
 
 import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;
-import com.soreepeong.darknova.core.ThreadScheduler;
 import com.soreepeong.darknova.settings.Page;
 import com.soreepeong.darknova.settings.PageElement;
 import com.soreepeong.darknova.tools.StringTools;
@@ -43,13 +43,12 @@ import com.soreepeong.darknova.ui.viewholder.CustomViewHolder;
 import com.soreepeong.darknova.ui.viewholder.NonElementHeaderViewHolder;
 import com.soreepeong.darknova.ui.viewholder.UserHeaderViewHolder;
 
-import java.io.File;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -71,7 +70,6 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		}
 	};
 	private static final SparseArray<TimedStorage<View>> mCachedPageViews = new SparseArray<>();
-	private static final ThreadScheduler mRefreshScheduler = new ThreadScheduler(4, "Refresher");
 	protected static int mColorAccent;
 
 	static {
@@ -80,11 +78,9 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 	}
 
 	public final ArrayList<Tweet> mSelectedList = new ArrayList<>();
-	public final WeakHashMap<_T, HashMap<PageElement, Byte>> mLoadMoreItems = new WeakHashMap<>();
-	public List<_T> mList;
 	public Page<_T> mPage;
 	public ArrayList<FilteredItem> mQuickFilteredList;
-	protected Handler mHandler;
+	private Handler mHandler;
 	protected PageItemAdapter mAdapter;
 	protected View mViewRoot;
 	protected boolean mIsActive;
@@ -105,8 +101,6 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 	protected boolean mIsPagePrepared;
 	protected OnCreateBackground<_T, ? extends PageFragment<_T>> mBackgroundLoader;
 
-	protected File mListCacheFile;
-
 	public static View obtainPageView(int layoutId, LayoutInflater inflater, ViewGroup container) {
 		View res = null;
 		if (mCachedPageViews.get(layoutId) != null)
@@ -122,14 +116,6 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		mCachedPageViews.get(layoutId).release(v);
 	}
 
-	protected static void addRefresher(Runnable t) {
-		mRefreshScheduler.schedule(t);
-	}
-
-	protected static void removeRefresher(Runnable t) {
-		mRefreshScheduler.cancel(t);
-	}
-
 	public static PageFragment newInstance(String cacheDir, Page p) {
 		return TimelineFragment.newInstance(cacheDir, p);
 	}
@@ -138,16 +124,24 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		return mAdapter;
 	}
 
+	public void showRefreshProgress(int max){
+	}
+
+	public void setRefreshProgress(int progress){
+	}
+
+	public void hideRefreshProgress(){
+	}
+
+
 	public void onCompleteRefresh() {
 		if (Looper.getMainLooper() != Looper.myLooper())
 			throw new RuntimeException("MUST be called from the UI Thread");
-		mPage.mList = new WeakReference<>(mList = Collections.unmodifiableList(new ArrayList<_T>()));
-		synchronized (mPage.mListPending) {
-			mPage.mListPending.clear();
-		}
+		mPage.updateList(null);
+		mPage.getListPending();
 		mAdapter.notifyDataSetChanged();
 		applyEmptyIndicator();
-		itemRead(mList.isEmpty() ? -1 : mList.get(0).getId(), true);
+		itemRead();
 		onRefresh();
 	}
 
@@ -160,8 +154,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			mListLayout.scrollToPosition(0);
 			mViewList.smoothScrollBy(0, 0);
 		}
-		if (mList != null)
-			itemRead(mList.isEmpty() ? -1 : mList.get(0).getId(), true);
+		itemRead();
 	}
 
 	public void onPageEnter(){}
@@ -174,6 +167,14 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 	public void loadBackground() {
 		if (mBackgroundLoader != null && mBackgroundLoader.getStatus() == AsyncTask.Status.PENDING)
 			mBackgroundLoader.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+	}
+
+	protected void itemRead(){
+		List<_T> l = mPage == null ? null : mPage.getList();
+		if(l == null || l.isEmpty())
+			itemRead(-1, true);
+		else
+			itemRead(l.get(0).getId(), true);
 	}
 
 	protected void itemRead(long id, boolean forceUpdate) {
@@ -228,13 +229,13 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		mIsActive = true;
 	}
 
-	protected Object calculateListPositions() {
+	public void calculateListPositions(){
 		if (getView() == null || !mIsActive)
-			return null;
+			return;
 		if (mViewList.getChildCount() == 0 || mPage.mIsListAtTop) {
 			mPage.mIsListAtTop = true;
 			mPage.mPageLastOffset = 0;
-			return null;
+			return;
 		}
 		int first = mListLayout.findFirstVisibleItemPosition();
 		View v = mListLayout.findViewByPosition(first);
@@ -244,7 +245,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			mPage.mPageLastItemId = ((ObjectWithId) o).getId();
 		else
 			mPage.mPageLastItemId = -1;
-		return o;
+		return;
 	}
 
 	protected abstract _T createDummyObject(long id);
@@ -257,7 +258,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			return;
 		}
 		if (mPage.mPageLastItemId != -1) {
-			int lastIndex = mList.indexOf(createDummyObject(mPage.mPageLastItemId));
+			int lastIndex = mPage.getList().indexOf(createDummyObject(mPage.mPageLastItemId));
 			if (lastIndex < 0) lastIndex = -1 - lastIndex;
 			lastIndex += mAdapter.mElementHeaders.size() + mAdapter.mNonElementHeaders.size();
 			mListLayout.scrollToPositionWithOffset(lastIndex, mPage.mPageLastOffset);
@@ -301,7 +302,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		AlphaAnimation aa = null;
 		boolean isEmpty = true;
 		if (mIsPagePrepared) {
-			if (mList.isEmpty()) {
+			if(mPage.getList().isEmpty()){
 				mAdapter.addNonElementHeader(R.layout.row_header_empty_page);
 				mAdapter.removeNonElementHeader(R.layout.row_header_no_match);
 			} else if (mQuickFilteredList != null && mQuickFilteredList.isEmpty()) {
@@ -316,27 +317,56 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		if (!isEmpty && mViewEmptyIndicator.getVisibility() == View.VISIBLE) {
 			aa = new AlphaAnimation(1, 0);
 			aa.setInterpolator(new AccelerateInterpolator());
-			mViewEmptyIndicator.setVisibility(View.GONE);
+			aa.setAnimationListener(new Animation.AnimationListener(){
+				@Override
+				public void onAnimationEnd(Animation animation){
+					if(mViewEmptyIndicator != null)
+						mViewEmptyIndicator.setVisibility(View.GONE);
+				}
+
+				@Override
+				public void onAnimationStart(Animation animation){
+				}
+
+				@Override
+				public void onAnimationRepeat(Animation animation){
+				}
+			});
 		} else if (isEmpty && (mViewEmptyIndicator.getVisibility() != View.VISIBLE)) {
 			aa = new AlphaAnimation(0, 1);
 			aa.setInterpolator(new DecelerateInterpolator());
-			mViewEmptyIndicator.setVisibility(View.VISIBLE);
+			aa.setAnimationListener(new Animation.AnimationListener(){
+				@Override
+				public void onAnimationEnd(Animation animation){
+					if(mViewEmptyIndicator != null)
+						mViewEmptyIndicator.setVisibility(View.VISIBLE);
+				}
+
+				@Override
+				public void onAnimationStart(Animation animation){
+				}
+
+				@Override
+				public void onAnimationRepeat(Animation animation){
+				}
+			});
 		}
 		if (aa == null)
 			return;
 		aa.setDuration(300);
-		aa.setFillAfter(true);
 		mViewEmptyIndicator.startAnimation(aa);
 	}
 
-	protected boolean isPageReady() {
+	public boolean isPageReady(){
 		return mIsPagePrepared && mBackgroundLoader == null;
+	}
+
+	public void onDataSetUpdated(List<_T> listOld){
 	}
 
 	public static abstract class OnCreateBackground<_T extends ObjectWithId, _FRAGMENT_T extends PageFragment<_T>> extends AsyncTask<Object, Object, Object> {
 		protected final Page<_T> mPage;
 		protected final _FRAGMENT_T mFragment;
-		protected final File mListCacheFile;
 		protected final WeakHashMap<_T, HashMap<PageElement, Byte>> mLoadMoreItems = new WeakHashMap<>();
 		protected boolean isNewlyLoadedPage = false;
 		protected List<_T> mList;
@@ -344,9 +374,8 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 
 		public OnCreateBackground(_FRAGMENT_T mFragment) {
 			this.mFragment = mFragment;
-			mListCacheFile = mFragment.mListCacheFile;
 			mPage = mFragment.mPage;
-			mList = mPage.mList == null ? null : mPage.mList.get();
+			mList = mPage.getList();
 		}
 
 		public void postExecuteNow() {
@@ -358,7 +387,8 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			if (mList == null) {
 				mList = new ArrayList<>();
 				isNewlyLoadedPage = true;
-			}
+			}else
+				mList = new ArrayList<>(mList);
 			return null;
 		}
 
@@ -373,9 +403,9 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			mFragment.mIsPagePrepared = true;
 			if (mFragment.getView() == null)
 				return;
-			mPage.mList = new WeakReference<>(mFragment.mList = mList);
-			mFragment.mLoadMoreItems.clear();
-			mFragment.mLoadMoreItems.putAll(mLoadMoreItems);
+			mPage.updateList(mList);
+			mPage.mLoadMoreItems.clear();
+			mPage.mLoadMoreItems.putAll(mLoadMoreItems);
 			mFragment.mBackgroundLoader = null;
 			mFragment.mViewProgress.setIndeterminate(false);
 			AlphaAnimation aa = new AlphaAnimation(1, 0);
@@ -384,7 +414,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			aa.setInterpolator(new AccelerateDecelerateInterpolator());
 			mFragment.mViewProgress.setVisibility(View.GONE);
 			mFragment.mViewProgress.startAnimation(aa);
-			mFragment.itemRead(-1, true);
+			mFragment.itemRead();
 			mFragment.createAdapter();
 			mPage.setFragment(mFragment);
 
@@ -401,6 +431,51 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 				mFragment.onRefresh();
 			mFragment.mAdapter.notifyDataSetChanged();
 		}
+	}
+
+	private final Object UI_LIST_UPDATE_LOCK = new Object();
+
+	public void cancelPendingActions(){
+		mHandler.removeCallbacksAndMessages(null);
+		synchronized(UI_LIST_UPDATE_LOCK){
+			UI_LIST_UPDATE_LOCK.notify();
+		}
+	}
+
+	public void addPendingAction(int code, int delay){
+		mHandler.removeMessages(code);
+		mHandler.sendEmptyMessageDelayed(code, delay);
+	}
+
+	public void addPendingAction(Runnable run){
+		mHandler.post(run);
+	}
+
+	public boolean updateListUi(final List<_T> newList){
+		final AtomicBoolean s = new AtomicBoolean(false);
+		try{
+			synchronized(UI_LIST_UPDATE_LOCK){
+				mHandler.post(new Runnable(){
+					@Override
+					public void run(){
+						synchronized(UI_LIST_UPDATE_LOCK){
+							if(s.get()) return;
+							mPage.updateList(newList);
+							s.set(true);
+							UI_LIST_UPDATE_LOCK.notify();
+						}
+					}
+				});
+				UI_LIST_UPDATE_LOCK.wait();
+				if(s.get())
+					return true;
+			}
+		}catch(InterruptedException e){
+			e.printStackTrace();
+		}finally{
+			s.set(true);
+		}
+		return false;
 	}
 
 	public static class NonElementHeader {
@@ -532,9 +607,9 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 				return mNonElementHeaders.get(position - elementHeaderLength);
 			if (mQuickFilteredList != null)
 				return mQuickFilteredList.get(position - headerLength);
-			if (position - headerLength >= mList.size())
+			if(position - headerLength >= mPage.getList().size())
 				return null;
-			return mList.get(position - headerLength);
+			return mPage.getList().get(position - headerLength);
 		}
 
 		public int getItemPosition(Object item) {
@@ -547,7 +622,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 					pos = Collections.binarySearch(mQuickFilteredList, new FilteredItem((_T) item) {
 					}, Collections.reverseOrder());
 				else
-					pos = Collections.binarySearch(mList, item, Collections.reverseOrder());
+					pos = Collections.binarySearch(mPage.getList(), item, Collections.reverseOrder());
 				if (pos == -1)
 					return pos - headerLength;
 				return pos + headerLength;
@@ -566,7 +641,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 				if (mQuickFilteredList != null)
 					pos = Collections.binarySearch(mQuickFilteredList, item, Collections.reverseOrder());
 				else
-					pos = Collections.binarySearch(mList, itm.mObject, Collections.reverseOrder());
+					pos = Collections.binarySearch(mPage.getList(), itm.mObject, Collections.reverseOrder());
 				if (pos == -1)
 					return pos - headerLength;
 				return pos + headerLength;
@@ -584,7 +659,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 				return mNonElementHeaders.get(position - elementHeaderLength).getId();
 			if (mQuickFilteredList != null)
 				return mQuickFilteredList.get(position - headerLength).mObject.getId();
-			return mList.get(position - headerLength).getId();
+			return mPage.getList().get(position - headerLength).getId();
 		}
 
 		@Override
@@ -604,8 +679,8 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			int size = mNonElementHeaders.size();
 			if (mQuickFilteredList != null)
 				size += mQuickFilteredList.size();
-			else if (mList != null)
-				size += mElementHeaders.size() + mList.size();
+			else if(mPage.getList() != null)
+				size += mElementHeaders.size() + mPage.getList().size();
 			return size;
 		}
 

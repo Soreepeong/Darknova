@@ -137,7 +137,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 		mDrawerList.setLayoutManager(layoutManager);
 		mDrawerList.setHasFixedSize(true);
 
-		mPageAdapter = new NavigationDrawerAdapter(Page.getList(), TwitterEngine.getAll());
+		mPageAdapter = new NavigationDrawerAdapter(Page.getPageList(), TwitterEngine.getAll());
 		mRecyclerViewDragDropManager = new RecyclerViewDragDropManager();
 
 		mDrawerList.setAdapter(mRecyclerViewDragDropManager.createWrappedAdapter(mPageAdapter));
@@ -315,7 +315,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 
 	@Override
 	public void onPageListChanged() {
-		mPageAdapter.updateUnderlyingData(Page.getList(), null);
+		mPageAdapter.updateUnderlyingData(Page.getPageList(), null);
 	}
 
 	@Override

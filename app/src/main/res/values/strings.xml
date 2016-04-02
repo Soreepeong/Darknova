@@ -36,6 +36,7 @@
 	<string name="login_error_occured">Error</string>
 
 	<string name="tweet_description" formatted="false">${time} via ${via}</string>
+	<string name="tweet_description_long" formatted="false">${time}, ${date} via ${via}</string>
 	<string name="tweet_description_reply" formatted="false">${time} via ${via}, in reply to ${reply}</string>
 	<string name="tweet_description_retweet" formatted="false">${time} via ${via}, ${retweet} retweeted</string>
 	<string name="tweet_description_retweet_user" formatted="false">${user}</string>

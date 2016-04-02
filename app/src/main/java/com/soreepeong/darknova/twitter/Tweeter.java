@@ -468,7 +468,7 @@ public class Tweeter implements ObjectWithId, Parcelable {
 				for (TwitterEngine e : engines)
 					if (e.getUserId() == t.user_id)
 						continue a;
-				for(Page<? extends ObjectWithId> p : Page.getList()){
+				for(Page<? extends ObjectWithId> p : Page.getPageList()){
 					for(PageElement e : p.elements)
 						if(t.user_id == e.id)
 							continue a;
@@ -486,7 +486,7 @@ public class Tweeter implements ObjectWithId, Parcelable {
 				t.addOnChangeListener(this);
 			}
 			a:
-			for(Page<? extends ObjectWithId> p : Page.getList()){
+			for(Page<? extends ObjectWithId> p : Page.getPageList()){
 				for(PageElement e : p.elements){
 					if(e.id == 0 || e.name == null)
 						continue;

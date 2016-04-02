@@ -33,6 +33,7 @@ public class Darknova extends Application implements Handler.Callback{
 	public static Context ctx;
 	private static volatile long mRuntimeUniqueIdCounter = 0;
 	private static Handler mHandler;
+	public static String mCacheDir;
 	public static ImageCache img;
 
 	public static long uniqid(){
@@ -53,6 +54,7 @@ public class Darknova extends Application implements Handler.Callback{
 		ctx = this;
 		ACRA.init(this);
 		mHandler = new Handler(this);
+		mCacheDir = getCacheDir().getAbsolutePath();
 		StringTools.ARRAY_RELATIVE_TIME_STRINGS = getString(R.string.times).split("/");
 		StringTools.ARRAY_RELATIVE_DURATION_STRINGS = getString(R.string.durations).split("/");
 		StringTools.ARRAY_FILE_SIZES = getString(R.string.filesizes).split("/");
@@ -91,10 +93,6 @@ public class Darknova extends Application implements Handler.Callback{
 		if (level >= TRIM_MEMORY_BACKGROUND) {
 			if(Darknova.img != null)
 				Darknova.img.clearStorage();
-		}
-		if (level >= TRIM_MEMORY_MODERATE) {
-			Page.stopAllPageHolders();
-			Page.clearPossibleBackgroundItems();
 		}
 	}
 }

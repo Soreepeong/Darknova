@@ -6,9 +6,7 @@ import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Message;
-import android.os.Parcel;
 import android.support.annotation.Nullable;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.ActionBar;
@@ -19,6 +17,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -28,12 +27,10 @@ import com.soreepeong.darknova.R;
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
 import com.soreepeong.darknova.settings.PageElement;
-import com.soreepeong.darknova.tools.FileTools;
+import com.soreepeong.darknova.settings.PageTweet;
 import com.soreepeong.darknova.tools.ResTools;
-import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweet;
-import com.soreepeong.darknova.twitter.TwitterEngine;
 import com.soreepeong.darknova.twitter.TwitterStreamServiceReceiver;
 import com.soreepeong.darknova.ui.MainActivity;
 import com.soreepeong.darknova.ui.span.TweetSpanner;
@@ -41,15 +38,9 @@ import com.soreepeong.darknova.ui.viewholder.CustomViewHolder;
 import com.soreepeong.darknova.ui.viewholder.TweetBigViewHolder;
 import com.soreepeong.darknova.ui.viewholder.TweetViewHolder;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Semaphore;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -63,17 +54,8 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 	public static final byte LOAD_MORE_ITEM_AVAILABLE = 0;
 	public static final byte LOAD_MORE_ITEM_LOADING = -1;
 	private static final int MESSAGE_TIME_UPDATE = 1;
-	private static final int MESSAGE_SAVE_LIST = 3;
-	private static final int SAVE_DELAY = 5000;
-	private static final int SAVE_LENGTH = 200;
-	private static final int MAX_MEMORY_HOLD = 200;
 
 	private ObjectAnimator mProgressAnimator;
-	private View.OnLayoutChangeListener mListSizeChangeListener;
-	private PageRefresher mUpdateRefresher;
-	private Thread mListApplier;
-
-	private boolean mSavePending;
 
 	private FilterApplier mFilterApplier;
 
@@ -93,7 +75,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 	private void applyFilter(List<Tweet> oldList, String... args) {
 		if (mFilterApplier != null)
 			mFilterApplier.cancel(true);
-		mFilterApplier = new FilterApplier(oldList, mList);
+		mFilterApplier = new FilterApplier(oldList, mPage.getList());
 		mFilterApplier.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, args);
 	}
 
@@ -110,7 +92,8 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				return;
 			mSelectedList.clear();
 			ArrayList<Tweet> selectedList = savedInstanceState.getParcelableArrayList("selected-tweets");
-			mSelectedList.addAll(selectedList);
+			if(selectedList != null)
+				mSelectedList.addAll(selectedList);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -136,14 +119,9 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		if (mPage == null)
 			return;
 		mQuickFilterOriginalString = null;
-		mList = null;
 		mSelectedList.clear();
-		mLoadMoreItems.clear();
 		mIsPagePrepared = false;
 
-		String cacheDir = args.getString("cache-dir");
-		String uniqid = StringTools.UrlEncode(mPage.generateUniqid());
-		mListCacheFile = new File(cacheDir, "list_cache_" + uniqid);
 		mBackgroundLoader = new OnCreateBackground(this);
 	}
 
@@ -199,33 +177,35 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 
 	private void processVisibleItems(MainActivity activity, boolean forceRenew) {
 		if (activity == null) return;
-		if (mList != null && !mList.isEmpty() && mQuickFilteredList == null)
+		List<Tweet> list = mPage.getList();
+		if(list != null && !list.isEmpty() && mQuickFilteredList == null)
 			for (int i = mListLayout.findFirstVisibleItemPosition(); i <= mListLayout.findLastVisibleItemPosition(); i++) {
 				if (mAdapter.getItemViewType(i) != R.layout.row_tweet)
 					continue;
 				int position = mAdapter.adapterPositionToListIndex(i);
-				Tweet tweet = mQuickFilteredList == null ? mList.get(position) : mQuickFilteredList.get(position).mObject;
+				Tweet tweet = mQuickFilteredList == null ? list.get(position) : mQuickFilteredList.get(position).mObject;
 				View v = mListLayout.findViewByPosition(i);
 				if (v != null && v.getTop() >= 0)
 					itemRead(tweet.id, forceRenew);
-				if (mLoadMoreItems.containsKey(tweet))
-					loadOlderThan(mList.get(position));
+				if(mPage.mLoadMoreItems.containsKey(tweet))
+					loadOlderThan(list.get(position));
 			}
 	}
 
 	@Override
 	protected void itemRead(long id, boolean forceUpdate) {
+		List<Tweet> list = mPage.getList();
 		if (id != -1) {
-			if (mList.isEmpty())
+			if(list.isEmpty())
 				mPage.mPageNewestSeenItemId = -1;
 			else if (mPage.mPageNewestSeenItemId < id)
 				mPage.mPageNewestSeenItemId = id;
 			else if (!forceUpdate)
 				return;
 		}
-		int unread = mPage.mPageNewestSeenItemId == 0 ? -1 : Collections.binarySearch(mList, Tweet.getTweet(mPage.mPageNewestSeenItemId), Collections.reverseOrder());
+		int unread = mPage.mPageNewestSeenItemId == 0 ? -1 : Collections.binarySearch(list, Tweet.getTweet(mPage.mPageNewestSeenItemId), Collections.reverseOrder());
 		if (unread < 0) unread = -1 - unread;
-		unread = Math.min(unread, mList.size());
+		unread = Math.min(unread, list.size());
 		mViewUnreadTweetCount.setText(getString(R.string.page_unread).replace("%", Integer.toString(unread)));
 		if (unread > 0 && mPage.mPageNewestSeenItemId != -1) {
 			ResTools.showWithAnimation(mViewUnreadTweetCount, R.anim.show_downward);
@@ -238,21 +218,18 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		TwitterStreamServiceReceiver.removeStreamCallback(this);
 
 		mViewList.clearOnScrollListeners();
-		mViewList.removeOnLayoutChangeListener(mListSizeChangeListener);
-		mViewList.setAdapter(null);
+		mViewList.swapAdapter(null, false);
+		mViewList.setRecycledViewPool(null);
 		mViewRefresher.setOnRefreshListener(null);
-
-		if (mSavePending) {
-			saveListImmediately();
-			android.util.Log.d("Darknova", "MESSAGE_SAVE_LIST onDestroyView");
-		}
+		mViewRefresher.setRefreshing(false);
+		mViewRefresher.setEnabled(true);
+		mViewProgress.setVisibility(View.GONE);
 
 		mIsPagePrepared = false;
 
-		mHandler.removeCallbacksAndMessages(null);
+		cancelPendingActions();
 
 		mQuickFilterOriginalString = null;
-		mList = null;
 		mQuickFilterUsers = null;
 		mQuickFilterUsersExact = null;
 		mQuickFilteredList = null;
@@ -263,8 +240,6 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		mViewUnreadTweetCount = null;
 		mListLayout = null;
 		mProgressAnimator = null;
-		mUpdateRefresher = null;
-		mListApplier = null;
 		mBackgroundLoader = null;
 
 		if (null != mViewRoot.getParent())
@@ -281,7 +256,6 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		super.onPageEnter();
 		mIsActive = true;
 		registerTimeUpdate();
-		applyTweetChanges();
 	}
 
 	@Override
@@ -311,13 +285,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			edit.putLong("id", mPage.mPageLastItemId);
 			edit.apply();
 		}
-		mHandler.removeCallbacksAndMessages(null);
-		Thread listApplier = mListApplier;
-		if (listApplier != null) {
-			synchronized (mPage.mListEditLock) {
-				listApplier.interrupt();
-			}
-		}
+		cancelPendingActions();
 		super.onPause();
 	}
 
@@ -330,19 +298,13 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 	public void onResume() {
 		super.onResume();
 		registerTimeUpdate();
-		applyTweetChanges();
 		restorePositions();
 	}
 
 	@Override
 	public void onDetach() {
 		super.onDetach();
-		mHandler.removeCallbacksAndMessages(null);
-		if (mListApplier != null) {
-			synchronized (mPage.mListEditLock) {
-				mListApplier.interrupt();
-			}
-		}
+		cancelPendingActions();
 	}
 
 	private int getRemainingUpdateTime(long time) {
@@ -354,7 +316,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 	}
 
 	private void registerTimeUpdate() {
-		if (isPageReady() && mIsActive && !mList.isEmpty()) {
+		if(isPageReady() && mIsActive && !mPage.getList().isEmpty()){
 			int delay = 9999;
 			if (mListLayout.findFirstVisibleItemPosition() != -1) {
 				for (int i = mListLayout.findFirstVisibleItemPosition(), i_ = mListLayout.findLastVisibleItemPosition(); i <= i_; i++) {
@@ -379,56 +341,13 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				if (delay < 1) delay = 1;
 			} else
 				delay = 1;
-			mHandler.removeMessages(MESSAGE_TIME_UPDATE);
-			mHandler.sendEmptyMessageDelayed(MESSAGE_TIME_UPDATE, 1000 * delay);
+			addPendingAction(MESSAGE_TIME_UPDATE, 1000 * delay);
 		}
 	}
 
 	@Override
 	protected Tweet createDummyObject(long id) {
 		return Tweet.getTweet(id);
-	}
-
-	private void saveListImmediately() {
-		mHandler.removeMessages(MESSAGE_SAVE_LIST);
-		if (!mIsPagePrepared || mList == null || mList.isEmpty())
-			return;
-		TwitterEngine.applyAccountInformationChanges();
-		final ArrayList<Tweet> res = new ArrayList<>(mList.size() > SAVE_LENGTH ? mList.subList(0, SAVE_LENGTH) : mList);
-		final HashMap<Tweet, HashMap<PageElement, Byte>> map = new HashMap<>();
-		synchronized (mLoadMoreItems) {
-			for (Tweet t : mLoadMoreItems.keySet()) {
-				map.put(t, new HashMap<>(mLoadMoreItems.get(t)));
-			}
-		}
-		mSavePending = false;
-		new Thread() {
-			@Override
-			public void run() {
-				Parcel p = Parcel.obtain();
-				FileOutputStream out = null;
-				try {
-					out = new FileOutputStream(mListCacheFile);
-					p.writeList(res);
-					p.writeInt(map.size());
-					for (Tweet t : map.keySet()) {
-						p.writeParcelable(t, 0);
-						p.writeInt(map.get(t).size());
-						for (PageElement e : map.get(t).keySet()) {
-							p.writeParcelable(e, 0);
-							p.writeByte(map.get(t).get(e));
-						}
-					}
-					out.write(p.marshall());
-					out.flush();
-				} catch (Exception e) {
-					e.printStackTrace();
-				} finally {
-					StreamTools.close(out);
-					p.recycle();
-				}
-			}
-		}.start();
 	}
 
 	@Override
@@ -438,99 +357,35 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				registerTimeUpdate();
 				return true;
 			}
-			case MESSAGE_SAVE_LIST: {
-				saveListImmediately();
-				return true;
-			}
 		}
 		return false;
 	}
 
 	public void onNewTweetReceived(Tweet tweet) {
-		applyTweetChanges();
+		new Thread(){
+			@Override
+			public void run(){
+				mPage.applyPending();
+			}
+		}.start();
 	}
 
-	private void applyTweetChanges() {
-		if (mPage == null || mPage.mListPending.isEmpty() || mViewRoot == null || mListApplier != null || mList == null || !mIsActive)
-			return;
-		if (Looper.getMainLooper().equals(Looper.myLooper())) {
-			new Thread() {
+	@Override
+	public void onDataSetUpdated(List<Tweet> listOld){
+		if(mQuickFilteredList == null){
+			mAdapter.notifyDataSetChanged();
+			restorePositions();
+			registerTimeUpdate();
+			applyEmptyIndicator();
+			addPendingAction(new Runnable(){
+				@Override
 				public void run() {
-					applyTweetChanges();
+					processVisibleItems((MainActivity) getActivity(), true);
 				}
-			}.start();
-			return;
+			});
 		}
-		final Object mUpdaterLock = new Object();
-		synchronized (mPage.mListEditLock) {
-			synchronized (mUpdaterLock) {
-				final List<Tweet> previousList = mList;
-				final List<Tweet> newList = new ArrayList<>(previousList);
-				final List<Tweet> mTweetsToAdd;
-				synchronized (mPage.mListPending) {
-					mTweetsToAdd = Collections.unmodifiableList(new ArrayList<>(mPage.mListPending));
-					mPage.mListPending.clear();
-				}
-				mListApplier = Thread.currentThread();
-				for (int i = mTweetsToAdd.size() - 1; i >= 0 && !Thread.interrupted(); i--) {
-					Tweet tweet = mTweetsToAdd.get(i); // newest tweets first
-					int index = Collections.binarySearch(newList, tweet, Collections.reverseOrder());
-					if (index < 0) {
-						index = -index - 1;
-						newList.add(index, tweet);
-					}
-				}
-				if (mPage.mIsListAtTop && newList.size() > MAX_MEMORY_HOLD)
-					newList.subList(MAX_MEMORY_HOLD, newList.size()).clear();
-				final List<Tweet> applyingList = Collections.unmodifiableList(newList);
-				mHandler.post(new Runnable() {
-					@Override
-					public void run() {
-						synchronized (mUpdaterLock) {
-							if (isPageReady()) {
-								calculateListPositions();
-								mPage.mList = new WeakReference<>(mList = applyingList);
-								if (mQuickFilteredList == null) {
-									mAdapter.notifyDataSetChanged();
-									restorePositions();
-									registerTimeUpdate();
-									applyEmptyIndicator();
-									mHandler.post(new Runnable() {
-										@Override
-										public void run() {
-											processVisibleItems((MainActivity) getActivity(), true);
-										}
-									});
-								}
-								if (mQuickFilterPattern != null)
-									applyFilter(previousList, mQuickFilterString);
-							} else
-								mPage.mList = new WeakReference<>(mList = applyingList);
-							mUpdaterLock.notify();
-						}
-					}
-				});
-				boolean succeed = false;
-				try {
-					mUpdaterLock.wait(8000);
-					if (mList != applyingList) // Timeout
-						return;
-					succeed = true;
-				} catch (InterruptedException ie) {
-					return;
-				} finally {
-					mListApplier = null;
-					if (!succeed) {
-						synchronized (mPage.mListPending) {
-							mPage.mListPending.addAll(mTweetsToAdd);
-							Collections.sort(mPage.mListPending);
-						}
-					}
-				}
-			}
-		}
-		mSavePending = true;
-		mHandler.sendEmptyMessageDelayed(MESSAGE_SAVE_LIST, SAVE_DELAY);
+		if(mQuickFilterPattern != null)
+			applyFilter(listOld, mQuickFilterString);
 	}
 
 	@Override
@@ -557,7 +412,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		mQuickFilterString = input;
 		if (mQuickFilteredList == null) {
 			mQuickFilteredList = new ArrayList<>();
-			for (Tweet t : mList)
+			for(Tweet t : mPage.getList())
 				mQuickFilteredList.add(new FilteredTweet(t));
 		}
 		applyFilter(null, input, input);
@@ -575,23 +430,92 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		loadNewerThan();
 	}
 
+	public void showRefreshProgress(int max){
+		if(mViewProgress != null){
+			mViewProgress.setVisibility(View.VISIBLE);
+			mViewProgress.setMax(max * 10);
+			mViewProgress.setProgress(0);
+			if(mProgressAnimator != null){
+				mProgressAnimator.cancel();
+				mProgressAnimator = null;
+			}
+			mViewProgress.clearAnimation();
+			mViewRefresher.setRefreshing(true);
+			mViewProgress.setIndeterminate(true);
+		}
+	}
+
+	public void setRefreshProgress(int progress){
+		if(mViewProgress != null){
+			mViewProgress.setIndeterminate(false);
+			mProgressAnimator = ObjectAnimator.ofInt(mViewProgress, "progress", progress * 10);
+			mProgressAnimator.setDuration(300);
+			mProgressAnimator.setInterpolator(PageFragment.mProgressInterpolator);
+			mProgressAnimator.start();
+		}
+	}
+
+	public void hideRefreshProgress(){
+		if(mViewProgress != null){
+			mProgressAnimator = ObjectAnimator.ofInt(mViewProgress, "progress", mViewProgress.getMax());
+			mProgressAnimator.setDuration(300);
+			mProgressAnimator.setInterpolator(PageFragment.mProgressInterpolator);
+			mProgressAnimator.addListener(new Animator.AnimatorListener(){
+				@Override
+				public void onAnimationStart(Animator animation){
+				}
+
+				@Override
+				public void onAnimationCancel(Animator animation){
+				}
+
+				@Override
+				public void onAnimationRepeat(Animator animation){
+				}
+
+				@Override
+				public void onAnimationEnd(Animator animation){
+					if(mViewProgress == null)
+						return;
+					AlphaAnimation aa = new AlphaAnimation(1, 0);
+					aa.setDuration(300);
+					aa.setAnimationListener(new Animation.AnimationListener(){
+						@Override
+						public void onAnimationStart(Animation animation){
+						}
+
+						@Override
+						public void onAnimationRepeat(Animation animation){
+						}
+
+						@Override
+						public void onAnimationEnd(Animation animation){
+							mViewProgress.clearAnimation();
+							mViewProgress.setVisibility(View.GONE);
+						}
+					});
+					mViewProgress.startAnimation(aa);
+				}
+			});
+			mProgressAnimator.start();
+			mViewRefresher.setRefreshing(false);
+		}
+	}
+
 	private void loadNewerThan() {
-		if (mUpdateRefresher != null)
-			return;
-		mUpdateRefresher = new PageRefresher(null);
-		mUpdateRefresher.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+		((PageTweet) mPage).refresh(null);
 	}
 
 	private void loadOlderThan(final Tweet tweet) {
 		boolean noexecute = true;
-		synchronized (mLoadMoreItems) {
-			if (mLoadMoreItems.get(tweet) == null) return;
-			for (Byte b : mLoadMoreItems.get(tweet).values())
+		synchronized(mPage.mLoadMoreItems){
+			if(mPage.mLoadMoreItems.get(tweet) == null) return;
+			for(Byte b : mPage.mLoadMoreItems.get(tweet).values())
 				if (b == LOAD_MORE_ITEM_AVAILABLE)
 					noexecute = false;
 		}
 		if (!noexecute)
-			new PageRefresher(tweet).executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+			((PageTweet) mPage).refresh(tweet);
 	}
 
 	public boolean isSomethingSelected() {
@@ -600,8 +524,8 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 
 	@Override
 	public void clearSelection() {
-		if (!mSelectedList.isEmpty()) {
-			if (mQuickFilteredList != null) {
+		if(!mSelectedList.isEmpty()){
+			if(mQuickFilteredList != null){
 				for (Tweet selTweet : mSelectedList) {
 					int i = Collections.binarySearch(mQuickFilteredList, new FilteredTweet(selTweet), Collections.reverseOrder());
 					if (mQuickFilteredList.get(i).isFilteredBySelection) {
@@ -628,10 +552,11 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 
 	@Override
 	public void onClick(View v) {
+		List<Tweet> list = mPage.getList();
 		if (v.equals(mViewUnreadTweetCount)) {
-			int unread = Collections.binarySearch(mList, Tweet.getTweet(mPage.mPageNewestSeenItemId), Collections.reverseOrder());
+			int unread = Collections.binarySearch(list, Tweet.getTweet(mPage.mPageNewestSeenItemId), Collections.reverseOrder());
 			if (unread < 0) unread = -1 - unread;
-			unread = Math.min(unread, mList.size());
+			unread = Math.min(unread, list.size());
 			if (mListLayout.findFirstVisibleItemPosition() - unread < 8) {
 				mListLayout.smoothScrollToPosition(mViewList, null, unread);
 			} else {
@@ -650,11 +575,15 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		@Override
 		protected Object doInBackground(Object... params) {
 			super.doInBackground(params);
-			if (isNewlyLoadedPage) {
-				loadListCache();
+			if(isNewlyLoadedPage){
+				List<Tweet> t = ((PageTweet) mPage).loadListCache();
+				if(t != null)
+					mList.addAll(t);
 			}
 			if(mPage.elements.size() == 1 && mPage.elements.get(0).function == PageElement.FUNCTION_TWEET_SINGLE){
 				Tweet t = Tweet.getTweet(mPage.elements.get(0).id);
+				if(t == null)
+					return null;
 				if (t.info.stub)
 					requireRefresh = true;
 				while(true){
@@ -686,42 +615,9 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 				return;
 			}
 			super.onPostExecute(o);
-
-			mFragment.applyTweetChanges();
 			mFragment.applyEmptyIndicator();
 			mFragment.registerTimeUpdate();
-		}
-
-		private void loadListCache() {
-			if (!mListCacheFile.exists())
-				return;
-			byte b[] = FileTools.readFile(mListCacheFile, 1048576 * 5);
-			if (b == null) return;
-			Parcel p = Parcel.obtain();
-			try {
-				p.unmarshall(b, 0, b.length);
-				p.setDataPosition(0);
-				if (p.dataSize() > 0) {
-					p.readList(mList, Tweet.class.getClassLoader());
-					for (Iterator<Tweet> i = mList.iterator(); i.hasNext(); ) {
-						if (i.next() == null)
-							i.remove();
-					}
-					for (int i = 0, size = p.readInt(); i < size; i++) {
-						HashMap<PageElement, Byte> map = new HashMap<>();
-						Tweet key = p.readParcelable(Tweet.class.getClassLoader());
-						for (int j = 0, sizej = p.readInt(); j < sizej; j++) {
-							PageElement e = p.readParcelable(PageElement.class.getClassLoader());
-							map.put(e, p.readByte());
-						}
-						mLoadMoreItems.put(key, map);
-					}
-				}
-			} catch (Exception e) {
-				e.printStackTrace();
-			} finally {
-				p.recycle();
-			}
+			((PageTweet) mPage).applyRefreshStatus();
 		}
 	}
 
@@ -929,204 +825,6 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		}
 	}
 
-	private class PageRefresher extends AsyncTask<Object, Object, Object> implements TwitterEngine.TweetCallback {
-		private final HashMap<PageElement, PageElementRefresher> mElements = new HashMap<>();
-		private final Tweet mInitator;
-		private final int mLoadCount = 200;
-		private volatile int mProgress, mMaxProgress;
-		private int mLastProgress;
-		private long mLastPublishTime;
-
-		public PageRefresher(Tweet initator) {
-			super();
-			mInitator = initator;
-			if (initator == null) { // refresh button
-				for (PageElement e : mPage.elements) {
-					mMaxProgress += 200;
-					mElements.put(e, new PageElementRefresher(e, 0, 0));
-				}
-			} else {
-				synchronized (mLoadMoreItems) {
-					for (PageElement e : mLoadMoreItems.get(initator).keySet()) {
-						if (mLoadMoreItems.get(initator).put(e, LOAD_MORE_ITEM_LOADING) == LOAD_MORE_ITEM_AVAILABLE) {
-							mElements.put(e, new PageElementRefresher(e, 0, initator.id));
-							mMaxProgress += 200;
-						}
-					}
-				}
-			}
-		}
-
-		@Override
-		protected Object doInBackground(Object... params) {
-			try {
-				for (PageElementRefresher refresher : mElements.values())
-					addRefresher(refresher);
-				for (PageElementRefresher refresher : mElements.values())
-					refresher.finished.acquire();
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-				for (PageElementRefresher refresher : mElements.values())
-					removeRefresher(refresher);
-			}
-			applyTweetChanges();
-			return null;
-		}
-
-		@Override
-		protected void onPreExecute() {
-			if (mInitator == null && mViewProgress != null) {
-				mViewProgress.setVisibility(View.VISIBLE);
-				mViewProgress.setMax(mMaxProgress * 10);
-				mViewProgress.setProgress(0);
-				if (mProgressAnimator != null) {
-					mProgressAnimator.cancel();
-					mProgressAnimator = null;
-				}
-				mViewProgress.clearAnimation();
-				mViewRefresher.setRefreshing(true);
-				mViewProgress.setIndeterminate(true);
-			}
-		}
-
-		@Override
-		protected void onProgressUpdate(Object... values) {
-			mLastProgress = mProgress;
-			if (mInitator == null && mViewProgress != null) {
-				mViewProgress.setIndeterminate(false);
-				mProgressAnimator = ObjectAnimator.ofInt(mViewProgress, "progress", mLastProgress * 10);
-				mProgressAnimator.setDuration(300);
-				mProgressAnimator.setInterpolator(mProgressInterpolator);
-				mProgressAnimator.start();
-			}
-		}
-
-		@Override
-		protected void onPostExecute(Object o) {
-			if (mInitator == null) {
-				if (mViewProgress != null) {
-					mProgressAnimator = ObjectAnimator.ofInt(mViewProgress, "progress", mMaxProgress * 10);
-					mProgressAnimator.setDuration(300);
-					mProgressAnimator.setInterpolator(mProgressInterpolator);
-					mProgressAnimator.addListener(new Animator.AnimatorListener() {
-						@Override
-						public void onAnimationStart(Animator animation) {
-						}
-
-						@Override
-						public void onAnimationEnd(Animator animation) {
-							if (mViewProgress == null)
-								return;
-							AlphaAnimation aa = new AlphaAnimation(1, 0);
-							aa.setDuration(300);
-							aa.setFillAfter(true);
-							mViewProgress.setVisibility(View.GONE);
-							mViewProgress.startAnimation(aa);
-						}
-
-						@Override
-						public void onAnimationCancel(Animator animation) {
-						}
-
-						@Override
-						public void onAnimationRepeat(Animator animation) {
-						}
-					});
-					mProgressAnimator.start();
-					mViewRefresher.setRefreshing(false);
-				}
-			} else if (mLoadMoreItems.containsKey(mInitator) && mLoadMoreItems.get(mInitator).isEmpty())
-				synchronized (mLoadMoreItems) {
-					mLoadMoreItems.remove(mInitator);
-				}
-			if (mUpdateRefresher == this)
-				mUpdateRefresher = null;
-		}
-
-		@Override
-		public void onNewTweetReceived(Tweet tweet) {
-			mProgress++;
-			mPage.addNewTweet(tweet, false);
-			if (System.currentTimeMillis() - mLastPublishTime >= 750) {
-				applyTweetChanges();
-				publishProgress();
-				mLastPublishTime = System.currentTimeMillis();
-			}
-		}
-
-		private class PageElementRefresher implements Runnable {
-			private final PageElement mElement;
-			private final long since_id, max_id;
-			public Exception exception;
-			public Semaphore finished = new Semaphore(1);
-
-			public PageElementRefresher(PageElement element, long since_id, long max_id) {
-				super();
-				mElement = element;
-				this.since_id = since_id;
-				this.max_id = max_id;
-				finished.drainPermits();
-			}
-
-			@Override
-			public void run() {
-				ArrayList<Tweet> res = null;
-				try {
-					switch (mElement.function) {
-						case PageElement.FUNCTION_HOME_TIMELINE:
-							res = mElement.getTwitterEngine().getTweets("statuses/home_timeline", mLoadCount, since_id, max_id, false, true, PageRefresher.this);
-							break;
-						case PageElement.FUNCTION_MENTIONS:
-							res = mElement.getTwitterEngine().getTweets("statuses/mentions_timeline", mLoadCount, since_id, max_id, false, true, PageRefresher.this);
-							break;
-						case PageElement.FUNCTION_SEARCH:
-							res = mElement.getTwitterEngine().getSearchTweets(mElement.name, mLoadCount, since_id, max_id, false, true, PageRefresher.this);
-							break;
-						case PageElement.FUNCTION_USER_TIMELINE:
-							res = mElement.getTwitterEngine().getUserHome(mElement.id, mLoadCount, since_id, max_id, false, true, PageRefresher.this);
-							break;
-						case PageElement.FUNCTION_USER_FAVORITES:
-							res = mElement.getTwitterEngine().getUserFavorites(mElement.id, mLoadCount, since_id, max_id, true, PageRefresher.this);
-							break;
-						case PageElement.FUNCTION_TWEET_SINGLE:
-							Tweet t = Tweet.getTweet(mPage.elements.get(0).id);
-							int i = 0;
-							while (!Thread.interrupted() && i < 10) {
-								if (t.retweeted_status != null) t = t.retweeted_status;
-								if (t.info.stub) {
-									t = mElement.getTwitterEngine().getTweet(t.id);
-									i++;
-									if (t == null)
-										break;
-								}
-								onNewTweetReceived(t);
-								t = t.in_reply_to_status;
-								if (t == null)
-									break;
-							}
-							break;
-					}
-					mProgress += mLoadCount - (res == null ? 0 : res.size());
-					publishProgress();
-					if (res == null || res.isEmpty())
-						return;
-					Tweet last = res.get(res.size() - 1);
-					synchronized (mLoadMoreItems) {
-						HashMap<PageElement, Byte> updaters = mLoadMoreItems.get(last);
-						if (updaters == null)
-							mLoadMoreItems.put(last, updaters = new HashMap<>());
-						updaters.put(mElement, LOAD_MORE_ITEM_AVAILABLE);
-					}
-				} catch (TwitterEngine.RequestException e) {
-					e.printStackTrace();
-					exception = e;
-				} finally {
-					finished.release();
-				}
-			}
-		}
-	}
-
 	public class TweetAdapter extends PageItemAdapter {
 
 		@Override
@@ -1144,8 +842,8 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		@Override
 		public int getItemViewType(int position) {
 			int type = super.getItemViewType(position);
-			if (type == R.layout.row_tweet) {
-				long itm = mList.get(adapterPositionToListIndex(position)).id;
+			if(type == R.layout.row_tweet){
+				long itm = mPage.getList().get(adapterPositionToListIndex(position)).id;
 				for (PageElement e : mPage.elements)
 					if (e.id == itm && e.function == PageElement.FUNCTION_TWEET_SINGLE)
 						return R.layout.row_header_big_tweet;

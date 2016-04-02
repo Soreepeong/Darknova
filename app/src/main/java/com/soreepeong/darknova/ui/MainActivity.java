@@ -20,6 +20,7 @@ import android.util.SparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
 import android.widget.Button;
 
@@ -371,6 +372,11 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		@Override
 		public Fragment getItem(int position) {
 			return PageFragment.newInstance(getCacheDir().getAbsolutePath(), Page.get(position));
+		}
+
+		@Override
+		public void destroyItem(ViewGroup container, int position, Object object){
+			super.destroyItem(container, position, object);
 		}
 
 		@Override

@@ -433,18 +433,20 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 	private boolean handleStartStream(Message msg) {
 		long user_id = ((msg.arg1 & 0xffffffffL) << 32) | (msg.arg2 & 0xffffffffL);
 		TwitterEngine e = TwitterEngine.get(user_id);
-		if (e != null) {
+		if(e != null)
 			e.setUseStream(true);
-		}
+		else
+			android.util.Log.e("Darknova", "unknown user START " + user_id);
 		return true;
 	}
 
 	private boolean handleStopStream(Message msg) {
 		long user_id = ((msg.arg1 & 0xffffffffL) << 32) | (msg.arg2 & 0xffffffffL);
 		TwitterEngine e = TwitterEngine.get(user_id);
-		if (e != null) {
+		if(e != null)
 			e.setUseStream(false);
-		}
+		else
+			android.util.Log.e("Darknova", "unknown user STOP " + user_id);
 		return true;
 	}
 
