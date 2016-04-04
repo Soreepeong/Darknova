@@ -136,7 +136,6 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		super.onCreateView(inflater, container, savedInstanceState);
 
 		mViewList = (RecyclerView) mViewRoot.findViewById(R.id.list);
-		mViewList.setRecycledViewPool(mRecyclerViewPool);
 		mViewRefresher = (SwipeRefreshLayout) mViewRoot.findViewById(R.id.swipeRefresher);
 		mViewProgress = (ProgressBar) mViewRoot.findViewById(R.id.progress_horizontal);
 		mViewEmptyIndicator = (ImageView) mViewRoot.findViewById(R.id.empty_image);
@@ -145,9 +144,15 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 
 		mViewRefresher.setOnRefreshListener(this);
 		mViewUnreadTweetCount.setOnClickListener(this);
-		mListLayout = new LinearLayoutManager(getActivity());
-		mListLayout.setOrientation(LinearLayoutManager.VERTICAL);
-		mViewList.setLayoutManager(mListLayout);
+
+		mListLayout = (LinearLayoutManager) mViewList.getLayoutManager();
+		if(mListLayout == null){
+			mListLayout = new LinearLayoutManager(getActivity());
+			mListLayout.setOrientation(LinearLayoutManager.VERTICAL);
+			mViewList.setLayoutManager(mListLayout);
+			mViewList.setRecycledViewPool(mRecyclerViewPool);
+			mViewList.setItemAnimator(null);
+		}
 		mViewList.addOnScrollListener(new RecyclerView.OnScrollListener() {
 			@Override
 			public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
@@ -217,9 +222,10 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 	public void onDestroyView() {
 		TwitterStreamServiceReceiver.removeStreamCallback(this);
 
+		android.util.Log.d("Darknova", "onDestroyView");
+
 		mViewList.clearOnScrollListeners();
-		mViewList.swapAdapter(null, false);
-		mViewList.setRecycledViewPool(null);
+		mViewList.swapAdapter(null, true);
 		mViewRefresher.setOnRefreshListener(null);
 		mViewRefresher.setRefreshing(false);
 		mViewRefresher.setEnabled(true);
@@ -830,6 +836,8 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		@Override
 		public CustomViewHolder<Tweet> onCreateViewHolder(ViewGroup parent, int viewType) {
 			final LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+
+			android.util.Log.d("Darknova", "TweetAdapter: onCreateViewHolder " + viewType);
 			switch (viewType) {
 				case R.layout.row_tweet:
 					return new TweetViewHolder(inflater.inflate(viewType, parent, false));

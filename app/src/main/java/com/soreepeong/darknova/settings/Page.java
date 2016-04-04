@@ -463,8 +463,14 @@ public abstract class Page<_T extends ObjectWithId> implements Parcelable{
 				return;
 			}
 			mListPending.add(-i - 1, t);
-			if(mListPending.size() > MAX_BACKGROUND_NEW_ITEMS)
-				applyPending();
+			if(mListPending.size() > MAX_BACKGROUND_NEW_ITEMS){
+				new Thread(){
+					@Override
+					public void run(){
+						applyPending();
+					}
+				}.start();
+			}
 		}
 	}
 

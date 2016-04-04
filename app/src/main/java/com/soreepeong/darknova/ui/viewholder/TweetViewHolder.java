@@ -54,6 +54,11 @@ public class TweetViewHolder extends CustomViewHolder<Tweet> implements DragInit
 	private boolean mIsLongPress;
 
 	@Override
+	public String toString(){
+		return "TVH: " + (mLastBoundTweet == null ? "null" : mLastBoundTweet.toString());
+	}
+
+	@Override
 	public void releaseMemory(){
 		Darknova.img.assignImageView(imgUserPictureDown, null, null);
 		Darknova.img.assignImageView(imgUserPictureFull, null, null);

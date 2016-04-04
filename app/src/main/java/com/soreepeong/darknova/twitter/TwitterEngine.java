@@ -1323,43 +1323,44 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 
 							inputEmpty.clear();
 							inputFilled.clear();
-							for(int i = inputEmpty.size(); i > 0; i--)
+							for(int i = inputEmpty.remainingCapacity(); i > 0; i--)
 								inputEmpty.add(ByteBuffer.allocate(8192));
 
 							int searchFrom = 0;
 							ByteBuffer data = ByteBuffer.allocate(8192);
 
-							inputReader = new Thread(){
+							inputReader = new Thread("Stream Input Reader: " + mEngine.mScreenName){
 								@Override
 								public void run(){
 									try{
 										while(!Thread.interrupted()){
 											ByteBuffer read = inputEmpty.poll(10, TimeUnit.SECONDS);
-											int length = in.read(read.array(), 0, Math.max(1, Math.min(read.capacity(), in.available())));
-											read.rewind();
-											read.limit(length);
+											if(read == null)
+												break;
+											read.limit(in.read(read.array(), 0, Math.max(1, Math.min(read.capacity(), in.available()))));
 											inputFilled.offer(read, 10, TimeUnit.SECONDS);
 										}
 									}catch(InterruptedException | IOException e){
-										StreamThread.this.interrupt();
+										e.printStackTrace();
 									}
+									StreamThread.this.interrupt();
 								}
 							};
 
 							inputReader.start();
 
 							while (!mStopRequested) {
-								ByteBuffer read = inputFilled.poll(30, TimeUnit.SECONDS);
+								ByteBuffer read = inputFilled.poll(60, TimeUnit.SECONDS);
 								if(read == null)
 									throw new TimeoutException("Stream read timeout");
-								if (Thread.interrupted())
-									break;
-								if(data.remaining() < read.limit()){
+								while(data.remaining() < read.limit()){
 									ByteBuffer tmp = ByteBuffer.allocate(data.capacity() * 2);
 									tmp.put(data.array(), 0, data.position());
 									data = tmp;
 								}
 								data.put(read);
+								read.clear();
+								inputEmpty.offer(read);
 								while (true) {
 									int pos = ArrayTools.indexOf(data.array(), searchFrom, data.position(), CRLF, CRLF_FAILURE);
 									if (pos == -1) {
@@ -1376,7 +1377,6 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 								}
 								if (data.position() > MAX_STREAM_HOLD)
 									stopStream();
-								inputFilled.offer(read);
 							}
 						} finally {
 							conn.close();

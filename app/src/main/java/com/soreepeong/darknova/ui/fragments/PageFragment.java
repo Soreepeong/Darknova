@@ -73,7 +73,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 	protected static int mColorAccent;
 
 	static {
-		mRecyclerViewPool.setMaxRecycledViews(R.layout.row_tweet, 32);
+		mRecyclerViewPool.setMaxRecycledViews(R.layout.row_tweet, 48);
 		mRecyclerViewPool.setMaxRecycledViews(R.layout.row_header_big_tweet, 3);
 	}
 
@@ -105,8 +105,10 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 		View res = null;
 		if (mCachedPageViews.get(layoutId) != null)
 			res = mCachedPageViews.get(layoutId).obtain();
-		if (res == null)
+		if(res == null){
 			res = inflater.inflate(layoutId, container, false);
+			android.util.Log.d("Darknova", "obtainPageView: Create");
+		}
 		return res;
 	}
 
@@ -293,7 +295,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 	}
 
 	public void createAdapter() {
-		mViewList.swapAdapter(mAdapter, false);
+		mViewList.swapAdapter(mAdapter, true);
 	}
 
 	public void applyEmptyIndicator() {
@@ -419,15 +421,15 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			mPage.setFragment(mFragment);
 
 			mFragment.mAdapter.mElementHeaders.clear();
-			for (PageElement e : mPage.elements) {
-				if (e.isHeaderView())
+			for(PageElement e : mPage.elements){
+				if(e.isHeaderView())
 					mFragment.mAdapter.mElementHeaders.add(e.createHeader(e.getHeaderType()));
 				TwitterEngine engine = e.getTwitterEngine();
-				if (TwitterStreamServiceReceiver.isStreamOn(engine) && e.containsStream(engine))
+				if(TwitterStreamServiceReceiver.isStreamOn(engine) && e.containsStream(engine))
 					requireRefresh = true;
 			}
 			mFragment.restorePositions();
-			if (isNewlyLoadedPage && requireRefresh)
+			if(isNewlyLoadedPage && requireRefresh)
 				mFragment.onRefresh();
 			mFragment.mAdapter.notifyDataSetChanged();
 		}
