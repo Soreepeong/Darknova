@@ -173,7 +173,9 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 
 	protected void itemRead(){
 		List<_T> l = mPage == null ? null : mPage.getList();
-		if(l == null || l.isEmpty())
+		if(l == null)
+			return;
+		if(l.isEmpty())
 			itemRead(-1, true);
 		else
 			itemRead(l.get(0).getId(), true);
@@ -269,17 +271,18 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 
 	@Override
 	public void onStreamStart(TwitterEngine engine) {
-
 	}
 
 	@Override
 	public void onStreamConnected(TwitterEngine engine) {
+		mPage.mStartedCollectingPending = true;
 		if (mPage.containsStream(engine))
 			onRefresh();
 	}
 
 	@Override
 	public void onStreamError(TwitterEngine engine, Throwable e) {
+		mPage.mStartedCollectingPending = false;
 	}
 
 	@Override
@@ -292,6 +295,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 
 	@Override
 	public void onStreamStop(TwitterEngine engine) {
+		mPage.mStartedCollectingPending = false;
 	}
 
 	public void createAdapter() {
@@ -406,6 +410,7 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 			if (mFragment.getView() == null)
 				return;
 			mPage.updateList(mList);
+			mPage.applyPending();
 			mPage.mLoadMoreItems.clear();
 			mPage.mLoadMoreItems.putAll(mLoadMoreItems);
 			mFragment.mBackgroundLoader = null;
@@ -429,8 +434,10 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 					requireRefresh = true;
 			}
 			mFragment.restorePositions();
-			if(isNewlyLoadedPage && requireRefresh)
+			if(!mPage.mStartedCollectingPending && isNewlyLoadedPage && requireRefresh){
+				mPage.mStartedCollectingPending = true;
 				mFragment.onRefresh();
+			}
 			mFragment.mAdapter.notifyDataSetChanged();
 		}
 	}
@@ -454,6 +461,10 @@ public abstract class PageFragment<_T extends ObjectWithId> extends Fragment imp
 	}
 
 	public boolean updateListUi(final List<_T> newList){
+		if(Looper.myLooper() == Looper.getMainLooper()){
+			mPage.updateList(newList);
+			return true;
+		}
 		final AtomicBoolean s = new AtomicBoolean(false);
 		try{
 			synchronized(UI_LIST_UPDATE_LOCK){

@@ -91,8 +91,13 @@ public class Darknova extends Application implements Handler.Callback{
 	public void onTrimMemory(int level) {
 		super.onTrimMemory(level);
 		if (level >= TRIM_MEMORY_BACKGROUND) {
+			android.util.Log.d("Darknova", "onTrimMemory: TRIM_MEMORY_BACKGROUND");
 			if(Darknova.img != null)
 				Darknova.img.clearStorage();
+		}
+		if(level >= TRIM_MEMORY_MODERATE){
+			android.util.Log.d("Darknova", "onTrimMemory: TRIM_MEMORY_MODERATE");
+			Page.clearMemory();
 		}
 	}
 }

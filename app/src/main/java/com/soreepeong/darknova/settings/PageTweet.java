@@ -2,7 +2,6 @@ package com.soreepeong.darknova.settings;
 
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
-import android.os.Looper;
 import android.os.Parcel;
 import android.os.Parcelable;
 
@@ -11,6 +10,7 @@ import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.twitter.Tweet;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
+import com.soreepeong.darknova.ui.fragments.PageFragment;
 import com.soreepeong.darknova.ui.fragments.TimelineFragment;
 
 import java.io.FileOutputStream;
@@ -115,17 +115,15 @@ public class PageTweet extends Page<Tweet> implements TwitterEngine.TwitterStrea
 			mConnectedFragment.onNewTweetReceived(tweet);
 	}
 
-	public void applyPending(){
-		if(Looper.myLooper() == Looper.getMainLooper())
-			throw new RuntimeException("main looper - x");
+	public boolean applyPending(){
 		synchronized(getListLock()){
 			final List<Tweet> listOld = getList();
 			if(listOld == null)
-				return;
+				return false;
 			final List<Tweet> listNew = new ArrayList<>(listOld);
 			final List<Tweet> listPending = getListPending();
 			if(listPending == null)
-				return;
+				return false;
 			for(int i = listPending.size() - 1; i >= 0 && !Thread.interrupted(); i--){
 				Tweet tweet = listPending.get(i); // newest tweets first
 				int index = Collections.binarySearch(listNew, tweet, Collections.reverseOrder());
@@ -140,6 +138,7 @@ public class PageTweet extends Page<Tweet> implements TwitterEngine.TwitterStrea
 			if(mConnectedFragment == null || !mConnectedFragment.updateListUi(applyingList))
 				updateList(applyingList);
 			registerDelayedSave();
+			return true;
 		}
 	}
 
@@ -148,11 +147,33 @@ public class PageTweet extends Page<Tweet> implements TwitterEngine.TwitterStrea
 		SAVE_HANDLER.postDelayed(mListSaverRunnable, SAVE_DELAY);
 	}
 
-	public final Runnable mListSaverRunnable = new Runnable(){
+	public void registerSaveAndClear(){
+		android.util.Log.d("Darknova", "registerSaveAndClear: " + indexOf(this));
+		mSavePending = true;
+		SAVE_HANDLER.post(mListSaverRunnable);
+		SAVE_HANDLER.post(mClearRunnable);
+	}
+
+	@Override
+	public void setFragment(PageFragment<Tweet> frag){
+		if(frag != null)
+			SAVE_HANDLER.removeCallbacks(mClearRunnable);
+		super.setFragment(frag);
+	}
+
+	private final Runnable mClearRunnable = new Runnable(){
 		@Override
 		public void run(){
+			unloadList();
+		}
+	};
+
+	private final Runnable mListSaverRunnable = new Runnable(){
+		@Override
+		public void run(){
+			SAVE_HANDLER.removeCallbacks(mListSaverRunnable);
 			final List<Tweet> list = getList();
-			if(list == null || list.isEmpty())
+			if(!mSavePending || list == null || list.isEmpty())
 				return;
 			TwitterEngine.applyAccountInformationChanges();
 			final ArrayList<Tweet> res = new ArrayList<>(list.size() > SAVE_LENGTH ? list.subList(0, SAVE_LENGTH) : list);

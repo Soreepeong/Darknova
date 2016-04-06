@@ -75,6 +75,8 @@ public abstract class Page<_T extends ObjectWithId> implements Parcelable{
 	public long mPageLastItemId, mPageNewestSeenItemId;
 	protected final File mListCacheFile;
 
+	public boolean mStartedCollectingPending;
+
 	private static final ThreadScheduler mRefreshScheduler = new ThreadScheduler(4, "Refresher");
 
 	protected static void addRefresher(Runnable t){
@@ -205,7 +207,7 @@ public abstract class Page<_T extends ObjectWithId> implements Parcelable{
 				mPages.clear();
 				mNonTemporaryPageLength = mPagePreferences.getInt("mPages.length", 0);
 				for (int i = 0; i < mNonTemporaryPageLength; i++) {
-					Page<? extends ObjectWithId> p = null;
+					Page<? extends ObjectWithId> p;
 					if(mPagePreferences.getString("mPages." + i + ".type", "").equals(PageTweet.class.getName()))
 						p = new PageTweet("mPages." + i, mPagePreferences);
 					else
@@ -215,7 +217,7 @@ public abstract class Page<_T extends ObjectWithId> implements Parcelable{
 						oldPages.remove(p);
 					} else {
 						for (PageElement e : p.elements)
-							if(p instanceof TwitterEngine.TwitterStreamCallback && e.containsStream(e.twitterEngineId)){
+							if(e.containsStream(e.twitterEngineId)){
 								TwitterStreamServiceReceiver.addStreamCallback((TwitterEngine.TwitterStreamCallback) p);
 								break;
 							}
@@ -438,13 +440,16 @@ public abstract class Page<_T extends ObjectWithId> implements Parcelable{
 		}
 	}
 
-	public abstract void applyPending();
-
-	public int getPendingCount(){
-		synchronized(mListPending){
-			return mListPending.size();
+	public static void clearMemory(){
+		synchronized(mPages){
+			for(final Page p : mPages)
+				if(p.isListLoaded() && p.mConnectedFragment == null)
+					if(p instanceof PageTweet)
+						((PageTweet) p).registerSaveAndClear();
 		}
 	}
+
+	public abstract boolean applyPending();
 
 	public List<_T> getListPending(){
 		synchronized(mListPending){
@@ -459,17 +464,19 @@ public abstract class Page<_T extends ObjectWithId> implements Parcelable{
 	public void addListPending(_T t){
 		synchronized(mListPending){
 			int i = Collections.binarySearch(mListPending, t);
-			if(i >= 0){
+			if(i >= 0)
 				return;
-			}
 			mListPending.add(-i - 1, t);
 			if(mListPending.size() > MAX_BACKGROUND_NEW_ITEMS){
-				new Thread(){
-					@Override
-					public void run(){
-						applyPending();
-					}
-				}.start();
+				if(mList != null)
+					new Thread(){
+						@Override
+						public void run(){
+							applyPending();
+						}
+					}.start();
+				else
+					mListPending.subList(MAX_BACKGROUND_NEW_ITEMS, mListPending.size()).clear();
 			}
 		}
 	}
@@ -488,16 +495,25 @@ public abstract class Page<_T extends ObjectWithId> implements Parcelable{
 
 	public void updateList(List<_T> list){
 		if(mConnectedFragment != null && mConnectedFragment.isPageReady()){
-			mConnectedFragment.calculateListPositions();
-			List<_T> prevList = mList;
-			if((mList = list) == null)
-				mList = Collections.emptyList();
-			mConnectedFragment.onDataSetUpdated(prevList);
+			try{
+				mConnectedFragment.calculateListPositions();
+				List<_T> prevList = mList;
+				if((mList = list) == null)
+					mList = Collections.emptyList();
+				mConnectedFragment.onDataSetUpdated(prevList);
+			}catch(Exception e){
+				if((mList = list) == null)
+					mList = Collections.emptyList();
+				e.printStackTrace();
+			}
 		}else{
 			if((mList = list) == null)
 				mList = Collections.emptyList();
 		}
-		// TODO NOTIFY
+	}
+
+	public boolean isListLoaded(){
+		return mList != null;
 	}
 
 	public void setFragment(PageFragment<_T> frag){

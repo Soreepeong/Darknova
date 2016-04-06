@@ -151,7 +151,6 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			mListLayout.setOrientation(LinearLayoutManager.VERTICAL);
 			mViewList.setLayoutManager(mListLayout);
 			mViewList.setRecycledViewPool(mRecyclerViewPool);
-			mViewList.setItemAnimator(null);
 		}
 		mViewList.addOnScrollListener(new RecyclerView.OnScrollListener() {
 			@Override
@@ -208,7 +207,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			else if (!forceUpdate)
 				return;
 		}
-		int unread = mPage.mPageNewestSeenItemId == 0 ? -1 : Collections.binarySearch(list, Tweet.getTweet(mPage.mPageNewestSeenItemId), Collections.reverseOrder());
+		int unread = mPage.mPageNewestSeenItemId == 0 ? 0 : Collections.binarySearch(list, Tweet.getTweet(mPage.mPageNewestSeenItemId), Collections.reverseOrder());
 		if (unread < 0) unread = -1 - unread;
 		unread = Math.min(unread, list.size());
 		mViewUnreadTweetCount.setText(getString(R.string.page_unread).replace("%", Integer.toString(unread)));
@@ -582,6 +581,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		protected Object doInBackground(Object... params) {
 			super.doInBackground(params);
 			if(isNewlyLoadedPage){
+				android.util.Log.d("Darknova", "page " + Page.indexOf(mPage) + ": list load");
 				List<Tweet> t = ((PageTweet) mPage).loadListCache();
 				if(t != null)
 					mList.addAll(t);
@@ -836,8 +836,6 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 		@Override
 		public CustomViewHolder<Tweet> onCreateViewHolder(ViewGroup parent, int viewType) {
 			final LayoutInflater inflater = LayoutInflater.from(parent.getContext());
-
-			android.util.Log.d("Darknova", "TweetAdapter: onCreateViewHolder " + viewType);
 			switch (viewType) {
 				case R.layout.row_tweet:
 					return new TweetViewHolder(inflater.inflate(viewType, parent, false));
