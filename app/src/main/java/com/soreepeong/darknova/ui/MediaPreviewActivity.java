@@ -25,6 +25,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
+import android.widget.SeekBar;
 
 import com.soreepeong.darknova.Darknova;
 import com.soreepeong.darknova.R;

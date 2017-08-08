@@ -14,19 +14,11 @@ import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
 
-import org.acra.ACRA;
-import org.acra.ReportingInteractionMode;
-import org.acra.annotation.ReportsCrashes;
-
 /**
  * Global constant variables initialization
  *
  * @author Soreepeong
  */
-@ReportsCrashes(
-		formUri = "http://soreepeong.com/darknova/error-report.php",
-		mode = ReportingInteractionMode.TOAST,
-		resToastText = R.string.crash_toast_text)
 public class Darknova extends Application implements Handler.Callback{
 
 	private static final int MESSAGE_SHOW_TOAST = 1;
@@ -52,7 +44,6 @@ public class Darknova extends Application implements Handler.Callback{
 	public void onCreate() {
 		super.onCreate();
 		ctx = this;
-		ACRA.init(this);
 		mHandler = new Handler(this);
 		mCacheDir = getCacheDir().getAbsolutePath();
 		StringTools.ARRAY_RELATIVE_TIME_STRINGS = getString(R.string.times).split("/");

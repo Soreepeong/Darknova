@@ -55,6 +55,8 @@ import java.util.regex.Pattern;
 
 import pl.droidsonroids.gif.GifDrawable;
 
+import static android.graphics.PixelFormat.TRANSLUCENT;
+
 /**
  * Custom image cache that uses {@see ImageCacheProvider} for DB management.
  *
@@ -693,12 +695,12 @@ public class ImageCache {
 		public void draw(Canvas canvas) {
 			if (mDrawable != null) {
 				long now = System.currentTimeMillis();
-				int myAlpha = getOpacity();
+				int myAlpha = getAlpha();
 				mRect.set(getBounds());
 				refineRect(mRect, mDrawable.getIntrinsicWidth(), mDrawable.getIntrinsicHeight());
 				mDrawable.setBounds(mRect);
 				if (mAnimationEndTime < now) {
-					if (mDrawable.getOpacity() != myAlpha)
+					if (mDrawable.getAlpha() != myAlpha)
 						mDrawable.setAlpha(myAlpha);
 				} else {
 					float interpolation = Math.max(0, 1 - (float) (mAnimationEndTime - now) / REVEAL_ANIMATION_LENGTH);
@@ -815,8 +817,8 @@ public class ImageCache {
 		public void draw(Canvas canvas) {
 			if (replacing && replaceTarget != null) {
 				long now = System.currentTimeMillis();
-				int myAlpha = getOpacity();
-				int prevAlpha = replacement.getOpacity();
+				int myAlpha = getAlpha();
+				int prevAlpha = replacement.getAlpha();
 				Rect prevBounds = replacement.getBounds();
 				float interpolation = Math.max(0, 1 - (float) (mReplaceEndTime - now) / REVEAL_ANIMATION_LENGTH);
 				if (interpolation > 1) {
@@ -888,6 +890,11 @@ public class ImageCache {
 		}
 
 		@Override
+		public int getOpacity() {
+			return TRANSLUCENT;
+		}
+
+		@Override
 		public int getIntrinsicHeight() {
 			return mDrawable.getIntrinsicHeight();
 		}
@@ -898,7 +905,7 @@ public class ImageCache {
 		}
 
 		@Override
-		public int getOpacity() {
+		public int getAlpha() {
 			return mAlpha;
 		}
 

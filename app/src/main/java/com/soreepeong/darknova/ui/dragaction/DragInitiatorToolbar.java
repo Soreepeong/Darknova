@@ -116,6 +116,7 @@ public class DragInitiatorToolbar extends Toolbar{
 				}
 			}
 			if(mIsTitleBar && !mDragInitiator.startDrag(mDragActionType, event)){
+				android.util.Log.d("Drag", "Cancel " + mIsTitleBar);
 				event.setAction(MotionEvent.ACTION_CANCEL);
 			}
 			return super.dispatchTouchEvent(event);

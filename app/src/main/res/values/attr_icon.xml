@@ -30,4 +30,6 @@
 	<attr name="ic_editor_vertical_align_top" format="reference" />
 	<attr name="ic_av_videocam" format="reference"/>
 	<attr name="ic_av_video_collection" format="reference"/>
+	<attr name="ic_av_play_arrow" format="reference"/>
+	<attr name="ic_av_pause" format="reference"/>
 </resources>

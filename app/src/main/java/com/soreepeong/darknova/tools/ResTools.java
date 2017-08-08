@@ -3,11 +3,17 @@ package com.soreepeong.darknova.tools;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.support.annotation.AnimRes;
 import android.support.annotation.AttrRes;
+import android.support.annotation.LayoutRes;
+import android.util.TypedValue;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.widget.TextView;
 
 /**
  * Various resource tool functions
@@ -74,20 +80,20 @@ public class ResTools {
 		if(v == null || v.getVisibility() != View.VISIBLE)
 			return;
 		Animation a = AnimationUtils.loadAnimation(v.getContext(), resId);
-		a.setAnimationListener(new Animation.AnimationListener() {
+		a.setAnimationListener(new Animation.AnimationListener(){
 			@Override
-			public void onAnimationStart(Animation animation) {
+			public void onAnimationStart(Animation animation){
 
 			}
 
 			@Override
-			public void onAnimationEnd(Animation animation) {
+			public void onAnimationEnd(Animation animation){
 				v.clearAnimation();
 				v.setVisibility(View.GONE);
 			}
 
 			@Override
-			public void onAnimationRepeat(Animation animation) {
+			public void onAnimationRepeat(Animation animation){
 
 			}
 		});
@@ -106,5 +112,40 @@ public class ResTools {
 		v.setVisibility(View.VISIBLE);
 		v.startAnimation(AnimationUtils.loadAnimation(v.getContext(), resId));
 		v.clearAnimation();
+	}
+
+	public static boolean inflateResizedInternal(View v, float scale){
+		if(!(v instanceof ViewGroup))
+			return false;
+		for(int i = ((ViewGroup) v).getChildCount()-1 ; i >= 0; i--){
+			View c = ((ViewGroup) v).getChildAt(i);
+			c.setPadding((int)(c.getPaddingLeft() * scale), (int)(c.getPaddingTop() * scale), (int)(c.getPaddingRight() * scale), (int)(c.getPaddingBottom() * scale));
+			if(inflateResizedInternal(c, scale))
+				continue;
+			ViewGroup.LayoutParams lp = c.getLayoutParams();
+			if(c instanceof TextView)
+				((TextView) c).setTextSize(TypedValue.COMPLEX_UNIT_PX, ((TextView) c).getTextSize() * scale);
+			if(lp.width != ViewGroup.LayoutParams.WRAP_CONTENT && lp.width != ViewGroup.LayoutParams.MATCH_PARENT)
+				lp.width = (int) (lp.width * scale);
+			if(lp.height != ViewGroup.LayoutParams.WRAP_CONTENT && lp.height != ViewGroup.LayoutParams.MATCH_PARENT)
+				lp.height = (int) (lp.height * scale);
+			if(lp instanceof ViewGroup.MarginLayoutParams){
+				ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) lp;
+				mlp.setMargins((int) (mlp.leftMargin * scale), (int) (mlp.topMargin * scale), (int) (mlp.rightMargin * scale), (int) (mlp.bottomMargin * scale));
+
+				if(Build.VERSION.SDK_INT >= 17){
+					mlp.setMarginStart((int) (mlp.getMarginStart() * scale));
+					mlp.setMarginEnd((int) (mlp.getMarginEnd() * scale));
+				}
+			}
+			c.setLayoutParams(lp);
+		}
+		return true;
+	}
+
+	public static View inflateResized(LayoutInflater inflater, @LayoutRes int res, ViewGroup parent, boolean attach, float scale){
+		View v = inflater.inflate(res, parent, attach);
+		inflateResizedInternal(v, scale);
+		return v;
 	}
 }

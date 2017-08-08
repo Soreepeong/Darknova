@@ -8,6 +8,8 @@ import android.graphics.drawable.Drawable;
 
 import java.util.ArrayList;
 
+import static android.graphics.PixelFormat.TRANSLUCENT;
+
 /**
  * @author Soreepeong
  */
@@ -59,6 +61,11 @@ public class SquarePatchDrawable extends Drawable implements Drawable.Callback {
 
 	@Override
 	public int getOpacity() {
+		return TRANSLUCENT;
+	}
+
+	@Override
+	public int getAlpha() {
 		return mAlpha;
 	}
 

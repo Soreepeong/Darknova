@@ -3,8 +3,8 @@ package com.soreepeong.darknova.ui.fragments;
 import android.accounts.AccountManager;
 import android.animation.Animator;
 import android.animation.ValueAnimator;
-import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
@@ -284,10 +284,10 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 	}
 
 	@Override
-	public void onAttach(Activity activity) {
-		super.onAttach(activity);
+	public void onAttach(Context context) {
+		super.onAttach(context);
 		try {
-			mCallbacks = (NavigationDrawerCallbacks) activity;
+			mCallbacks = (NavigationDrawerCallbacks) context;
 		} catch (ClassCastException e) {
 			throw new ClassCastException("Activity must implement NavigationDrawerCallbacks.");
 		}
@@ -593,7 +593,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 
 			public DrawerViewHolder(View itemView) {
 				super(itemView);
-				mActionContainer = (ViewGroup) itemView.findViewById(R.id.account_manage_container);
+				mActionContainer = (ViewGroup) itemView.findViewById(R.id.nav_list_item_actions);
 				if (mActionContainer != null) {
 					for (int i = mActionContainer.getChildCount() - 1; i >= 0; i--)
 						mActionContainer.getChildAt(i).setOnClickListener(this);
@@ -779,9 +779,23 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 
 			@Override
 			public void onClick(View v) {
-				int position = getItemActualPosition(getAdapterPosition());
+				final int position = getItemActualPosition(getAdapterPosition());
 				if (position < 0 || position >= mListedPages.size())
 					return;
+				switch (v.getId()) {
+					case R.id.page_config: {
+						return;
+					}
+					case R.id.page_remove: {
+						Page p = Page.remove(position);
+						if (p == null)
+							return;
+						int newIndex = p.getParentPageIndex();
+						if (newIndex != -1)
+							selectPage(newIndex);
+						return;
+					}
+				}
 				if (v.equals(actionButton)) {
 					Page p = Page.remove(position);
 					if (p == null)
@@ -796,6 +810,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 						Page.reorder(position, nonTemporaryCount);
 						Page.setCountNonTemporary(nonTemporaryCount + 1);
 					}
+					selectPage(position);
 				} else {
 					selectPage(position);
 					if (isDrawerOpen())
@@ -816,7 +831,10 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 					actionButton.setContentDescription(getString(R.string.action_close_page));
 					actionButton.setEnabled(true);
 				}
+
+				setUseActionContainer(mListEditMode);
 				setSelected(mCurrentPage == position);
+
 				if(Darknova.img != null){
 					long twitterEngineId = mListedPages.get(position).elements.get(0).twitterEngineId;
 					long id = mListedPages.get(position).elements.get(0).id;
@@ -895,7 +913,7 @@ public class NavigationDrawerFragment extends Fragment implements ImageCache.OnI
 				if (position < 0 || position >= mListedUsers.size())
 					return;
 				switch (v.getId()) {
-					case R.id.account_setting: {
+					case R.id.account_config: {
 						return;
 					}
 					case R.id.account_logout: {

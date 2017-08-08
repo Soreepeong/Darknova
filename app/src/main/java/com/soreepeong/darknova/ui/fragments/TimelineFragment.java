@@ -495,6 +495,8 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 
 						@Override
 						public void onAnimationEnd(Animation animation){
+							if(mViewProgress == null)
+								return;
 							mViewProgress.clearAnimation();
 							mViewProgress.setVisibility(View.GONE);
 						}
@@ -838,7 +840,7 @@ public class TimelineFragment extends PageFragment<Tweet> implements Handler.Cal
 			final LayoutInflater inflater = LayoutInflater.from(parent.getContext());
 			switch (viewType) {
 				case R.layout.row_tweet:
-					return new TweetViewHolder(inflater.inflate(viewType, parent, false));
+					return new TweetViewHolder(ResTools.inflateResized(inflater, viewType, parent, false, 1));
 				case R.layout.row_header_big_tweet:
 					return new TweetBigViewHolder(inflater.inflate(viewType, parent, false));
 			}

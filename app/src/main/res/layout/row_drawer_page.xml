@@ -1,6 +1,6 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
 			  android:layout_width="match_parent"
-			  android:layout_height="48dp"
+			  android:layout_height="wrap_content"
 			  android:background="@drawable/recyclerview_item_bg"
 			  android:clickable="true"
 			  android:focusable="true">
@@ -42,4 +42,60 @@
 		android:text="@string/placeholder"
 		android:textColor="?android:attr/textColorPrimary"
 		android:textSize="14sp"/>
+
+	<FrameLayout
+		android:id="@+id/nav_list_item_actions"
+		android:layout_width="match_parent"
+		android:layout_height="96dp"
+		android:layout_marginTop="48dp">
+
+		<FrameLayout
+			android:id="@+id/page_config"
+			android:layout_width="match_parent"
+			android:layout_height="48dp"
+			android:background="?selectableItemBackground"
+			android:paddingLeft="32dp"
+			android:paddingRight="32dp">
+
+			<ImageView
+				android:layout_width="48dp"
+				android:layout_height="48dp"
+				android:padding="8dp"
+				android:src="?attr/ic_action_settings"/>
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="match_parent"
+				android:layout_marginLeft="72dp"
+				android:layout_marginStart="72dp"
+				android:gravity="center_vertical|start"
+				android:text="@string/drawer_menu_page_settings"
+				android:textAppearance="?android:textAppearanceButton"/>
+		</FrameLayout>
+
+		<FrameLayout
+			android:id="@+id/page_remove"
+			android:layout_width="match_parent"
+			android:layout_height="48dp"
+			android:layout_marginTop="48dp"
+			android:background="?selectableItemBackground"
+			android:paddingLeft="32dp"
+			android:paddingRight="32dp">
+
+			<ImageView
+				android:layout_width="48dp"
+				android:layout_height="48dp"
+				android:padding="8dp"
+				android:src="?attr/ic_content_clear"/>
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="match_parent"
+				android:layout_marginLeft="72dp"
+				android:layout_marginStart="72dp"
+				android:gravity="center_vertical|start"
+				android:text="@string/drawer_menu_page_remove"
+				android:textAppearance="?android:textAppearanceButton"/>
+		</FrameLayout>
+	</FrameLayout>
 </FrameLayout>

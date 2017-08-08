@@ -48,13 +48,13 @@
 		android:textSize="14sp"/>
 
 	<FrameLayout
-		android:id="@+id/account_manage_container"
+		android:id="@+id/nav_list_item_actions"
 		android:layout_width="match_parent"
 		android:layout_height="96dp"
 		android:layout_marginTop="48dp">
 
 		<FrameLayout
-			android:id="@+id/account_setting"
+			android:id="@+id/account_config"
 			android:layout_width="match_parent"
 			android:layout_height="48dp"
 			android:background="?selectableItemBackground"

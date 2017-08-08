@@ -1,5 +1,6 @@
 package com.soreepeong.darknova.ui.fragments;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ContentResolver;
@@ -7,6 +8,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.graphics.Rect;
@@ -23,6 +25,7 @@ import android.preference.PreferenceManager;
 import android.provider.MediaStore;
 import android.support.annotation.StringRes;
 import android.support.v4.app.Fragment;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.GridLayoutManager;
@@ -98,6 +101,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	public static final String PREF_LAST_WORKING_TEMPLATE_ID = "last_working_template_id";
 	private static final int PICK_MEDIA = 1;
 	private static final int REQUEST_EXTSDCARD_PERMISSION = 2;
+	private static final int REQUEST_READ_SDCARD_PERMISSION = 3;
 	private static final String PREF_EXT_MEDIA_STORAGE = "external_media_storage";
 	private static final Interpolator INTERPOLATOR = new AccelerateDecelerateInterpolator();
 	private final HashMap<Tweeter, ToggleButton> mUserMaps = new HashMap<>();
@@ -794,7 +798,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 	public void afterTextChanged(Editable s) {
 		if (s.toString().trim().isEmpty())
 			mViewClearBtn.setText(R.string.new_tweet_hide);
-		else{
+		else {
 			String o = s.toString().trim();
 			Matcher m = Regex.VALID_URL.matcher(o);
 			int length = o.length();
@@ -828,6 +832,8 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			android.util.Log.d("Darknova", u.toString());
 			getActivity().getContentResolver().takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
 			mEditorPreference.edit().putString(PREF_EXT_MEDIA_STORAGE, u.toString()).apply();
+		} else if (requestCode == REQUEST_READ_SDCARD_PERMISSION && resultCode == Activity.RESULT_OK && mMediaAdapter != null) {
+			mMediaAdapter.refill();
 		}
 		mCurrentPhotoPath = null;
 	}
@@ -893,12 +899,23 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 		}
 
 		public void done() {
-			mCursor.close();
+			if (mCursor != null)
+				mCursor.close();
 		}
 
 		public void refill() {
 			if (mCursor != null)
 				mCursor.close();
+
+			if(getContext() == null)
+				return;
+			if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+				if (shouldShowRequestPermissionRationale(Manifest.permission.READ_EXTERNAL_STORAGE))
+					Toast.makeText(getContext(), R.string.new_tweet_attach_permission_requested, Toast.LENGTH_SHORT).show();
+				requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQUEST_READ_SDCARD_PERMISSION);
+				return;
+			}
+
 			String whereImage = "(" + MediaStore.MediaColumns.MIME_TYPE + " LIKE 'image/%' AND " + MediaStore.MediaColumns.MIME_TYPE + "<>'image/gif')";
 			String whereGif = "(" + MediaStore.MediaColumns.MIME_TYPE + "='image/gif' AND " + MediaStore.MediaColumns.SIZE + "<5242880)";
 			String whereVideo = "(" + MediaStore.MediaColumns.MIME_TYPE + "='video/mp4' AND "
@@ -967,7 +984,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 
 		@Override
 		public int getItemCount() {
-			return mCursor.getCount() + 1;
+			return (mCursor == null ? 0 : mCursor.getCount()) + 1;
 		}
 
 		public class ViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener, AdapterView.OnItemSelectedListener, View.OnLongClickListener {
@@ -1032,7 +1049,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 					mDetails.setTextColor(0xFFFFFFFF);
 					finalFormat = format;
 				}
-				Darknova.img.assignImageView(mImageView, null, mCursor.getString(2), null, null, new ImageCache.OnImageAvailableListener(){
+				Darknova.img.assignImageView(mImageView, null, mCursor.getString(2), null, null, new ImageCache.OnImageAvailableListener() {
 					@Override
 					public void onImageAvailable(String url, BitmapDrawable bmp, Drawable d, int originalWidth, int originalHeight) {
 						if (finalFormat != null) {
@@ -1230,7 +1247,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			if (mTweeters.size() > scale)
 				itemSize = itemSize / itemSizeScale;
 			holder.itemView.setLayoutParams(new GridLayoutManager.LayoutParams(itemSize, itemSize));
-			if(Darknova.img != null)
+			if (Darknova.img != null)
 				Darknova.img.assignImageView(((ImageView) holder.itemView), mTweeters.get(position).getTweeter().getProfileImageUrl(), null);
 		}
 
@@ -1317,9 +1334,9 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 			if (!mTemplateTweet.mAttachments.contains(attachment))
 				return;
 			boolean isImageMedia = true;
-			for(int i = 0, i_ = mTemplateTweet.mAttachments.size(); i<i_; i++){
+			for (int i = 0, i_ = mTemplateTweet.mAttachments.size(); i < i_; i++) {
 				TemplateTweetAttachment a = mTemplateTweet.mAttachments.get(i);
-				if(a.equals(attachment) && a != attachment)
+				if (a.equals(attachment) && a != attachment)
 					mTemplateTweet.mAttachments.set(i, a = attachment);
 				isImageMedia &= a.media_type == TemplateTweetProvider.MEDIA_TYPE_IMAGE;
 			}
@@ -1365,7 +1382,7 @@ public class TemplateTweetEditorFragment extends Fragment implements Tweeter.OnU
 					mTypeView.setImageDrawable(null);
 					return;
 				}
-				if(Darknova.img != null){
+				if (Darknova.img != null) {
 					TemplateTweetAttachment a = mTemplateTweet.mAttachments.get(position);
 					switch (a.media_type) {
 						case TemplateTweetProvider.MEDIA_TYPE_GIF:

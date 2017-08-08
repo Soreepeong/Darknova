@@ -1,15 +1,18 @@
 package com.soreepeong.darknova.twitter;
 
+import android.Manifest;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.accounts.OnAccountsUpdateListener;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.text.Html;
 
 import com.fasterxml.jackson.core.JsonFactory;
@@ -23,7 +26,6 @@ import com.soreepeong.darknova.tools.ArrayTools;
 import com.soreepeong.darknova.tools.StreamTools;
 import com.soreepeong.darknova.tools.StringTools;
 
-import org.acra.ACRA;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -49,7 +51,7 @@ import java.util.regex.Pattern;
  *
  * @author Soreepeong
  */
-public class TwitterEngine implements Comparable<TwitterEngine> {
+public class TwitterEngine implements Comparable<TwitterEngine>{
 	public static final int MAX_IMAGE_MEDIA_SIZE = 5 * 1048576;
 	public static final int MAX_VIDEO_MEDIA_SIZE = 15 * 1048576;
 	public static final byte[] CRLF = new byte[]{'\r', '\n'};
@@ -80,9 +82,9 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	protected long mUserId;
 	protected String mScreenName;
 	protected Tweeter mTweeter;
-	private static OnAccountsUpdateListener mAccountUpdateListener = new OnAccountsUpdateListener() {
+	private static OnAccountsUpdateListener mAccountUpdateListener = new OnAccountsUpdateListener(){
 		@Override
-		public void onAccountsUpdated(Account[] accounts) {
+		public void onAccountsUpdated(Account[] accounts){
 			reloadTwitterEngines();
 		}
 	};
@@ -92,7 +94,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	/**
 	 * Initialize with default API Key.
 	 */
-	public TwitterEngine() {
+	public TwitterEngine(){
 		this(DEFAULT_API_KEY, DEFAULT_SECRET_API_KEY);
 	}
 
@@ -102,61 +104,61 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	 * @param apiKey       API Key
 	 * @param secretApiKey Secret API Key
 	 */
-	public TwitterEngine(String apiKey, String secretApiKey) {
+	public TwitterEngine(String apiKey, String secretApiKey){
 		auth = new OAuth(apiKey, secretApiKey);
 	}
 
-	public static void addOnUserlistChangedListener(OnUserlistChangedListener l) {
-		synchronized (mUserlistChangedListener) {
-			if (!mUserlistChangedListener.contains(l))
+	public static void addOnUserlistChangedListener(OnUserlistChangedListener l){
+		synchronized(mUserlistChangedListener){
+			if(!mUserlistChangedListener.contains(l))
 				mUserlistChangedListener.add(l);
 		}
 	}
 
-	public static void removeOnUserlistChangedListener(OnUserlistChangedListener l) {
-		synchronized (mUserlistChangedListener) {
+	public static void removeOnUserlistChangedListener(OnUserlistChangedListener l){
+		synchronized(mUserlistChangedListener){
 			mUserlistChangedListener.remove(l);
 		}
 	}
 
-	public static TwitterEngine get(long user_id) {
-		synchronized (mTwitter) {
-			for (TwitterEngine e : mTwitter)
-				if (e.mUserId == user_id)
+	public static TwitterEngine get(long user_id){
+		synchronized(mTwitter){
+			for(TwitterEngine e : mTwitter)
+				if(e.mUserId == user_id)
 					return e;
 			return null;
 		}
 	}
 
-	public static ArrayList<TwitterEngine> getStreamables() {
-		synchronized (mTwitter) {
+	public static ArrayList<TwitterEngine> getStreamables(){
+		synchronized(mTwitter){
 			return new ArrayList<>(mTwitter);
 		}
 	}
 
-	public static ArrayList<TwitterEngine> getAll() {
-		synchronized (mTwitter) {
+	public static ArrayList<TwitterEngine> getAll(){
+		synchronized(mTwitter){
 			ArrayList<TwitterEngine> engines = new ArrayList<>();
-			for (TwitterEngine e : mTwitter)
+			for(TwitterEngine e : mTwitter)
 				engines.add(e);
 			return engines;
 		}
 	}
 
-	public static void applyAccountInformationChanges() {
-		synchronized (mTwitter) {
+	public static void applyAccountInformationChanges(){
+		synchronized(mTwitter){
 			AccountManager accountManager = AccountManager.get(Darknova.ctx);
-			for (TwitterEngine e : mTwitter) {
+			for(TwitterEngine e : mTwitter){
 				Tweeter tweeter = e.getTweeter();
-				if (!tweeter.info.stub && !tweeter.screen_name.equals(e.mRespectiveAccount.name)) {
-					if (Build.VERSION.SDK_INT >= 21) {
-						try {
+				if(!tweeter.info.stub && !tweeter.screen_name.equals(e.mRespectiveAccount.name)){
+					if(Build.VERSION.SDK_INT >= 21){
+						try{
 							// BOILERPLATE - it works but throws errors
 							accountManager.renameAccount(e.mRespectiveAccount, tweeter.screen_name, null, null);
-						} catch (Exception ee) {
+						}catch(Exception ee){
 							ee.printStackTrace();
 						}
-					} else {
+					}else{
 						remove(tweeter.user_id);
 						e.mRespectiveAccount = new Account(tweeter.screen_name, Darknova.ctx.getString(R.string.account_type));
 						accountManager.addAccountExplicitly(e.mRespectiveAccount, null, null);
@@ -170,13 +172,13 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		}
 	}
 
-	public static void reorder(Context context, int from, int to) {
-		synchronized (mTwitter) {
+	public static void reorder(Context context, int from, int to){
+		synchronized(mTwitter){
 			AccountManager accountManager = AccountManager.get(context);
 			mTwitter.add(to, mTwitter.remove(from));
 			int i = 0;
-			for (TwitterEngine e : mTwitter) {
-				if (e.mEngineIndex != i)
+			for(TwitterEngine e : mTwitter){
+				if(e.mEngineIndex != i)
 					accountManager.setUserData(e.mRespectiveAccount, "_index", Integer.toString(e.mEngineIndex = i));
 				i++;
 			}
@@ -184,12 +186,12 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		}
 	}
 
-	public static void remove(long who) {
-		synchronized (mTwitter) {
+	public static void remove(long who){
+		synchronized(mTwitter){
 			AccountManager accountManager = AccountManager.get(Darknova.ctx);
-			for (TwitterEngine e : mTwitter) {
-				if (e.getUserId() == who) {
-					if (Build.VERSION.SDK_INT >= 22)
+			for(TwitterEngine e : mTwitter){
+				if(e.getUserId() == who){
+					if(Build.VERSION.SDK_INT >= 22)
 						accountManager.removeAccountExplicitly(e.mRespectiveAccount);
 					else
 						//noinspection deprecation
@@ -201,8 +203,8 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		}
 	}
 
-	public static Account addAccount(TwitterEngine newEngine) {
-		synchronized (mTwitter) {
+	public static Account addAccount(TwitterEngine newEngine){
+		synchronized(mTwitter){
 			final Account account = new Account(newEngine.getScreenName(), Darknova.ctx.getString(R.string.account_type));
 			final AccountManager am = AccountManager.get(Darknova.ctx);
 			final Bundle info = new Bundle();
@@ -223,9 +225,9 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		}
 	}
 
-	private static void reloadTwitterEngines() {
+	private static void reloadTwitterEngines(){
 		int maxIndex = 0;
-		synchronized (mTwitter) {
+		synchronized(mTwitter){
 			mTwitter.clear();
 			final AccountManager accountManager = AccountManager.get(Darknova.ctx);
 			for(Account acc : accountManager.getAccountsByType(Darknova.ctx.getString(R.string.account_type))){
@@ -568,7 +570,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 
 	protected Tweet parseTweet(JsonParser parser, ArrayList<Long> friends) throws IOException, ParseException {
 		Tweet res = Tweet.getTemporary();
-		Entities e1 = null, e2 = null;
+		Entities e1 = null, e2 = null, extended_e1 = null, extended_e2 = null;
 		String key, unused_message = null;
 		long in_reply_to_user_id = 0;
 		String in_reply_to_screen_name = null;
@@ -586,7 +588,30 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					res.id = parser.getLongValue();
 					break;
 				case "text":
+					if(res.text == null)
+						res.text = parser.getText();
+					break;
+				case "full_text":
 					res.text = parser.getText();
+					break;
+				case "extended_tweet":
+					while (!Thread.currentThread().isInterrupted() && parser.nextToken() != JsonToken.END_OBJECT) {
+						key = parser.getCurrentName();
+						parser.nextToken();
+						switch (key) {
+							case "full_text":
+								res.text = parser.getText();
+								break;
+							case "entities":
+								extended_e1 = new Entities(parser);
+								break;
+							case "extended_entities":
+								extended_e2 = new Entities(parser);
+								break;
+							default:
+								StreamTools.consumeJsonValue(parser);
+						}
+					}
 					break;
 				case "retweet_count":
 					res.retweet_count = parser.getIntValue();
@@ -595,7 +620,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					res.favorite_count = parser.getIntValue();
 					break;
 				case "source":
-					res.source = Html.fromHtml(parser.getText()).toString();
+					res.source = StringTools.REMOVE_XML_TAGS.matcher(parser.getText()).replaceAll("");
 					break;
 				case "possibly_sensitive":
 					res.possibly_sensitive = parser.getBooleanValue();
@@ -608,6 +633,9 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 					break;
 				case "retweeted_status":
 					res.retweeted_status = parseTweet(parser, friends);
+					break;
+				case "quoted_status":
+					res.quoted_status = parseTweet(parser, friends);
 					break;
 				case "in_reply_to_status_id":
 					res.in_reply_to_status = Tweet.getTweet(parser.getLongValue());
@@ -651,9 +679,13 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 		res.info.lastUpdated = System.currentTimeMillis();
 		res.info.stub = false;
 		res.accessedBy.add(mUserId);
-		if (e1 == null) e1 = e2;
-		else if (e2 != null) {
-			for (Entities.Entity e : e2.list)
+		if(extended_e1 != null){
+			e1 = extended_e1;
+			e2 = extended_e2;
+		}
+		if(e1 == null) e1 = e2;
+		else if(e2 != null){
+			for(Entities.Entity e : e2.list)
 				e1.list.remove(e);
 			e1.list.addAll(e2.list);
 		}
@@ -706,7 +738,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	}
 
 	public Tweet getTweet(long id) throws RequestException {
-		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "statuses/show.json?id="+id, auth, false, null);
+		HTTPRequest request = HTTPRequest.getRequest(API_BASE_PATH + "statuses/show.json?extended_tweet=true&include_my_retweet=true&id="+id, auth, false, null);
 		if (request == null) return null;
 		InputStream in = null;
 		try {
@@ -744,22 +776,22 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 	}
 
 	public ArrayList<Tweet> getUserHome(long user_id, int count, long since_id, long max_id, boolean exclude_replies, boolean include_entities, TweetCallback callback) throws RequestException {
-		return getTweetArrayRequest("statuses/user_timeline.json?user_id=" + user_id + "&exclude_replies=" + (exclude_replies ? "t" : "f") + "&include_entities=" + (include_entities ? "t" : "f") +
+		return getTweetArrayRequest("statuses/user_timeline.json?include_rts=t&tweet_mode=extended&include_my_retweet=true&user_id=" + user_id + "&exclude_replies=" + (exclude_replies ? "t" : "f") + "&include_entities=" + (include_entities ? "t" : "f") +
 				(count > 0 ? "&count=" + count : "") + (since_id > 0 ? "&since_id=" + since_id : "") + (max_id > 0 ? "&max_id=" + max_id : ""), null, callback);
 	}
 
 	public ArrayList<Tweet> getUserFavorites(long user_id, int count, long since_id, long max_id, boolean include_entities, TweetCallback callback) throws RequestException {
-		return getTweetArrayRequest("favorites/list.json?user_id=" + user_id + "&include_entities=" + (include_entities ? "t" : "f") +
+		return getTweetArrayRequest("favorites/list.json?include_rts=t&tweet_mode=extended&include_my_retweet=true&user_id=" + user_id + "&include_entities=" + (include_entities ? "t" : "f") +
 				(count > 0 ? "&count=" + count : "") + (since_id > 0 ? "&since_id=" + since_id : "") + (max_id > 0 ? "&max_id=" + max_id : ""), null, callback);
 	}
 
 	public ArrayList<Tweet> getSearchTweets(String q, int count, long since_id, long max_id, boolean exclude_replies, boolean include_entities, TweetCallback callback) throws RequestException {
-		return getTweetArrayRequest("search/tweets.json?q=" + StringTools.UrlEncode(q) + "&exclude_replies=" + (exclude_replies ? "t" : "f") + "&include_entities=" + (include_entities ? "t" : "f") +
+		return getTweetArrayRequest("search/tweets.json?include_rts=t&tweet_mode=extended&include_my_retweet=true&q=" + StringTools.UrlEncode(q) + "&exclude_replies=" + (exclude_replies ? "t" : "f") + "&include_entities=" + (include_entities ? "t" : "f") +
 				(count > 0 ? "&count=" + count : "") + (since_id > 0 ? "&since_id=" + since_id : "") + (max_id > 0 ? "&max_id=" + max_id : ""), null, callback);
 	}
 
 	public ArrayList<Tweet> getTweets(String path, int count, long since_id, long max_id, boolean exclude_replies, boolean include_entities, TweetCallback callback) throws RequestException {
-		return getTweetArrayRequest(path + ".json?exclude_replies=" + (exclude_replies ? "t" : "f") + "&include_entities=" + (include_entities ? "t" : "f") +
+		return getTweetArrayRequest(path + ".json?include_rts=t&tweet_mode=extended&include_my_retweet=true&exclude_replies=" + (exclude_replies ? "t" : "f") + "&include_entities=" + (include_entities ? "t" : "f") +
 				(count > 0 ? "&count=" + count : "") + (since_id > 0 ? "&since_id=" + since_id : "") + (max_id > 0 ? "&max_id=" + max_id : ""), null, callback);
 	}
 
@@ -1539,7 +1571,7 @@ public class TwitterEngine implements Comparable<TwitterEngine> {
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
-				ACRA.log.e("STREAM_PARSER", "stream line parse fail: " + line, e);
+				android.util.Log.e("STREAM_PARSER", "stream line parse fail: " + line, e);
 			}
 		}
 

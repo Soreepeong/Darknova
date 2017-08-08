@@ -30,6 +30,7 @@ public class Tweet implements ObjectWithId, Parcelable {
 	public boolean removed;
 	public Tweeter user;
 	public Tweet retweeted_status;
+	public Tweet quoted_status;
 	public Entities entities;
 	public Tweet in_reply_to_status;
 	public Tweeter in_reply_to_user;
@@ -61,6 +62,7 @@ public class Tweet implements ObjectWithId, Parcelable {
 		removed = in.readByte() != 0x00;
 		user = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
 		retweeted_status = (Tweet) in.readValue(Tweet.class.getClassLoader());
+		quoted_status = (Tweet) in.readValue(Tweet.class.getClassLoader());
 		entities = (Entities) in.readValue(Entities.class.getClassLoader());
 		in_reply_to_status = Tweet.getTweet(in.readLong());
 		in_reply_to_user = (Tweeter) in.readValue(Tweeter.class.getClassLoader());
@@ -100,6 +102,7 @@ public class Tweet implements ObjectWithId, Parcelable {
 					t.possibly_sensitive = tweet.possibly_sensitive;
 					t.user = tweet.user;
 					t.retweeted_status = tweet.retweeted_status;
+					t.quoted_status = tweet.quoted_status;
 					t.entities = tweet.entities;
 					t.in_reply_to_status = tweet.in_reply_to_status;
 					t.in_reply_to_user = tweet.in_reply_to_user;
@@ -170,6 +173,7 @@ public class Tweet implements ObjectWithId, Parcelable {
 		dest.writeByte((byte) (removed ? 0x01 : 0x00));
 		dest.writeValue(user);
 		dest.writeValue(retweeted_status);
+		dest.writeValue(quoted_status);
 		dest.writeValue(entities);
 		dest.writeLong(in_reply_to_status == null ? 0 : in_reply_to_status.id);
 		dest.writeValue(in_reply_to_user);

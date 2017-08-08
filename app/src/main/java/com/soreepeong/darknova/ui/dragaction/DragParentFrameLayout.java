@@ -246,8 +246,10 @@ public class DragParentFrameLayout extends FrameLayout {
 		// If a part of screen is already touched, drag will not start
 		// since it's illogical to cover the screen while another object
 		// is currently processing the touch event.
-		if (mCurrentTouches > 1)
+		if (mCurrentTouches > 1) {
+			android.util.Log.d("Drag", "CurrentTouches " + mCurrentTouches);
 			return false;
+		}
 
 		if(mLastDragInitiator != null){
 			mLastDragInitiator.onDragStop();

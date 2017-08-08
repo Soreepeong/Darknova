@@ -7,6 +7,8 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 
+import static android.graphics.PixelFormat.TRANSLUCENT;
+
 public class ClippedDrawable extends Drawable implements Drawable.Callback {
 	public static final int CLIP_TYPE_NONE = 0;
 	public static final int CLIP_TYPE_OVAL = 1;
@@ -73,6 +75,11 @@ public class ClippedDrawable extends Drawable implements Drawable.Callback {
 
 	@Override
 	public int getOpacity() {
+		return TRANSLUCENT;
+	}
+
+	@Override
+	public int getAlpha() {
 		return mAlpha;
 	}
 

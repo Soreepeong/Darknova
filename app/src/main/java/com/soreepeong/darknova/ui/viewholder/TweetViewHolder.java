@@ -109,6 +109,7 @@ public class TweetViewHolder extends CustomViewHolder<Tweet> implements DragInit
 	private void previewEntity(Entities entities){
 		int i = 0;
 		for(Entities.Entity entity : entities.list){
+			if( i >= arrPreviews.length ) continue;
 			if(entity instanceof Entities.MediaEntity){
 				arrPreviews[i].setVisibility(View.VISIBLE);
 				if(Darknova.img != null)

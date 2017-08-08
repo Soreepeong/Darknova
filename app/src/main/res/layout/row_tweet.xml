@@ -35,7 +35,6 @@
 		android:layout_height="60sp"
 		android:layout_margin="6sp"
 		android:background="#80000000"
-		android:padding="12sp"
 		android:src="?attr/ic_navigation_check"
 		/>
 

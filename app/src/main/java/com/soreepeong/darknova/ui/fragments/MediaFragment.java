@@ -27,7 +27,9 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -49,6 +51,8 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.regex.Matcher;
 
 /**
@@ -56,7 +60,7 @@ import java.util.regex.Matcher;
  *
  * @author Soreepeong
  */
-public class MediaFragment extends Fragment implements View.OnClickListener, LargeImageView.OnImageViewLoadFinishedListener, ImageCache.OnImageCacheReadyListener, LargeImageView.OnViewerParamChangedListener, MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener, SurfaceHolder.Callback, MediaPlayer.OnVideoSizeChangedListener {
+public class MediaFragment extends Fragment implements View.OnClickListener, LargeImageView.OnImageViewLoadFinishedListener, ImageCache.OnImageCacheReadyListener, LargeImageView.OnViewerParamChangedListener, MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener, SurfaceHolder.Callback, MediaPlayer.OnVideoSizeChangedListener, SeekBar.OnSeekBarChangeListener {
 	private static final Interpolator mProgressInterpolator = new DecelerateInterpolator();
 
 	private static final int STATE_ERROR = -1;
@@ -73,7 +77,9 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	private View mViewFragmentRoot;
 	private SurfaceView mViewSurface;
 	private LargeImageView mViewImageViewer;
-	private View mViewLoadInfo, mViewPageInfo;
+	private View mViewLoadInfo, mViewPageInfo, mVideoController;
+	private ImageButton mPlayPause;
+	private SeekBar mVideoSeek;
 	private TextView mViewLoadInfoText, mViewLoadProgressText, mViewPageZoom;
 	private ProgressBar mViewProgress;
 	private ProgressBar mViewProgressTop;
@@ -84,6 +90,17 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 	private ImageLoaderTask mImageLoader;
 	private boolean mLoadOriginalMedia;
 	private boolean mLoadInfoVisible;
+
+	private final Runnable mSeekUpdater = new Runnable() {
+		@Override
+		public void run() {
+			if(mMediaPlayer != null) {
+				mVideoSeek.setProgress(mMediaPlayer.getCurrentPosition());
+				if(mMediaPlayer.isPlaying())
+					mVideoSeek.postDelayed(this, 50);
+			}
+		}
+	};
 
 	/**
 	 * Make new instanceof this fragment using given parameter
@@ -126,7 +143,15 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		mViewCancelButton = (Button) mViewFragmentRoot.findViewById(R.id.cancel);
 		mViewAnotherAppButton = (Button) mViewFragmentRoot.findViewById(R.id.open_another_app);
 		mViewSurface = (SurfaceView) mViewFragmentRoot.findViewById(R.id.viewerVideo);
+
+		mVideoController = mViewFragmentRoot.findViewById(R.id.video_controller);
+		mPlayPause = (ImageButton) mVideoController.findViewById(R.id.video_play_pause);
+		mVideoSeek = (SeekBar) mVideoController.findViewById(R.id.video_seek);
+
+		mVideoController.setVisibility(View.GONE);
 		applyInfoVisibility(true);
+		mPlayPause.setOnClickListener(this);
+		mVideoSeek.setOnSeekBarChangeListener(this);
 		mViewImageViewer.setOnClickListener(this);
 		mViewImageViewer.setOnImageViewLoadFinsihedListener(this);
 		mViewImageViewer.setOnViewerParamChangedListener(this);
@@ -167,6 +192,7 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 
 	public void clearMediaPlayer() {
 		if (mMediaPlayer != null) {
+			mVideoController.setVisibility(View.GONE);
 			mMediaPlayer.release();
 			mMediaPlayer = null;
 			mMediaPlayerStatus = STATE_IDLE;
@@ -216,6 +242,15 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			((MediaPreviewActivity) getActivity()).toggleActionBarVisibility(mImage);
 		} else if (v.equals(mViewAnotherAppButton)) {
 			onOptionsItemSelected(R.id.open);
+		} else if(v.equals(mPlayPause)){
+			if(mMediaPlayer.isPlaying()){
+				mMediaPlayer.pause();
+				mPlayPause.setImageDrawable(ResTools.getDrawableByAttribute(getContext(), R.attr.ic_av_play_arrow));
+			}else{
+				mMediaPlayer.start();
+				mPlayPause.setImageDrawable(ResTools.getDrawableByAttribute(getContext(), R.attr.ic_av_pause));
+				mVideoSeek.post(mSeekUpdater);
+			}
 		}
 	}
 
@@ -233,6 +268,14 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		mLoadInfoVisible = false;
 		applyInfoVisibility(false);
 		mp.start();
+		if(((MediaPreviewActivity) getActivity()).isActionBarVisible())
+			mVideoController.setVisibility(View.VISIBLE);
+		mPlayPause.setImageDrawable(ResTools.getDrawableByAttribute(getContext(), R.attr.ic_av_pause));
+		if(mp.getDuration() > 0) {
+			mVideoSeek.setMax(mp.getDuration());
+			mVideoSeek.post(mSeekUpdater);
+		}else
+			mVideoSeek.setMax(0);
 		mMediaPlayerStatus = STATE_PLAYING;
 	}
 
@@ -254,17 +297,29 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 			}
 		}
 		if (!(mViewImageViewer.isLoaded() && ((MediaPreviewActivity) getActivity()).isActionBarVisible()) && mViewPageInfo.getVisibility() == View.VISIBLE) {
-			if (immediate)
+			if (immediate) {
+				if (mMediaPlayer != null && mMediaPlayer.getDuration() > 0)
+					mVideoController.setVisibility(View.GONE);
 				mViewPageInfo.setVisibility(View.GONE);
-			else
+			}else {
 				ResTools.hideWithAnimation(mViewPageInfo, android.R.anim.fade_out, true);
+				if (mMediaPlayer != null && mMediaPlayer.getDuration() > 0)
+					ResTools.hideWithAnimation(mVideoController, android.R.anim.fade_out, true);
+			}
 		} else if (mViewImageViewer.isLoaded() && ((MediaPreviewActivity) getActivity()).isActionBarVisible() && mViewPageInfo.getVisibility() != View.VISIBLE) {
-			if (immediate)
+			if (immediate) {
+				if (mMediaPlayer != null && mMediaPlayer.getDuration() > 0)
+					mVideoController.setVisibility(View.VISIBLE);
 				mViewPageInfo.setVisibility(View.VISIBLE);
-			else {
+			}else {
 				mViewPageInfo.setVisibility(View.VISIBLE);
 				mViewPageInfo.clearAnimation();
 				mViewPageInfo.startAnimation(AnimationUtils.loadAnimation(getActivity(), android.R.anim.fade_in));
+				if (mMediaPlayer != null && mMediaPlayer.getDuration() > 0) {
+					mVideoController.setVisibility(View.VISIBLE);
+					mVideoController.clearAnimation();
+					mVideoController.startAnimation(AnimationUtils.loadAnimation(getActivity(), android.R.anim.fade_in));
+				}
 			}
 		}
 	}
@@ -578,6 +633,23 @@ public class MediaFragment extends Fragment implements View.OnClickListener, Lar
 		if (zoom > 4 && !mLoadOriginalMedia && mImageLoader == null) {
 			startLoaderTask(true);
 		}
+	}
+
+	@Override
+	public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+		if(fromUser){
+			mMediaPlayer.seekTo(progress);
+		}
+	}
+
+	@Override
+	public void onStartTrackingTouch(SeekBar seekBar) {
+
+	}
+
+	@Override
+	public void onStopTrackingTouch(SeekBar seekBar) {
+
 	}
 
 	private class ImageLoaderTask extends AsyncTask<String, Object, File> {

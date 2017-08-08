@@ -29,6 +29,7 @@ public class StringTools {
 	public static final String JAPANESE_SMALL_VOWELS = appendKatagana("[ぁぃぅぇぉゃゅょ]?");
 	public static final String JAPANESE_LONG_PRONUNCIATION = "(?:[あいうえおー]?[んン]?|[るル]?)";
 	public static final String REGEX_SPECIAL_CHARACTERS = ".\\+*?[^]$(){}=!<>|:-";
+	public static final Pattern REMOVE_XML_TAGS = Pattern.compile("<[^>]+?>");
 	/**
 	 * Constant char array only consisting of alphanumeric characters
 	 */

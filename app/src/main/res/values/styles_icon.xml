@@ -31,6 +31,8 @@
 		<item name="ic_editor_vertical_align_top">@drawable/ic_vertical_align_top_white_36dp</item>
 		<item name="ic_av_videocam">@drawable/ic_videocam_white_36dp</item>
 		<item name="ic_av_video_collection">@drawable/ic_video_collection_white_36dp</item>
+		<item name="ic_av_play_arrow">@drawable/ic_play_arrow_white_36dp</item>
+		<item name="ic_av_pause">@drawable/ic_pause_white_36dp</item>
 
 	</style>
 	<style name="WithIcon.NoActionBar.Light" parent="Theme.AppCompat.NoActionBar">
@@ -64,6 +66,8 @@
 		<item name="ic_editor_vertical_align_top">@drawable/ic_vertical_align_top_black_36dp</item>
 		<item name="ic_av_videocam">@drawable/ic_videocam_black_36dp</item>
 		<item name="ic_av_video_collection">@drawable/ic_video_collection_black_36dp</item>
+		<item name="ic_av_play_arrow">@drawable/ic_play_arrow_black_36dp</item>
+		<item name="ic_av_pause">@drawable/ic_pause_black_36dp</item>
 
 	</style>
 </resources>
