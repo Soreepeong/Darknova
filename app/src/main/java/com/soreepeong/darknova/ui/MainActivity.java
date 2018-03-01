@@ -55,6 +55,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	private ActionBar mActionBar;
 	private View mNewTweetOpener;
 	private int mLastViewPagerPage;
+	private int mCurrentPagerItem;
 	private Button mViewOpenDrawerDragTargetButton;
 
 	private boolean mDataRestored;
@@ -185,16 +186,16 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 			super.invalidateOptionsMenu();
 			return;
 		}
-		int currentItem = mPager.getCurrentItem();
+		int currentItem = mCurrentPagerItem;
 		boolean selected = false;
 		if (getFragmentAt(currentItem) != null)
 			selected = getFragmentAt(currentItem).isSomethingSelected();
 		mMenuItems.get(R.id.action_clear_selection).setVisible(selected);
-		mMenuItems.get(R.id.action_close_page).setVisible(!selected && mPager.getCurrentItem() >= Page.getCountNonTemporary() && Page.size() > 0);
+		mMenuItems.get(R.id.action_close_page).setVisible(!selected && mCurrentPagerItem >= Page.getCountNonTemporary() && Page.size() > 0);
 	}
 
 	public PageFragment getCurrentPage() {
-		return getFragmentAt(mPager.getCurrentItem());
+		return getFragmentAt(mCurrentPagerItem);
 	}
 
 	@Override
@@ -217,7 +218,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 				return true;
 			}
 			case R.id.action_close_page: {
-				Page rmItem = Page.remove(mPager.getCurrentItem());
+				Page rmItem = Page.remove(mCurrentPagerItem);
 				if (rmItem != null) {
 					int newIndex = rmItem.getParentPageIndex();
 					if (newIndex != -1)
@@ -236,7 +237,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	@Override
 	public void onBackPressed() {
 		boolean selected = false;
-		int currentItem = mPager.getCurrentItem();
+		int currentItem = mCurrentPagerItem;
 		if (getFragmentAt(currentItem) != null)
 			selected = getFragmentAt(currentItem).isSomethingSelected();
 		if (mNavigationDrawerFragment.isDrawerOpen())
@@ -290,6 +291,7 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 	@Override
 	public void onPageSelected(int position) {
 		mSuggestionFragment.hideAndIconify();
+		mCurrentPagerItem = position;
 		boolean changed = mLastViewPagerPage != position;
 		if (changed && getFragmentAt(mLastViewPagerPage) != null)
 			getFragmentAt(mLastViewPagerPage).onPageLeave();
@@ -327,8 +329,8 @@ public class MainActivity extends AppCompatActivity implements ViewPager.OnPageC
 		if (v.equals(mNewTweetOpener))
 			startActivity(new Intent(this, TemplateTweetActivity.class));
 		else if (v.equals(mToolbar) && Page.size() > 0) {
-			if (getFragmentAt(mPager.getCurrentItem()) != null)
-				getFragmentAt(mPager.getCurrentItem()).scrollToTop();
+			if (getFragmentAt(mCurrentPagerItem) != null)
+				getFragmentAt(mCurrentPagerItem).scrollToTop();
 		} else if (v.equals(mViewOpenDrawerDragTargetButton)) {
 			mNavigationDrawerFragment.openDrawer();
 		}

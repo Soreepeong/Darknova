@@ -1074,12 +1074,13 @@ public class ImageCache {
 
 		@Override
 		public synchronized void run() {
+			Cursor cursor = null;
 			try {
 				boolean downloaded = false;
 				int error = 0;
 				Matcher m = LOCAL_FILE_MATCHER.matcher(mUrl);
 				if (!m.matches()) {
-					Cursor cursor = mResolver.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_ONLY, "url=?", new String[]{mUrl}, null);
+					cursor = mResolver.query(ImageCacheProvider.PROVIDER_URI, COLUMN_ID_ONLY, "url=?", new String[]{mUrl}, null);
 					mId = null;
 					if (cursor.moveToFirst())
 						do {
@@ -1100,7 +1101,6 @@ public class ImageCache {
 							return;
 						}
 					}
-					cursor.close();
 					if (error == 0)
 						error = read();
 					if (error != 0 && !downloaded) {
@@ -1167,6 +1167,9 @@ public class ImageCache {
 				});
 			} catch (Exception e) {
 				e.printStackTrace();
+			} finally {
+				if(cursor != null)
+					cursor.close();
 			}
 		}
 	}

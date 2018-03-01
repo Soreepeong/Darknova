@@ -10,6 +10,7 @@ import android.widget.Toast;
 
 import com.soreepeong.darknova.core.ImageCache;
 import com.soreepeong.darknova.settings.Page;
+import com.soreepeong.darknova.tools.OutOfMemoryDumper;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
@@ -43,6 +44,7 @@ public class Darknova extends Application implements Handler.Callback{
 	@Override
 	public void onCreate() {
 		super.onCreate();
+		// OutOfMemoryDumper.initialize();
 		ctx = this;
 		mHandler = new Handler(this);
 		mCacheDir = getCacheDir().getAbsolutePath();

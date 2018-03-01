@@ -61,6 +61,7 @@ public class WaveProgressDrawable extends Drawable {
 		mClipMaskPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 		mBackgroundPaint.setARGB(255, 0, 0, 0);
 		mBackgroundPaint.setAntiAlias(true);
+
 		mFinalPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SCREEN));
 		mLoopWidth = 0.5f;
 		mPower = 2.1f;

@@ -3,8 +3,8 @@ import java.util.regex.Pattern
 apply plugin: 'com.android.application'
 
 android {
-	compileSdkVersion 24
-	buildToolsVersion '26.0.1'
+	compileSdkVersion 27
+	buildToolsVersion '27.0.3'
 
 	def versionPropsFile = file('version.properties')
 
@@ -28,7 +28,7 @@ android {
 		defaultConfig {
 			applicationId "com.soreepeong.darknova"
 			minSdkVersion 14
-			targetSdkVersion 24
+			targetSdkVersion 27
 			versionCode vCode
 			versionName vName
 		}
@@ -47,11 +47,11 @@ android {
 dependencies {
 	compile fileTree(include: ['*.jar'], dir: 'libs')
 	compile 'com.twitter:twitter-text:1.6.1'
-	compile 'com.android.support:appcompat-v7:24.+'
-	compile 'com.android.support:recyclerview-v7:24.+'
-	compile 'com.android.support:support-v4:24.+'
-	compile 'com.android.support:design:24.+'
-	compile 'com.fasterxml.jackson.core:jackson-core:2.6.1'
+	compile 'com.android.support:appcompat-v7:27.0.2'
+	compile 'com.android.support:recyclerview-v7:27.0.2'
+	compile 'com.android.support:support-v4:27.0.2'
+	compile 'com.android.support:design:27.0.2'
+	compile 'com.fasterxml.jackson.core:jackson-core:2.9.4'
 	compile 'org.apmem.tools:layouts:1.9@aar'
 	compile 'com.h6ah4i.android.widget.advrecyclerview:advrecyclerview:0.7.4'
 	compile 'org.apache.commons:commons-lang3:3.4'
