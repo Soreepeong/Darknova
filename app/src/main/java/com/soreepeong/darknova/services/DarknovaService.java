@@ -465,7 +465,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				mNotificationManager.cancel(R.id.NOTIFICATION_ACTIVITIES);
 				return true;
 			}
-			NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this);
+			NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, getString(R.string.channel_main));
 			Intent intentShowMainActivity = new Intent(NotificationBroadcastReceiver.CLEAR_NOTIFICATIONS);
 			intentShowMainActivity.putExtra("show", "MainActivity");
 			intentShowMainActivity.putExtra("from", "notification");
@@ -558,7 +558,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 		NotificationManager mNotificationManager =
 				(NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		NotificationCompat.Builder mBuilder =
-				new NotificationCompat.Builder(this)
+				new NotificationCompat.Builder(this, getString(R.string.channel_main))
 						.setSmallIcon(R.drawable.ic_wing)
 						.setContentTitle(StringTools.fillStringResFormat(this, R.string.stream_notification_title, "app_name", getString(R.string.app_name)))
 						.setContentText(ticker).setTicker(ticker);
@@ -577,7 +577,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 				}
 				if (ticker != null) {
 					NotificationCompat.Builder mBuilder =
-							new NotificationCompat.Builder(this)
+							new NotificationCompat.Builder(this, getString(R.string.channel_main))
 									.setSmallIcon(R.drawable.ic_wing)
 									.setContentTitle(StringTools.fillStringResFormat(this, R.string.stream_notification_title, "app_name", getString(R.string.app_name)))
 									.setContentText(ticker).setTicker(ticker);
@@ -590,7 +590,7 @@ public class DarknovaService extends Service implements TwitterEngine.TwitterStr
 					sb.append(", ").append(mActiveStreams.get(i).getScreenName());
 				}
 				NotificationCompat.Builder mBuilder =
-						new NotificationCompat.Builder(this)
+						new NotificationCompat.Builder(this, getString(R.string.channel_main))
 								.setSmallIcon(R.drawable.ic_wing)
 								.setContentTitle(StringTools.fillStringResFormat(this, R.string.stream_notification_title, "app_name", getString(R.string.app_name)))
 								.setContentText(sb.toString());

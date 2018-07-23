@@ -71,7 +71,7 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 		@Override
 		protected String doInBackground(Object... params) {
 			try{
-				return mTwitter.startNewLogin("twitterclient://callback");
+				return mTwitter.startNewLogin("https://example.com/authorized");
 			}catch(TwitterEngine.RequestException exception){
 				return null;
 			}
@@ -114,7 +114,7 @@ public class LoginActivity extends AccountAuthenticatorActivity implements Swipe
 		@Override
 		public void onPageStarted(WebView view, String url, Bitmap favicon) {
 			super.onPageStarted(view, url, favicon);
-			if(url.startsWith("twitterclient://callback?")){
+			if(url.startsWith("https://example.com/authorized?")){
 				String token = null, verifier = null;
 				for(String param :  url.substring(url.indexOf("?")+1).split("&")){
 					String key = param.substring(0, param.indexOf("="));

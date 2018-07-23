@@ -47,10 +47,10 @@ android {
 dependencies {
 	compile fileTree(include: ['*.jar'], dir: 'libs')
 	compile 'com.twitter:twitter-text:1.6.1'
-	compile 'com.android.support:appcompat-v7:27.0.2'
-	compile 'com.android.support:recyclerview-v7:27.0.2'
-	compile 'com.android.support:support-v4:27.0.2'
-	compile 'com.android.support:design:27.0.2'
+	compile 'com.android.support:appcompat-v7:27.1.1'
+	compile 'com.android.support:recyclerview-v7:27.1.1'
+	compile 'com.android.support:support-v4:27.1.1'
+	compile 'com.android.support:design:27.1.1'
 	compile 'com.fasterxml.jackson.core:jackson-core:2.9.4'
 	compile 'org.apmem.tools:layouts:1.9@aar'
 	compile 'com.h6ah4i.android.widget.advrecyclerview:advrecyclerview:0.7.4'

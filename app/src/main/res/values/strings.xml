@@ -162,6 +162,8 @@
 	<string name="mediapreview_reading">Reading media&#8230;</string>
 	<string name="mediapreview_zoom_display">x%.02f</string>
 	<string name="mediapreview_another_app">Another app</string>
+
+	<string name="channel_main" translatable="false">main</string>
 	
 	<string name="times" formatted="false">just now/% seconds ago/a minute ago/% minutes ago/1 hour ago/% hours ago/1 day ago/% days ago/1 month ago/% months ago/1 year ago/% monthes ago/1 century ago/% centuries ago/1 millennium ago/% millennia ago</string>
 	<string name="durations" formatted="false">a second/% seconds/a minute/% minutes/a hour/% hours/a day/% days/a month/% months/a year/% months/a century/% centuries/1 millennium/% millennia</string>

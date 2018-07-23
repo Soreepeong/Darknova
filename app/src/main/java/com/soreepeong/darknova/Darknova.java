@@ -1,7 +1,10 @@
 package com.soreepeong.darknova;
 
 import android.app.Application;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.NonNull;
@@ -14,6 +17,8 @@ import com.soreepeong.darknova.tools.OutOfMemoryDumper;
 import com.soreepeong.darknova.tools.StringTools;
 import com.soreepeong.darknova.twitter.Tweeter;
 import com.soreepeong.darknova.twitter.TwitterEngine;
+
+import java.util.ArrayList;
 
 /**
  * Global constant variables initialization
@@ -64,6 +69,22 @@ public class Darknova extends Application implements Handler.Callback{
 
 		// AFTER everything
 		Tweeter.initializeAlwaysAvailableUsers(this);
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			ArrayList<NotificationChannel> channels = new ArrayList<>();
+			NotificationChannel channel;
+
+			channel = new NotificationChannel(
+					getString(R.string.channel_main),
+					getString(R.string.channel_main),
+					NotificationManager.IMPORTANCE_DEFAULT);
+			channels.add(channel);
+
+			NotificationManager notificationManager = (NotificationManager) getSystemService(
+					NOTIFICATION_SERVICE);
+			assert notificationManager != null;
+			notificationManager.createNotificationChannels(channels);
+		}
 	}
 
 	@Override
